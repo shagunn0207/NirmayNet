@@ -15,7 +15,7 @@ const ClockIcon = () => (
 );
 
 export const ReferralScreen: React.FC = () => {
-  const { t, currentPatient, showSnackbar } = useApp();
+  const { t, language, currentPatient, triageResult, showSnackbar } = useApp();
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
 
@@ -27,50 +27,75 @@ export const ReferralScreen: React.FC = () => {
     showSnackbar(t.referralSuccess);
   };
 
+  const instructions = triageResult?.instructions ?? [
+    t.instruction1,
+    t.instruction2,
+    t.instruction3,
+  ];
+
+  const waitingTitle = language === 'en'
+    ? 'While waiting for ambulance'
+    : language === 'hi'
+      ? 'एम्बुलेंस आने तक'
+      : 'रुग्णवाहिका येईपर्यंत';
+
   return (
     <div className="screen-body">
       {/* Patient + urgency */}
-      <div className="card-emergency" style={{ marginBottom: 16, padding: '12px 16px' }}>
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
+      <div className="card-emergency" style={{ marginBottom: 16, padding: '16px 18px' }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
           <div>
-            <div style={{ fontWeight: 700, fontSize: 16, color: '#212121' }}>
+            <div style={{ fontWeight: 800, fontSize: 17, color: '#0F172A' }}>
               {currentPatient?.name ?? 'Rekha Patil'}
             </div>
-            <div style={{ fontSize: 14, color: '#616161', marginTop: 2 }}>
+            <div style={{ fontSize: 13, color: '#475569', marginTop: 3, fontWeight: 500 }}>
               {t.urgentReferral}
             </div>
           </div>
           <span style={{
-            padding: '3px 10px', borderRadius: 4,
-            background: '#D32F2F', color: '#fff',
-            fontSize: 12, fontWeight: 800, letterSpacing: 0.6,
+            padding: '4px 10px', borderRadius: 9999,
+            background: '#DC2626', color: '#ffffff',
+            fontSize: 11, fontWeight: 800, letterSpacing: 0.6,
             flexShrink: 0,
+            boxShadow: '0 2px 6px rgba(220, 38, 38, 0.3)',
           }}>
             EMERGENCY
           </span>
         </div>
       </div>
 
+      {/* Reason from triage */}
+      {triageResult?.reason && (
+        <div className="card" style={{ marginBottom: 14, padding: '14px 18px', background: '#FFFBEB', borderColor: '#FDE68A' }}>
+          <div style={{ fontSize: 12, fontWeight: 800, color: '#D97706', marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+            {language === 'en' ? 'Reason' : language === 'hi' ? 'कारण' : 'कारण'}
+          </div>
+          <div style={{ fontSize: 14, color: '#0F172A', fontWeight: 600, lineHeight: 1.4 }}>
+            {triageResult.reason}
+          </div>
+        </div>
+      )}
+
       {/* Referred to */}
-      <div className="card" style={{ marginBottom: 12 }}>
+      <div className="card" style={{ marginBottom: 14 }}>
         <p className="section-title">रेफर केलेले रुग्णालय</p>
-        <div style={{ fontWeight: 700, fontSize: 16, color: '#212121' }}>{t.referredTo}</div>
-        <div style={{ fontSize: 13, color: '#616161', marginTop: 2 }}>District Level Hospital · 34 km</div>
+        <div style={{ fontWeight: 800, fontSize: 16, color: '#0F172A' }}>{t.referredTo}</div>
+        <div style={{ fontSize: 13, color: '#64748B', marginTop: 3, fontWeight: 500 }}>District Level Hospital · 34 km</div>
       </div>
 
       {/* Ambulance */}
-      <div className="card" style={{ marginBottom: 12 }}>
+      <div className="card" style={{ marginBottom: 14 }}>
         <p className="section-title">{t.ambulanceSection}</p>
         {sent ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <span style={{
-                width: 28, height: 28, borderRadius: '50%',
-                background: '#388E3C', color: '#fff',
+                width: 30, height: 30, borderRadius: '50%',
+                background: '#16A34A', color: '#ffffff',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 flexShrink: 0,
               }}><CheckIcon /></span>
-              <span style={{ fontWeight: 700, fontSize: 15, color: '#388E3C' }}>
+              <span style={{ fontWeight: 800, fontSize: 15, color: '#15803D' }}>
                 {t.ambulanceDispatched}
               </span>
             </div>
@@ -82,15 +107,15 @@ export const ReferralScreen: React.FC = () => {
           </div>
         ) : (
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '4px 0' }}>
-            <span style={{ color: '#9E9E9E' }}><ClockIcon /></span>
-            <span style={{ color: '#9E9E9E', fontSize: 14 }}>रेफरल पाठवल्यावर 108 सूचित होईल</span>
+            <span style={{ color: '#94A3B8' }}><ClockIcon /></span>
+            <span style={{ color: '#64748B', fontSize: 14, fontWeight: 500 }}>रेफरल पाठवल्यावर 108 सूचित होईल</span>
           </div>
         )}
       </div>
 
       {/* Hospital timeline */}
       {sent && (
-        <div className="card" style={{ marginBottom: 12 }}>
+        <div className="card" style={{ marginBottom: 14 }}>
           <p className="section-title">{t.hospitalTimeline}</p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <TimelineItem
@@ -112,16 +137,16 @@ export const ReferralScreen: React.FC = () => {
         </div>
       )}
 
-      {/* While waiting instructions */}
+      {/* Dynamic while-waiting instructions */}
       {sent && (
         <div className="card-urgent" style={{ marginBottom: 16 }}>
-          <p className="section-title" style={{ color: '#E65100', marginBottom: 10 }}>
-            ⏱ {t.whileWaiting}
+          <p className="section-title" style={{ color: '#D97706', marginBottom: 10 }}>
+            ⏱ {waitingTitle}
           </p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <InstructionRow num="1" text={t.instruction1} />
-            <InstructionRow num="2" text={t.instruction2} />
-            <InstructionRow num="3" text={t.instruction3} />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {instructions.map((inst, i) => (
+              <InstructionRow key={i} num={String(i + 1)} text={inst} />
+            ))}
           </div>
         </div>
       )}
@@ -131,7 +156,7 @@ export const ReferralScreen: React.FC = () => {
         <button
           type="button"
           className="btn-danger"
-          style={{ minHeight: 52, fontSize: 17, fontWeight: 700 }}
+          style={{ minHeight: 54, fontSize: 16, fontWeight: 700 }}
           onClick={handleSend}
           disabled={sending}
         >
@@ -141,21 +166,21 @@ export const ReferralScreen: React.FC = () => {
 
       {sent && (
         <div style={{
-          padding: '14px 16px',
-          background: '#E8F5E9',
-          border: '1px solid #A5D6A7',
-          borderRadius: 8,
+          padding: '16px 18px',
+          background: '#F0FDF4',
+          border: '1px solid #BBF7D0',
+          borderRadius: 16,
           display: 'flex',
           alignItems: 'center',
-          gap: 10,
+          gap: 12,
         }}>
           <span style={{
-            width: 32, height: 32, borderRadius: '50%',
-            background: '#388E3C', color: '#fff',
+            width: 34, height: 34, borderRadius: '50%',
+            background: '#16A34A', color: '#ffffff',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             flexShrink: 0,
           }}><CheckIcon /></span>
-          <span style={{ fontWeight: 700, fontSize: 15, color: '#2E7D32' }}>
+          <span style={{ fontWeight: 800, fontSize: 15, color: '#15803D' }}>
             {t.referralSuccess}
           </span>
         </div>
@@ -166,29 +191,29 @@ export const ReferralScreen: React.FC = () => {
 
 const InfoRow = ({ label, value, accent }: { label: string; value: string; accent?: boolean }) => (
   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-    <span style={{ fontSize: 13, color: '#616161' }}>{label}</span>
+    <span style={{ fontSize: 13, color: '#64748B', fontWeight: 500 }}>{label}</span>
     <span style={{
-      fontSize: 14, fontWeight: accent ? 800 : 600,
-      color: accent ? '#D32F2F' : '#212121',
+      fontSize: 14, fontWeight: accent ? 800 : 700,
+      color: accent ? '#DC2626' : '#0F172A',
     }}>{value}</span>
   </div>
 );
 
 const TimelineItem = ({ done, label, time }: { done: boolean; label: string; time: string }) => (
-  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
     <div style={{
-      width: 24, height: 24, borderRadius: '50%',
-      background: done ? '#388E3C' : '#E0E0E0',
-      color: done ? '#fff' : '#9E9E9E',
+      width: 26, height: 26, borderRadius: '50%',
+      background: done ? '#16A34A' : '#E2E8F0',
+      color: done ? '#ffffff' : '#94A3B8',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       flexShrink: 0,
     }}>
       {done ? <CheckIcon /> : <span style={{ fontSize: 10 }}>○</span>}
     </div>
     <div style={{ flex: 1 }}>
-      <span style={{ fontSize: 14, fontWeight: 600, color: done ? '#212121' : '#9E9E9E' }}>{label}</span>
+      <span style={{ fontSize: 14, fontWeight: 600, color: done ? '#0F172A' : '#94A3B8' }}>{label}</span>
     </div>
-    <span style={{ fontSize: 12, color: '#9E9E9E' }}>{time}</span>
+    <span style={{ fontSize: 12, color: '#94A3B8', fontWeight: 500 }}>{time}</span>
   </div>
 );
 
@@ -196,11 +221,11 @@ const InstructionRow = ({ num, text }: { num: string; text: string }) => (
   <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
     <div style={{
       width: 24, height: 24, borderRadius: '50%',
-      background: '#E65100', color: '#fff',
+      background: '#D97706', color: '#ffffff',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
-      fontSize: 13, fontWeight: 800,
+      fontSize: 12, fontWeight: 800,
       flexShrink: 0, marginTop: 1,
     }}>{num}</div>
-    <span style={{ fontSize: 15, fontWeight: 500, color: '#212121', flex: 1 }}>{text}</span>
+    <span style={{ fontSize: 14, fontWeight: 500, color: '#0F172A', flex: 1, lineHeight: 1.5 }}>{text}</span>
   </div>
 );

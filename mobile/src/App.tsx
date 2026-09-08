@@ -10,6 +10,7 @@ import { ReferralScreen } from './screens/ReferralScreen';
 import { PatientsScreen } from './screens/PatientsScreen';
 import { FollowupsScreen } from './screens/FollowupsScreen';
 import { OfflineGuideScreen } from './screens/OfflineGuideScreen';
+import { ProfileScreen } from './screens/ProfileScreen';
 
 const AppRouter: React.FC = () => {
   const { isLoggedIn, activeScreen, setActiveScreen, t, currentPatient } = useApp();
@@ -29,6 +30,7 @@ const AppRouter: React.FC = () => {
       consultation: 'triage',
       referral: 'consultation',
       guide: 'home',
+      profile: 'home',
     };
     setActiveScreen(backMap[activeScreen] ?? 'home');
   };
@@ -73,6 +75,11 @@ const AppRouter: React.FC = () => {
       title: t.guideTitle,
       showBack: false,
     },
+    profile: {
+      title: t.profile ?? 'Profile',
+      subtitle: t.ashaWorkerName,
+      showBack: false,
+    },
   };
 
   const config = screenConfig[activeScreen] ?? screenConfig.home;
@@ -87,6 +94,7 @@ const AppRouter: React.FC = () => {
       case 'patients':     return <PatientsScreen />;
       case 'followups':    return <FollowupsScreen />;
       case 'guide':        return <OfflineGuideScreen />;
+      case 'profile':      return <ProfileScreen />;
       default:             return <HomeScreen />;
     }
   };

@@ -8,12 +8,6 @@ const VideoOffIcon = () => (
   </svg>
 );
 
-const PhoneIcon = () => (
-  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.14 12a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3 1.13h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L7.09 8.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 21 16z" />
-  </svg>
-);
-
 export const ConsultationScreen: React.FC = () => {
   const { t, currentPatient, setActiveScreen } = useApp();
   const [callState, setCallState] = useState<'idle' | 'connecting' | 'connected' | 'lost' | 'offline'>('idle');
@@ -54,12 +48,12 @@ export const ConsultationScreen: React.FC = () => {
     <div className="screen-body-noscroll">
       {/* Patient summary */}
       {currentPatient && (
-        <div style={{ marginBottom: 16 }}>
-          <div className="card-emergency" style={{ padding: '12px 16px' }}>
-            <div style={{ fontWeight: 700, fontSize: 16, color: '#212121' }}>
+        <div style={{ marginBottom: 14 }}>
+          <div className="card-emergency" style={{ padding: '14px 16px' }}>
+            <div style={{ fontWeight: 800, fontSize: 16, color: '#0F172A' }}>
               {currentPatient.name} — {t.urgentCase2}
             </div>
-            <div style={{ fontSize: 14, color: '#616161', marginTop: 2 }}>
+            <div style={{ fontSize: 13, color: '#475569', marginTop: 3, fontWeight: 500 }}>
               {t.breathingSwelling}
             </div>
           </div>
@@ -67,34 +61,35 @@ export const ConsultationScreen: React.FC = () => {
       )}
 
       {/* Doctor info */}
-      <div className="card" style={{ marginBottom: 16, display: 'flex', alignItems: 'center', gap: 14 }}>
+      <div className="card" style={{ marginBottom: 14, display: 'flex', alignItems: 'center', gap: 14 }}>
         <div style={{
           width: 52, height: 52,
-          background: '#E3F2FD',
-          borderRadius: '50%',
+          background: '#F0FDFA',
+          border: '1px solid #CCFBF1',
+          borderRadius: 16,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 22, flexShrink: 0,
+          fontSize: 24, flexShrink: 0,
         }}>
           👨‍⚕️
         </div>
         <div style={{ flex: 1 }}>
-          <div style={{ fontWeight: 700, fontSize: 16, color: '#212121' }}>{t.doctorName}</div>
-          <div style={{ fontSize: 14, color: '#616161' }}>{t.doctorPHC}</div>
+          <div style={{ fontWeight: 800, fontSize: 16, color: '#0F172A' }}>{t.doctorName}</div>
+          <div style={{ fontSize: 13, color: '#64748B', fontWeight: 500 }}>{t.doctorPHC}</div>
           <div style={{ marginTop: 4 }}>
             {callState === 'connected' ? (
               <span style={{
-                display: 'inline-flex', alignItems: 'center', gap: 4,
-                fontSize: 13, color: '#388E3C', fontWeight: 600,
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+                fontSize: 12, color: '#16A34A', fontWeight: 700,
               }}>
-                <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#388E3C', display: 'inline-block' }} />
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#16A34A', display: 'inline-block' }} />
                 {t.connected} · {formatTime(elapsed)}
               </span>
             ) : callState === 'lost' || callState === 'offline' ? (
-              <span style={{ fontSize: 13, color: '#D32F2F', fontWeight: 600 }}>📡 {t.signalLost}</span>
+              <span style={{ fontSize: 12, color: '#DC2626', fontWeight: 700 }}>📡 {t.signalLost}</span>
             ) : callState === 'connecting' ? (
-              <span style={{ fontSize: 13, color: '#F57C00', fontWeight: 600 }}>⏳ जोडत आहे...</span>
+              <span style={{ fontSize: 12, color: '#D97706', fontWeight: 700 }}>⏳ जोडत आहे...</span>
             ) : (
-              <span style={{ fontSize: 13, color: '#9E9E9E' }}>{t.networkTest} आधी करा</span>
+              <span style={{ fontSize: 12, color: '#94A3B8', fontWeight: 500 }}>{t.networkTest} आधी करा</span>
             )}
           </div>
         </div>
@@ -103,43 +98,44 @@ export const ConsultationScreen: React.FC = () => {
       {/* Video area */}
       <div style={{
         flex: 1,
-        background: callState === 'connected' ? '#1A237E' : '#212121',
-        borderRadius: 8,
+        background: callState === 'connected' ? '#0F172A' : '#1E293B',
+        borderRadius: 20,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
         flexDirection: 'column',
         gap: 12,
-        marginBottom: 16,
+        marginBottom: 14,
         position: 'relative',
         overflow: 'hidden',
         minHeight: 180,
+        boxShadow: 'var(--shadow-md)',
       }}>
         {callState === 'idle' && (
           <>
-            <div style={{ color: '#9E9E9E' }}><VideoOffIcon /></div>
-            <span style={{ color: '#757575', fontSize: 14 }}>कॅमेरा बंद आहे</span>
+            <div style={{ color: '#94A3B8' }}><VideoOffIcon /></div>
+            <span style={{ color: '#64748B', fontSize: 14, fontWeight: 600 }}>कॅमेरा बंद आहे</span>
           </>
         )}
         {callState === 'connecting' && (
           <>
-            <div style={{ width: 60, height: 60, border: '3px solid #1565C0', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
-            <span style={{ color: '#9E9E9E', fontSize: 14 }}>कनेक्ट होत आहे...</span>
+            <div style={{ width: 56, height: 56, border: '3px solid #0F766E', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+            <span style={{ color: '#94A3B8', fontSize: 14, fontWeight: 600 }}>कनेक्ट होत आहे...</span>
           </>
         )}
         {callState === 'connected' && (
           <>
             <div style={{ fontSize: 48 }}>👨‍⚕️</div>
-            <span style={{ color: '#fff', fontSize: 14, fontWeight: 600 }}>{t.doctorName}</span>
+            <span style={{ color: '#ffffff', fontSize: 15, fontWeight: 700 }}>{t.doctorName}</span>
             {/* Self preview */}
             <div style={{
-              position: 'absolute', bottom: 10, right: 10,
-              width: 80, height: 100,
-              background: '#424242',
-              borderRadius: 8,
+              position: 'absolute', bottom: 12, right: 12,
+              width: 84, height: 104,
+              background: '#334155',
+              borderRadius: 14,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               fontSize: 28,
-              border: '2px solid rgba(255,255,255,0.3)',
+              border: '2px solid rgba(255,255,255,0.2)',
             }}>
               👩
             </div>
@@ -147,10 +143,10 @@ export const ConsultationScreen: React.FC = () => {
         )}
         {(callState === 'lost' || callState === 'offline') && (
           <>
-            <span style={{ fontSize: 32 }}>📡</span>
-            <span style={{ color: '#EF5350', fontSize: 16, fontWeight: 700 }}>{t.connectionBroke}</span>
+            <span style={{ fontSize: 36 }}>📡</span>
+            <span style={{ color: '#F87171', fontSize: 16, fontWeight: 800 }}>{t.connectionBroke}</span>
             {callState === 'offline' && (
-              <span style={{ color: '#9E9E9E', fontSize: 13, textAlign: 'center', padding: '0 16px' }}>
+              <span style={{ color: '#94A3B8', fontSize: 13, textAlign: 'center', padding: '0 16px', fontWeight: 500 }}>
                 {t.goingOffline}
               </span>
             )}
@@ -161,15 +157,15 @@ export const ConsultationScreen: React.FC = () => {
 
       {/* Controls */}
       {callState === 'connected' ? (
-        <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+        <div style={{ display: 'flex', gap: 10, marginBottom: 8 }}>
           <button
             type="button"
             style={{
-              flex: 1, minHeight: 48,
-              background: muted ? '#D32F2F' : '#F5F5F5',
-              border: '1px solid #E0E0E0',
-              borderRadius: 8, fontSize: 13, fontWeight: 700,
-              color: muted ? '#fff' : '#212121',
+              flex: 1, minHeight: 50,
+              background: muted ? '#FEF2F2' : '#ffffff',
+              border: muted ? '1.5px solid #FCA5A5' : '1.5px solid #E2E8F0',
+              borderRadius: 14, fontSize: 14, fontWeight: 700,
+              color: muted ? '#DC2626' : '#0F172A',
               cursor: 'pointer', fontFamily: 'inherit',
             }}
             onClick={() => setMuted(m => !m)}
@@ -179,7 +175,7 @@ export const ConsultationScreen: React.FC = () => {
           <button
             type="button"
             className="btn-danger"
-            style={{ flex: 1, minHeight: 48, fontSize: 14 }}
+            style={{ flex: 1, minHeight: 50, fontSize: 14 }}
             onClick={endCall}
           >
             📵 {t.endCall}
@@ -189,7 +185,7 @@ export const ConsultationScreen: React.FC = () => {
         <button
           type="button"
           className="btn-outline"
-          style={{ minHeight: 52, fontSize: 16, fontWeight: 700 }}
+          style={{ minHeight: 52, fontSize: 15, fontWeight: 700 }}
           onClick={() => setActiveScreen('guide')}
         >
           ऑफलाइन मार्गदर्शक उघडा
@@ -198,7 +194,7 @@ export const ConsultationScreen: React.FC = () => {
         <button
           type="button"
           className="btn-primary"
-          style={{ minHeight: 52, fontSize: 17, fontWeight: 700 }}
+          style={{ minHeight: 52, fontSize: 16, fontWeight: 700 }}
           onClick={startCall}
           disabled={callState === 'connecting'}
         >
@@ -210,7 +206,7 @@ export const ConsultationScreen: React.FC = () => {
       <button
         type="button"
         className="btn-outline"
-        style={{ marginTop: 8, minHeight: 48, fontSize: 15 }}
+        style={{ marginTop: 8, minHeight: 50, fontSize: 14 }}
         onClick={() => setActiveScreen('referral')}
       >
         {t.makeReferral}

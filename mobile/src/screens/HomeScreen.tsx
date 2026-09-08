@@ -3,7 +3,7 @@ import { useApp } from '../context/AppContext';
 
 // Icons
 const UserAddIcon = () => (
-  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
     <circle cx="9" cy="7" r="4" />
     <line x1="19" y1="8" x2="19" y2="14" />
@@ -12,7 +12,7 @@ const UserAddIcon = () => (
 );
 
 const PeopleIcon = () => (
-  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
     <circle cx="9" cy="7" r="4" />
     <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
@@ -21,20 +21,20 @@ const PeopleIcon = () => (
 );
 
 const VideoIcon = () => (
-  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
     <polygon points="23 7 16 12 23 17 23 7" />
     <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
   </svg>
 );
 
 const ChevronRightIcon = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
     <polyline points="9 18 15 12 9 6" />
   </svg>
 );
 
 const AlertCircleIcon = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#D32F2F" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#DC2626" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
     <circle cx="12" cy="12" r="10" />
     <line x1="12" y1="8" x2="12" y2="12" />
     <line x1="12" y1="16" x2="12.01" y2="16" />
@@ -53,39 +53,39 @@ export const HomeScreen: React.FC = () => {
   return (
     <div className="screen-body">
       {/* Today's summary card */}
-      <div style={{ marginBottom: 16 }}>
+      <div style={{ marginBottom: 20 }}>
         <p className="section-title">{t.todayWork}</p>
-        <div className="card" style={{ padding: '14px 16px' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <SummaryRow icon="📋" text={t.followupsCount} color="#616161" />
-            <div style={{ height: 1, background: '#F5F5F5' }} />
-            <SummaryRow icon="🔄" text={t.syncPending} color="#F57C00" />
-            <div style={{ height: 1, background: '#F5F5F5' }} />
-            <SummaryRow icon="⚠️" text={t.urgentCase} color="#D32F2F" />
+        <div className="card" style={{ padding: '16px 18px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <SummaryRow icon="📋" text={t.followupsCount} color="#475569" />
+            <div style={{ height: 1, background: '#F1F5F9' }} />
+            <SummaryRow icon="🔄" text={t.syncPending} color="#D97706" />
+            <div style={{ height: 1, background: '#F1F5F9' }} />
+            <SummaryRow icon="⚠️" text={t.urgentCase} color="#DC2626" />
           </div>
         </div>
       </div>
 
       {/* Primary actions */}
-      <div style={{ marginBottom: 16 }}>
-        <p className="section-title" style={{ marginBottom: 10 }}>कामे</p>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div style={{ marginBottom: 20 }}>
+        <p className="section-title">{t.tasks}</p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           <ActionCard
             icon={<UserAddIcon />}
             label={t.newPatient}
-            sublabel="नवीन रुग्ण नोंदणी करा"
+            sublabel={t.newPatientSub}
             onClick={() => goTo('register')}
           />
           <ActionCard
             icon={<PeopleIcon />}
             label={t.myPatients}
-            sublabel={`${patients.length} नोंदणीकृत रुग्ण`}
+            sublabel={`${patients.length} ${t.registeredPatients}`}
             onClick={() => goTo('patients', 'patients')}
           />
           <ActionCard
             icon={<VideoIcon />}
             label={t.startConsultation}
-            sublabel="PHC डॉक्टरांशी व्हिडिओ सल्लामसलत"
+            sublabel={t.startConsultationSub}
             onClick={() => goTo('consultation')}
             emphasized
           />
@@ -97,13 +97,13 @@ export const HomeScreen: React.FC = () => {
         <div>
           <p className="section-title">{t.urgentTasks}</p>
           <div className="card-emergency">
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 14 }}>
               <AlertCircleIcon />
               <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 700, fontSize: 16, color: '#212121' }}>
-                  {urgentPatient.name} — श्वास घेण्यास त्रास
+                <div style={{ fontWeight: 700, fontSize: 16, color: '#0F172A' }}>
+                  {urgentPatient.name} — {t.symptomBreathing}
                 </div>
-                <div style={{ fontSize: 14, color: '#616161', marginTop: 2 }}>
+                <div style={{ fontSize: 13, color: '#475569', marginTop: 3 }}>
                   {t.urgentNeedsAttention}
                 </div>
               </div>
@@ -125,9 +125,9 @@ export const HomeScreen: React.FC = () => {
 };
 
 const SummaryRow = ({ icon, text, color }: { icon: string; text: string; color: string }) => (
-  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-    <span style={{ fontSize: 16 }}>{icon}</span>
-    <span style={{ fontSize: 15, fontWeight: 500, color }}>{text}</span>
+  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+    <span style={{ fontSize: 18 }}>{icon}</span>
+    <span style={{ fontSize: 14, fontWeight: 600, color }}>{text}</span>
   </div>
 );
 
@@ -145,19 +145,16 @@ const ActionCard = ({
     className={`action-card${emphasized ? ' emphasized' : ''}`}
     onClick={onClick}
   >
-    <div style={{
-      width: 44, height: 44,
-      background: emphasized ? '#1565C0' : '#F5F5F5',
-      borderRadius: 8,
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      color: emphasized ? '#fff' : '#1565C0',
-      flexShrink: 0,
+    <div className="action-card-icon" style={{
+      background: emphasized ? '#0F766E' : '#F0FDFA',
+      color: emphasized ? '#ffffff' : '#0F766E',
+      borderColor: emphasized ? '#0D9488' : '#CCFBF1',
     }}>
       {icon}
     </div>
     <div style={{ flex: 1, textAlign: 'left' }}>
-      <div style={{ fontSize: 16, fontWeight: 700, color: '#212121' }}>{label}</div>
-      <div style={{ fontSize: 13, color: '#616161', marginTop: 1 }}>{sublabel}</div>
+      <div style={{ fontSize: 15, fontWeight: 700, color: '#0F172A' }}>{label}</div>
+      <div style={{ fontSize: 13, color: '#64748B', marginTop: 2 }}>{sublabel}</div>
     </div>
     <ChevronRightIcon />
   </button>

@@ -6,6 +6,9 @@ interface TriageResult {
   urgency: UrgencyLevel;
   reason: string;
   symptoms: string[];
+  instructions: string[];
+  selectedSymptomKeys: string[];
+  dominantIcon: string;
 }
 
 interface AppContextType {

@@ -2,9 +2,9 @@ import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import type { Language } from '../types';
 
-// SVG Icons (simple, clean)
+// SVG Icons
 const HeartPulseIcon = () => (
-  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#D32F2F" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#0F766E" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
     <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
   </svg>
 );
@@ -72,50 +72,55 @@ export const LoginScreen: React.FC = () => {
   const isOnline = networkStatus !== 'offline';
 
   return (
-    <div style={{ minHeight: '100vh', background: '#F5F5F5', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ minHeight: '100vh', background: '#F8FAFC', display: 'flex', flexDirection: 'column' }}>
       {/* App branding header */}
       <div style={{
-        background: '#1565C0',
-        padding: '32px 24px 24px',
+        background: 'linear-gradient(135deg, #0F766E 0%, #0D9488 100%)',
+        padding: '36px 24px 28px',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
-        gap: '10px',
+        gap: '12px',
+        borderBottomLeftRadius: 28,
+        borderBottomRightRadius: 28,
+        boxShadow: '0 8px 24px rgba(15, 118, 110, 0.25)',
       }}>
         <div style={{
-          width: 56, height: 56,
-          background: '#fff',
-          borderRadius: 12,
+          width: 60, height: 60,
+          background: '#ffffff',
+          borderRadius: 18,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
+          boxShadow: '0 4px 14px rgba(0, 0, 0, 0.12)',
         }}>
           <HeartPulseIcon />
         </div>
         <h1 style={{
           margin: 0,
-          fontSize: 26,
-          fontWeight: 700,
-          color: '#fff',
-          letterSpacing: 0.5,
+          fontSize: 28,
+          fontWeight: 800,
+          color: '#ffffff',
+          letterSpacing: '-0.3px',
         }}>NiramayNet</h1>
-        <p style={{ margin: 0, fontSize: 16, color: 'rgba(255,255,255,0.9)', fontWeight: 500 }}>
+        <p style={{ margin: 0, fontSize: 15, color: 'rgba(255,255,255,0.92)', fontWeight: 600 }}>
           {t.loginTagline}
         </p>
-        <p style={{ margin: 0, fontSize: 13, color: 'rgba(255,255,255,0.7)' }}>
+        <p style={{ margin: 0, fontSize: 13, color: 'rgba(255,255,255,0.75)' }}>
           {t.loginSupporting}
         </p>
       </div>
 
       {/* Login card */}
-      <div style={{ flex: 1, padding: '24px 16px', overflowY: 'auto' }}>
+      <div style={{ flex: 1, padding: '24px 18px', overflowY: 'auto' }}>
         <div style={{
-          background: '#fff',
-          border: '1px solid #E0E0E0',
-          borderRadius: 8,
-          padding: '20px 16px',
+          background: '#ffffff',
+          border: '1px solid #E2E8F0',
+          borderRadius: 20,
+          padding: '24px 20px',
+          boxShadow: '0 4px 20px -2px rgba(15, 23, 42, 0.06)',
         }}>
-          <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
             {/* Username field */}
             <div>
               <label className="form-label">{t.usernameLabel}</label>
@@ -135,7 +140,6 @@ export const LoginScreen: React.FC = () => {
                   className="form-input-icon"
                   title="Voice input"
                   onClick={() => setUsername('ASHA_NAND_023')}
-                  style={{ color: '#616161' }}
                 >
                   <MicIcon />
                 </button>
@@ -153,11 +157,11 @@ export const LoginScreen: React.FC = () => {
                   value={password}
                   onChange={e => { setPassword(e.target.value); setError(''); }}
                   required
-                  style={{ paddingLeft: 44 }}
+                  style={{ paddingLeft: 46 }}
                 />
                 <span style={{
-                  position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)',
-                  color: '#9E9E9E', pointerEvents: 'none',
+                  position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)',
+                  color: '#94A3B8', pointerEvents: 'none',
                 }}>
                   <LockIcon />
                 </span>
@@ -165,7 +169,6 @@ export const LoginScreen: React.FC = () => {
                   type="button"
                   className="form-input-icon"
                   onClick={() => setShowPassword(s => !s)}
-                  style={{ color: '#616161' }}
                 >
                   <EyeIcon show={showPassword} />
                 </button>
@@ -175,23 +178,23 @@ export const LoginScreen: React.FC = () => {
             {/* Error message */}
             {error && (
               <div style={{
-                padding: '10px 14px',
-                background: '#FFEBEE',
-                border: '1px solid #EF9A9A',
-                borderRadius: 6,
-                color: '#C62828',
+                padding: '12px 16px',
+                background: '#FEF2F2',
+                border: '1px solid #FCA5A5',
+                borderRadius: 12,
+                color: '#991B1B',
                 fontSize: 14,
-                fontWeight: 500,
+                fontWeight: 600,
               }}>
                 {error}
               </div>
             )}
 
             {/* Forgot password */}
-            <div style={{ textAlign: 'right', marginTop: -8 }}>
+            <div style={{ textAlign: 'right', marginTop: -6 }}>
               <button type="button" style={{
                 background: 'none', border: 'none', padding: 4,
-                color: '#1565C0', fontSize: 14, fontWeight: 600, cursor: 'pointer',
+                color: '#0F766E', fontSize: 13, fontWeight: 700, cursor: 'pointer',
               }}>
                 {t.forgotPassword}
               </button>
@@ -202,7 +205,7 @@ export const LoginScreen: React.FC = () => {
               type="submit"
               className="btn-primary"
               disabled={loading}
-              style={{ fontSize: 18, fontWeight: 700, marginTop: 4 }}
+              style={{ fontSize: 16, fontWeight: 700, marginTop: 4 }}
             >
               {loading ? 'लॉग इन होत आहे...' : t.loginButton}
             </button>
@@ -211,36 +214,36 @@ export const LoginScreen: React.FC = () => {
             <div style={{
               display: 'flex',
               alignItems: 'center',
-              gap: 8,
-              padding: '10px 12px',
-              background: '#F5F5F5',
-              borderRadius: 6,
-              border: '1px solid #E0E0E0',
+              gap: 10,
+              padding: '12px 14px',
+              background: '#F8FAFC',
+              borderRadius: 12,
+              border: '1px solid #E2E8F0',
             }}>
-              <span style={{ color: isOnline ? '#388E3C' : '#D32F2F' }}>
+              <span style={{ color: isOnline ? '#16A34A' : '#DC2626' }}>
                 {isOnline ? (
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="6"/></svg>
                 ) : <WifiOffIcon />}
               </span>
-              <span style={{ fontSize: 13, color: '#616161', flex: 1 }}>
+              <span style={{ fontSize: 13, color: '#475569', flex: 1, fontWeight: 500 }}>
                 {t.offlineLoginNote}
               </span>
             </div>
           </form>
         </div>
 
-        {/* Demo hint — only visible in prototype */}
+        {/* Demo hint */}
         <div style={{
           marginTop: 16,
-          padding: '10px 14px',
-          background: '#E3F2FD',
-          border: '1px solid #90CAF9',
-          borderRadius: 6,
+          padding: '12px 16px',
+          background: '#F0FDFA',
+          border: '1px solid #CCFBF1',
+          borderRadius: 14,
           fontSize: 13,
-          color: '#1565C0',
+          color: '#0F766E',
         }}>
-          <span style={{ fontWeight: 700 }}>Demo: </span>
-          ID: ASHA_NAND_023 · Password: asha2024
+          <span style={{ fontWeight: 800 }}>Demo Login: </span>
+          ID: <code style={{ background: '#E6FFFA', padding: '2px 6px', borderRadius: 4 }}>ASHA_NAND_023</code> · Pass: <code style={{ background: '#E6FFFA', padding: '2px 6px', borderRadius: 4 }}>asha2024</code>
         </div>
 
         {/* Language selector */}
@@ -251,8 +254,8 @@ export const LoginScreen: React.FC = () => {
           alignItems: 'center',
           gap: 10,
         }}>
-          <span style={{ fontSize: 13, color: '#616161', fontWeight: 600 }}>{t.selectLanguage}</span>
-          <div style={{ display: 'flex', gap: 8 }}>
+          <span style={{ fontSize: 13, color: '#64748B', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>{t.selectLanguage}</span>
+          <div style={{ display: 'flex', gap: 10 }}>
             {(['mr', 'hi', 'en'] as Language[]).map(lang => (
               <button
                 key={lang}

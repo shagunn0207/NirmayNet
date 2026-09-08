@@ -1,61 +1,120 @@
 import React from 'react';
-import { UserCheck, MapPin, Phone, ShieldCheck, Globe, LogOut, Award } from 'lucide-react';
+import { MapPin, Phone, Globe, LogOut, Award, ShieldCheck, Database, Users } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { Language } from '../types';
 
 export const ProfileScreen: React.FC = () => {
-  const { t, language, setLanguage, logout } = useApp();
+  const { t, language, setLanguage, logout, networkStatus } = useApp();
 
   return (
-    <div className="flex flex-col gap-4 py-1">
-      {/* Profile Header */}
-      <div className="bg-gradient-to-r from-blue-900 to-indigo-950 text-white p-5 rounded-3xl border-2 border-blue-800 shadow-lg flex items-center gap-4">
-        <div className="w-16 h-16 rounded-full bg-white text-blue-900 flex items-center justify-center font-black text-3xl shadow-inner border-2 border-blue-400">
+    <div className="screen-body">
+      {/* Profile Header Card */}
+      <div style={{
+        background: 'linear-gradient(135deg, #0F766E 0%, #0D9488 100%)',
+        color: '#ffffff',
+        padding: '24px 20px',
+        borderRadius: 22,
+        boxShadow: '0 8px 24px rgba(15, 118, 110, 0.25)',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 16,
+        marginBottom: 16,
+      }}>
+        <div style={{
+          width: 64, height: 64,
+          borderRadius: '50%',
+          background: '#ffffff',
+          color: '#0F766E',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: 32, fontWeight: 800,
+          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.12)',
+          flexShrink: 0,
+        }}>
           👩‍⚕️
         </div>
-        <div className="flex flex-col">
-          <span className="text-xs font-bold text-blue-300 uppercase tracking-wider">
-            आशा सेविका (ASHA Worker)
+        <div style={{ display: 'flex', flexDirection: 'column' }}>
+          <span style={{ fontSize: 11, fontWeight: 800, color: '#CCFBF1', textTransform: 'uppercase', letterSpacing: 0.8 }}>
+            {t.ashaWorkerRole}
           </span>
-          <h2 className="text-2xl font-black">सावित्रीबाई पाटील</h2>
-          <p className="text-xs text-blue-200">ID: ASHA-NND-8842</p>
+          <h2 style={{ margin: '2px 0 0', fontSize: 22, fontWeight: 800, color: '#ffffff' }}>
+            {t.ashaWorkerName}
+          </h2>
+          <p style={{ margin: '2px 0 0', fontSize: 12, color: 'rgba(255,255,255,0.85)', fontWeight: 600 }}>
+            ID: ASHA-NND-8842 · ABHA Facilitator
+          </p>
         </div>
       </div>
 
-      {/* Sub-Centre Details */}
-      <div className="bg-white p-4 rounded-2xl border-2 border-slate-300 shadow-sm flex flex-col gap-2.5 font-bold text-sm text-slate-800">
-        <div className="flex items-center justify-between border-b border-slate-200 pb-2">
-          <span className="text-slate-600 flex items-center gap-2">
-            <MapPin className="w-5 h-5 text-red-600" />
-            <span>उपकेंद्र (Sub-Centre):</span>
+      {/* Jurisdiction & Health Facility Details */}
+      <div className="card" style={{ marginBottom: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <p className="section-title" style={{ marginBottom: 4 }}>क्षेत्र व केंद्र माहिती</p>
+
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #F1F5F9', paddingBottom: 10 }}>
+          <span style={{ color: '#475569', display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, fontWeight: 500 }}>
+            <MapPin className="w-4 h-4 text-teal-700" />
+            <span>{t.subCentreLabel}</span>
           </span>
-          <span className="font-black text-slate-900">चिंचपाडा (Chinchpada)</span>
+          <span style={{ fontWeight: 800, color: '#0F172A', fontSize: 14 }}>Chinchpada</span>
         </div>
 
-        <div className="flex items-center justify-between border-b border-slate-200 pb-2">
-          <span className="text-slate-600 flex items-center gap-2">
-            <Award className="w-5 h-5 text-amber-600" />
-            <span>प्राथमिक आरोग्य केंद्र:</span>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #F1F5F9', paddingBottom: 10 }}>
+          <span style={{ color: '#475569', display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, fontWeight: 500 }}>
+            <Award className="w-4 h-4 text-amber-600" />
+            <span>{t.phcLabel}</span>
           </span>
-          <span className="font-black text-slate-900">धडगाव (Dhadgaon PHC)</span>
+          <span style={{ fontWeight: 800, color: '#0F172A', fontSize: 14 }}>Dhadgaon PHC</span>
         </div>
 
-        <div className="flex items-center justify-between">
-          <span className="text-slate-600 flex items-center gap-2">
-            <Phone className="w-5 h-5 text-blue-700" />
-            <span>मोबाईल:</span>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #F1F5F9', paddingBottom: 10 }}>
+          <span style={{ color: '#475569', display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, fontWeight: 500 }}>
+            <Phone className="w-4 h-4 text-teal-700" />
+            <span>{t.mobileLabel}</span>
           </span>
-          <span className="font-black text-slate-900">९८२३०११२३४</span>
+          <span style={{ fontWeight: 800, color: '#0F172A', fontSize: 14 }}>9823011234</span>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <span style={{ color: '#475569', display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, fontWeight: 500 }}>
+            <Users className="w-4 h-4 text-sky-600" />
+            <span>व्याप्त लोकसंख्या:</span>
+          </span>
+          <span style={{ fontWeight: 800, color: '#0F172A', fontSize: 14 }}>१,२५० नागरिक (२४० कुटुंबे)</span>
+        </div>
+      </div>
+
+      {/* System & Offline Status */}
+      <div className="card" style={{ marginBottom: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <p className="section-title" style={{ marginBottom: 4 }}>सिस्टम आणि संकलन</p>
+
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <span style={{ color: '#475569', display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, fontWeight: 500 }}>
+            <Database className="w-4 h-4 text-teal-700" />
+            <span>डेटाबेश स्थिती:</span>
+          </span>
+          <span style={{
+            fontSize: 12, fontWeight: 800, color: '#16A34A', background: '#F0FDF4',
+            padding: '2px 10px', borderRadius: 9999, border: '1px solid #BBF7D0',
+          }}>
+            {networkStatus === 'offline' ? 'ऑफलाइन डेटा जतन' : '✓ समक्रमित (Synced)'}
+          </span>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <span style={{ color: '#475569', display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, fontWeight: 500 }}>
+            <ShieldCheck className="w-4 h-4 text-indigo-600" />
+            <span>App Version:</span>
+          </span>
+          <span style={{ fontWeight: 700, color: '#0F172A', fontSize: 13 }}>v2.4.0 (NiramayNet Field Care)</span>
         </div>
       </div>
 
       {/* Language Switcher Section */}
-      <div className="bg-white p-4 rounded-2xl border-2 border-slate-300 shadow-sm flex flex-col gap-3">
-        <label className="text-base font-bold text-slate-900 flex items-center gap-2">
-          <Globe className="w-5 h-5 text-blue-700" />
+      <div className="card" style={{ marginBottom: 20, display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <label style={{ fontSize: 14, fontWeight: 800, color: '#0F172A', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Globe className="w-4 h-4 text-teal-700" />
           <span>{t.selectLanguage}</span>
         </label>
-        <div className="grid grid-cols-3 gap-2">
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
           {[
             { key: 'mr', label: 'मराठी' },
             { key: 'hi', label: 'हिंदी' },
@@ -65,12 +124,8 @@ export const ProfileScreen: React.FC = () => {
               key={item.key}
               type="button"
               onClick={() => setLanguage(item.key as Language)}
-              className={`tap-target py-3 rounded-xl font-extrabold text-base border-2 transition-all ${
-                language === item.key
-                  ? 'bg-[#1565C0] text-white border-blue-900 shadow-md scale-102'
-                  : 'bg-slate-100 text-slate-800 border-slate-300 hover:bg-slate-200'
-              }`}
-              style={{ minHeight: '48px' }}
+              className={`lang-btn${language === item.key ? ' active' : ''}`}
+              style={{ width: '100%', minHeight: 46 }}
             >
               {item.label}
             </button>
@@ -82,11 +137,14 @@ export const ProfileScreen: React.FC = () => {
       <button
         type="button"
         onClick={logout}
-        className="tap-target w-full py-4 rounded-2xl bg-red-600 hover:bg-red-700 text-white font-black text-lg shadow-md border-2 border-red-900 flex items-center justify-center gap-2 mt-4"
-        style={{ minHeight: '52px' }}
+        className="btn-danger"
+        style={{
+          minHeight: 54, fontSize: 16, fontWeight: 800,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
+        }}
       >
-        <LogOut className="w-6 h-6" />
-        <span>लॉगआउट (Logout)</span>
+        <LogOut className="w-5 h-5" />
+        <span>{t.logoutBtn}</span>
       </button>
     </div>
   );
