@@ -1,7 +1,7 @@
 import React from 'react';
 import { MapPin, Phone, Globe, LogOut, Award, ShieldCheck, Database, Users } from 'lucide-react';
 import { useApp } from '../context/AppContext';
-import { Language } from '../types';
+import type { Language } from '../types';
 
 export const ProfileScreen: React.FC = () => {
   const { t, language, setLanguage, logout, networkStatus } = useApp();
@@ -47,7 +47,7 @@ export const ProfileScreen: React.FC = () => {
 
       {/* Jurisdiction & Health Facility Details */}
       <div className="card" style={{ marginBottom: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
-        <p className="section-title" style={{ marginBottom: 4 }}>क्षेत्र व केंद्र माहिती</p>
+        <p className="section-title" style={{ marginBottom: 4 }}>{t.jurisdictionDetails}</p>
 
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #F1F5F9', paddingBottom: 10 }}>
           <span style={{ color: '#475569', display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, fontWeight: 500 }}>
@@ -76,26 +76,26 @@ export const ProfileScreen: React.FC = () => {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <span style={{ color: '#475569', display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, fontWeight: 500 }}>
             <Users className="w-4 h-4 text-sky-600" />
-            <span>व्याप्त लोकसंख्या:</span>
+            <span>{t.coveredPopulation.split(':')[0]}:</span>
           </span>
-          <span style={{ fontWeight: 800, color: '#0F172A', fontSize: 14 }}>१,२५० नागरिक (२४० कुटुंबे)</span>
+          <span style={{ fontWeight: 800, color: '#0F172A', fontSize: 14 }}>{t.coveredPopulation.split(':')[1] || '1,250'}</span>
         </div>
       </div>
 
       {/* System & Offline Status */}
       <div className="card" style={{ marginBottom: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
-        <p className="section-title" style={{ marginBottom: 4 }}>सिस्टम आणि संकलन</p>
+        <p className="section-title" style={{ marginBottom: 4 }}>{t.systemAndSync}</p>
 
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <span style={{ color: '#475569', display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, fontWeight: 500 }}>
             <Database className="w-4 h-4 text-teal-700" />
-            <span>डेटाबेश स्थिती:</span>
+            <span>{t.databaseStatus}:</span>
           </span>
           <span style={{
             fontSize: 12, fontWeight: 800, color: '#16A34A', background: '#F0FDF4',
             padding: '2px 10px', borderRadius: 9999, border: '1px solid #BBF7D0',
           }}>
-            {networkStatus === 'offline' ? 'ऑफलाइन डेटा जतन' : '✓ समक्रमित (Synced)'}
+            {networkStatus === 'offline' ? t.statusOffline : t.statusSynced}
           </span>
         </div>
 
@@ -114,18 +114,19 @@ export const ProfileScreen: React.FC = () => {
           <Globe className="w-4 h-4 text-teal-700" />
           <span>{t.selectLanguage}</span>
         </label>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
           {[
             { key: 'mr', label: 'मराठी' },
             { key: 'hi', label: 'हिंदी' },
             { key: 'en', label: 'English' },
+            { key: 'kn', label: 'ಕನ್ನಡ' },
           ].map((item) => (
             <button
               key={item.key}
               type="button"
               onClick={() => setLanguage(item.key as Language)}
               className={`lang-btn${language === item.key ? ' active' : ''}`}
-              style={{ width: '100%', minHeight: 46 }}
+              style={{ width: '100%', minHeight: 44, padding: '0 4px', fontSize: 13 }}
             >
               {item.label}
             </button>

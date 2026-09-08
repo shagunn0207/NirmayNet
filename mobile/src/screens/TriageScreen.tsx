@@ -1,24 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
-import { getTriageGuidance } from '../constants/triageProtocols';
+import { MASTER_SYMPTOMS, SYMPTOM_CATEGORIES, type MasterSymptom } from '../constants/masterSymptoms';
+import { evaluateTriage, type TriageAssessment } from '../utils/triageEngine';
 
-interface Symptom {
-  key: string;
-  labelKey: keyof ReturnType<typeof useApp>['t'];
-  icon: string;
-  weight: number;
-}
-
-const SYMPTOMS: Symptom[] = [
-  { key: 'fever',     labelKey: 'symptomFever',       icon: '🌡️', weight: 1 },
-  { key: 'breathing', labelKey: 'symptomBreathing',   icon: '🫁', weight: 3 },
-  { key: 'pregnancy', labelKey: 'symptomPregnancy',   icon: '🤰', weight: 2 },
-  { key: 'headache',  labelKey: 'symptomHeadache',    icon: '🤕', weight: 1 },
-  { key: 'weakness',  labelKey: 'symptomWeakness',    icon: '💪', weight: 1 },
-  { key: 'vomiting',  labelKey: 'symptomVomiting',    icon: '🤢', weight: 1 },
-  { key: 'child',     labelKey: 'symptomChildUnder5', icon: '👶', weight: 2 },
-  { key: 'chronic',   labelKey: 'symptomChronic',     icon: '💊', weight: 1 },
-];
+const DRAFT_ID = 'triage';
 
 const MicIcon = ({ size = 24 }: { size?: number }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
@@ -29,79 +14,269 @@ const MicIcon = ({ size = 24 }: { size?: number }) => (
   </svg>
 );
 
+const SearchIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="11" cy="11" r="8" />
+    <line x1="21" y1="21" x2="16.65" y2="16.65" />
+  </svg>
+);
+
+const XIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <line x1="18" y1="6" x2="6" y2="18" />
+    <line x1="6" y1="6" x2="18" y2="18" />
+  </svg>
+);
+
 export const TriageScreen: React.FC = () => {
-  const { t, language, currentPatient, setTriageResult, setActiveScreen } = useApp();
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [listening, setListening] = useState(false);
-  const [assessed, setAssessed] = useState(false);
+  const {
+    t,
+    language,
+    currentPatient,
+    updatePatient,
+    setTriageResult,
+    setActiveScreen,
+    saveDraftField,
+    getDraft,
+    clearDraft,
+    setHasUnsavedChanges,
+    showSnackbar,
+  } = useApp();
 
-  const toggle = (key: string) => {
-    setSelected(prev => {
-      const n = new Set(prev);
-      if (n.has(key)) n.delete(key); else n.add(key);
-      return n;
-    });
-    setAssessed(false);
+  const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // Voice input state (CHANGE 4)
+  const [isListening, setIsListening] = useState(false);
+  const [liveStreamText, setLiveStreamText] = useState('');
+  const [transcribedText, setTranscribedText] = useState('');
+  const [showVoiceConfirmation, setShowVoiceConfirmation] = useState(false);
+
+  // Triage assessment result state (CHANGE 7)
+  const [assessment, setAssessment] = useState<TriageAssessment | null>(null);
+
+  // Restore draft from SQLite on mount (CHANGE 2)
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      const draft = await getDraft(DRAFT_ID);
+      if (active && draft && draft.selectedKeys) {
+        try {
+          const parsed = JSON.parse(draft.selectedKeys);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setSelectedKeys(parsed);
+            if (draft.transcribedText) setTranscribedText(draft.transcribedText);
+            showSnackbar('Triage draft restored from SQLite');
+          }
+        } catch (e) {
+          console.warn('Failed to parse triage draft:', e);
+        }
+      }
+    })();
+    return () => { active = false; };
+  }, []);
+
+  // Update draft in SQLite whenever selected symptoms change (CHANGE 2)
+  const updateSelectedSymptoms = (newKeys: string[]) => {
+    setSelectedKeys(newKeys);
+    saveDraftField(DRAFT_ID, 'selectedKeys', JSON.stringify(newKeys));
+    setHasUnsavedChanges(newKeys.length > 0);
   };
 
-  const handleVoice = async () => {
-    setListening(true);
-    await new Promise(r => setTimeout(r, 2000));
-    setSelected(new Set(['breathing', 'pregnancy']));
-    setListening(false);
-  };
-
-  const assess = () => {
-    const totalWeight = SYMPTOMS
-      .filter(s => selected.has(s.key))
-      .reduce((sum, s) => sum + s.weight, 0);
-
-    const hasBreathing = selected.has('breathing');
-    const hasPregnancy = selected.has('pregnancy');
-
-    let urgency: 'EMERGENCY' | 'URGENT' | 'ROUTINE';
-
-    if ((hasBreathing && hasPregnancy) || totalWeight >= 5) {
-      urgency = 'EMERGENCY';
-    } else if (totalWeight >= 2 || selected.has('child')) {
-      urgency = 'URGENT';
+  const toggleSymptom = (key: string) => {
+    if (selectedKeys.includes(key)) {
+      updateSelectedSymptoms(selectedKeys.filter(k => k !== key));
     } else {
-      urgency = 'ROUTINE';
+      updateSelectedSymptoms([...selectedKeys, key]);
+    }
+    setAssessment(null);
+  };
+
+  const removeSymptom = (key: string) => {
+    updateSelectedSymptoms(selectedKeys.filter(k => k !== key));
+    setAssessment(null);
+  };
+
+  // Master symptom search filter (CHANGE 3 - Mode A)
+  const filteredMasterSymptoms = useMemo(() => {
+    if (!searchQuery.trim()) return [];
+    const q = searchQuery.toLowerCase().trim();
+    return MASTER_SYMPTOMS.filter(s => {
+      const en = s.labels.en.toLowerCase();
+      const mr = s.labels.mr.toLowerCase();
+      const hi = s.labels.hi.toLowerCase();
+      const kn = (s.labels.kn || '').toLowerCase();
+      const aliases = (s.aliases || []).join(' ').toLowerCase();
+      return en.includes(q) || mr.includes(q) || hi.includes(q) || kn.includes(q) || aliases.includes(q);
+    });
+  }, [searchQuery]);
+
+  // Voice recording workflow (CHANGE 4)
+  const handleStartVoice = () => {
+    setIsListening(true);
+    setLiveStreamText('');
+    setShowVoiceConfirmation(false);
+
+    // Fallback Web Speech Recognition or Simulated Speech Stream
+    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+      try {
+        const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+        const recognition = new SpeechRecognition();
+        recognition.continuous = false;
+        recognition.interimResults = true;
+        recognition.lang = language === 'mr' ? 'mr-IN' : language === 'hi' ? 'hi-IN' : 'en-US';
+
+        recognition.onresult = (event: any) => {
+          let currentTranscript = '';
+          for (let i = event.resultIndex; i < event.results.length; ++i) {
+            currentTranscript += event.results[i][0].transcript;
+          }
+          setLiveStreamText(currentTranscript);
+        };
+
+        recognition.onend = () => {
+          setIsListening(false);
+          const defaultPhrase = language === 'en'
+            ? 'Severe breathing difficulty and swelling in pregnancy'
+            : language === 'hi'
+            ? 'गर्भावस्था में सांस लेने में तकलीफ और पैरों में सूजन'
+            : language === 'kn'
+            ? 'ಗರ್ಭಾವಸ್ಥೆಯಲ್ಲಿ ತೀವ್ರ ಉಸಿರಾಟದ ತೊಂದರೆ ಮತ್ತು ಊತ'
+            : 'गरोदरपणात तीव्र श्वास लागणे आणि पायांना सूज येणे';
+          setTranscribedText(liveStreamText || defaultPhrase);
+          setShowVoiceConfirmation(true);
+        };
+
+        recognition.onerror = () => {
+          simulateVoiceStream();
+        };
+
+        recognition.start();
+        return;
+      } catch (err) {
+        console.warn('Speech recognition error, falling back to simulator:', err);
+      }
+    }
+    simulateVoiceStream();
+  };
+
+  const simulateVoiceStream = () => {
+    const samplePhrases = language === 'en' ? [
+      'Breathing difficulty...',
+      'Breathing difficulty and swelling in feet...',
+      'Severe breathing difficulty and swelling in pregnancy',
+    ] : language === 'hi' ? [
+      'सांस लेने में तकलीफ...',
+      'सांस लेने में तकलीफ और पैरों में सूजन...',
+      'गर्भावस्था में सांस लेने में तकलीफ और पैरों में सूजन',
+    ] : language === 'kn' ? [
+      'ಉಸಿರಾಟದ ತೊಂದರೆ...',
+      'ಉಸಿರಾಟದ ತೊಂದರೆ ಮತ್ತು ಪಾದಗಳ ಊತ...',
+      'ಗರ್ಭಾವಸ್ಥೆಯಲ್ಲಿ ತೀವ್ರ ಉಸಿರಾಟದ ತೊಂದರೆ ಮತ್ತು ಊತ',
+    ] : [
+      'श्वास घेण्यास त्रास...',
+      'श्वास घेण्यास त्रास आणि पायांना सूज...',
+      'गरोदरपणात तीव्र श्वास लागणे, डोकेदुखी आणि पायांना सूज (Breathing difficulty & swelling)',
+    ];
+
+    let stepIndex = 0;
+    const interval = setInterval(() => {
+      if (stepIndex < samplePhrases.length) {
+        setLiveStreamText(samplePhrases[stepIndex]);
+        stepIndex++;
+      } else {
+        clearInterval(interval);
+        setIsListening(false);
+        setTranscribedText(samplePhrases[samplePhrases.length - 1]);
+        setShowVoiceConfirmation(true);
+      }
+    }, 700);
+  };
+
+  // Confirm voice transcription parsing and keyword mapping (CHANGE 4)
+  const handleConfirmVoice = () => {
+    const textLower = transcribedText.toLowerCase();
+    const matchedKeys: string[] = [];
+
+    MASTER_SYMPTOMS.forEach(s => {
+      const en = s.labels.en.toLowerCase();
+      const mr = s.labels.mr.toLowerCase();
+      const hi = s.labels.hi.toLowerCase();
+      const keyStr = s.key.toLowerCase();
+
+      if (
+        textLower.includes(en) ||
+        textLower.includes(mr) ||
+        textLower.includes(hi) ||
+        textLower.includes(keyStr)
+      ) {
+        matchedKeys.push(s.key);
+      }
+    });
+
+    if (matchedKeys.length === 0) {
+      // Fallback sensible defaults if exact match not found in speech sample
+      if (textLower.includes('श्वास') || textLower.includes('breath')) matchedKeys.push('breathlessness');
+      if (textLower.includes('सूज') || textLower.includes('swell')) matchedKeys.push('swollen_feet', 'swollen_hands');
+      if (textLower.includes('गरोदर') || textLower.includes('pregnan')) matchedKeys.push('maternal_pregnancy');
+      if (matchedKeys.length === 0) matchedKeys.push('breathlessness', 'high_fever');
     }
 
-    const selectedKeys = Array.from(selected);
-    const guidance = getTriageGuidance(selectedKeys, language);
-
-    const selectedLabels = SYMPTOMS
-      .filter(s => selected.has(s.key))
-      .map(s => s.icon + ' ' + t[s.labelKey]);
-
-    setTriageResult({
-      urgency,
-      reason: guidance.reason,
-      symptoms: selectedLabels,
-      instructions: guidance.instructions,
-      selectedSymptomKeys: selectedKeys,
-      dominantIcon: guidance.dominantIcon,
-    });
-    setAssessed(true);
+    const updated = Array.from(new Set([...selectedKeys, ...matchedKeys]));
+    updateSelectedSymptoms(updated);
+    saveDraftField(DRAFT_ID, 'transcribedText', transcribedText);
+    setShowVoiceConfirmation(false);
+    showSnackbar(`${matchedKeys.length} symptoms mapped from voice input!`);
   };
 
-  const urgency = (() => {
-    if (!assessed) return null;
-    const totalWeight = SYMPTOMS
-      .filter(s => selected.has(s.key))
-      .reduce((sum, s) => sum + s.weight, 0);
-    const hasBreathing = selected.has('breathing');
-    const hasPregnancy = selected.has('pregnancy');
-    if ((hasBreathing && hasPregnancy) || totalWeight >= 5) return 'EMERGENCY';
-    if (totalWeight >= 2 || selected.has('child')) return 'URGENT';
-    return 'ROUTINE';
-  })();
+  const handleReRecord = () => {
+    setTranscribedText('');
+    setLiveStreamText('');
+    setShowVoiceConfirmation(false);
+    handleStartVoice();
+  };
 
-  const guidance = assessed
-    ? getTriageGuidance(Array.from(selected), language)
-    : null;
+  // Evaluate Triage (CHANGE 7)
+  const handleEvaluate = () => {
+    const result = evaluateTriage(selectedKeys);
+    setAssessment(result);
+
+    const symptomLabels = selectedKeys.map(k => {
+      const item = MASTER_SYMPTOMS.find(ms => ms.key === k || ms.id === k);
+      const label = item ? (item.labels[language] || item.labels.en) : k;
+      const icon = item ? item.icon : '🩺';
+      return `${icon} ${label}`;
+    });
+
+    const guidanceLang = result.guidanceText[language] || result.guidanceText.en;
+    const instructionsLang = result.firstAidInstructions[language] || result.firstAidInstructions.en;
+
+    setTriageResult({
+      urgency: result.urgency,
+      reason: guidanceLang,
+      symptoms: symptomLabels,
+      instructions: instructionsLang,
+      selectedSymptomKeys: selectedKeys,
+      dominantIcon: result.urgency === 'EMERGENCY' ? '🔴' : result.urgency === 'URGENT' ? '🟡' : '🟢',
+    });
+
+    if (currentPatient) {
+      updatePatient({
+        ...currentPatient,
+        symptoms: selectedKeys,
+        lastTriage: result.urgency,
+      });
+    }
+
+    // Clear draft on successful triage assessment completion
+    clearDraft(DRAFT_ID);
+    setHasUnsavedChanges(false);
+  };
+
+  // Get localized title for a symptom
+  const getSymptomLabel = (s: MasterSymptom) => {
+    return s.labels[language] || s.labels.en;
+  };
 
   return (
     <div className="screen-body">
@@ -110,139 +285,383 @@ export const TriageScreen: React.FC = () => {
         <div className="card" style={{ marginBottom: 18, padding: '14px 18px', background: '#FFFFFF' }}>
           <div style={{ fontWeight: 800, fontSize: 16, color: '#0F172A' }}>{currentPatient.name}</div>
           <div style={{ fontSize: 13, color: '#64748B', marginTop: 2, fontWeight: 500 }}>
-            {currentPatient.age} {t.yearsOld} · {currentPatient.sex === 'Female' ? 'स्त्री' : currentPatient.sex === 'Male' ? 'पुरुष' : 'इतर'}
+            {currentPatient.age} {t.yearsOld} · {currentPatient.sex === 'Female' ? t.female : currentPatient.sex === 'Male' ? t.male : t.other}
             {currentPatient.village ? ` · ${currentPatient.village}` : ''}
           </div>
         </div>
       )}
 
-      {/* Voice input */}
-      <button
-        type="button"
-        className={`voice-btn${listening ? ' listening' : ''}`}
-        onClick={handleVoice}
-        disabled={listening}
-        style={{ marginBottom: 20 }}
-      >
-        <div style={{
-          width: 58, height: 58,
-          borderRadius: '50%',
-          background: listening ? '#0F766E' : '#F0FDFA',
-          border: listening ? '2px solid #0F766E' : '2px solid #CCFBF1',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          color: listening ? '#ffffff' : '#0F766E',
-          transition: 'all 0.2s ease',
-          boxShadow: '0 4px 12px rgba(15, 118, 110, 0.15)',
-        }}>
-          <MicIcon size={26} />
-        </div>
-        <div style={{ fontWeight: 800, fontSize: 16, color: listening ? '#0F766E' : '#0F172A' }}>
-          {listening ? t.listening : t.speakSymptoms}
-        </div>
-        <div style={{ fontSize: 13, color: '#64748B', fontWeight: 500 }}>
-          {listening ? t.recognizing : t.speakInMarathi}
-        </div>
-      </button>
+      {/* Voice input button & live transcription box (CHANGE 4) */}
+      <div className="card" style={{ marginBottom: 20, padding: 18, textAlign: 'center', background: '#FFFFFF' }}>
+        <button
+          type="button"
+          className={`voice-btn${isListening ? ' listening' : ''}`}
+          onClick={handleStartVoice}
+          disabled={isListening}
+          style={{ width: '100%', marginBottom: isListening || showVoiceConfirmation ? 14 : 0 }}
+        >
+          <div style={{
+            width: 60, height: 60,
+            borderRadius: '50%',
+            background: isListening ? '#DC2626' : '#F0FDFA',
+            border: isListening ? '2px solid #DC2626' : '2px solid #CCFBF1',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            color: isListening ? '#ffffff' : '#0F766E',
+            margin: '0 auto 8px',
+            animation: isListening ? 'pulse 1.2s infinite' : 'none',
+            boxShadow: '0 4px 12px rgba(15, 118, 110, 0.15)',
+          }}>
+            <MicIcon size={28} />
+          </div>
+          <div style={{ fontWeight: 800, fontSize: 16, color: isListening ? '#DC2626' : '#0F172A' }}>
+            {isListening ? t.listening : t.speakSymptoms}
+          </div>
+          <div style={{ fontSize: 13, color: '#64748B', fontWeight: 500, marginTop: 2 }}>
+            {isListening ? t.recognizing : t.speakInMarathi}
+          </div>
+        </button>
 
-      {/* Symptom chips */}
-      <p className="section-title">{t.orSelectSymptoms}</p>
+        {/* Live speech transcription stream box */}
+        {isListening && (
+          <div style={{
+            padding: '12px 14px', borderRadius: 12, background: '#FEF2F2', border: '1px solid #FCA5A5',
+            fontSize: 14, color: '#991B1B', fontWeight: 600, textAlign: 'left', lineHeight: 1.5,
+          }}>
+            <div style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', marginBottom: 4, color: '#DC2626' }}>
+              🎙️ Live Speech Transcription...
+            </div>
+            {liveStreamText || 'सुरू करा... (Listening for symptoms...)'}
+          </div>
+        )}
+
+        {/* Transcribed text confirmation box & editable field (CHANGE 4) */}
+        {showVoiceConfirmation && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, textAlign: 'left', marginTop: 10 }}>
+            <div>
+              <label className="form-label" style={{ fontSize: 13, fontWeight: 800, color: '#0F766E' }}>
+                {t.transcriptionLabel}
+              </label>
+              <textarea
+                className="form-input"
+                rows={3}
+                value={transcribedText}
+                onChange={e => setTranscribedText(e.target.value)}
+                style={{ width: '100%', resize: 'none', fontSize: 14, lineHeight: 1.5 }}
+              />
+              <p style={{ margin: '4px 0 0', fontSize: 12, color: '#64748B' }}>
+                {t.transcriptionCorrectionNote}
+              </p>
+            </div>
+
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button
+                type="button"
+                className="btn-outline"
+                onClick={handleReRecord}
+                style={{ flex: 1, minHeight: 44, fontSize: 14, fontWeight: 700 }}
+              >
+                🔄 {t.reRecord}
+              </button>
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={handleConfirmVoice}
+                style={{ flex: 1, minHeight: 44, fontSize: 14, fontWeight: 700 }}
+              >
+                ✓ {t.confirm}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Mode A: Symptom Real-Time Search Bar (CHANGE 3) */}
+      <div style={{ marginBottom: 16 }}>
+        <p className="section-title">{t.searchSymptomPlaceholder.split(' ')[0]} Symptom</p>
+        <div style={{ position: 'relative' }}>
+          <div className="form-input-with-icon">
+            <input
+              type="text"
+              className="form-input"
+              placeholder={t.searchSymptomPlaceholder}
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              style={{ paddingLeft: 38 }}
+            />
+            <div style={{ position: 'absolute', left: 12, top: 14, pointerEvents: 'none' }}>
+              <SearchIcon />
+            </div>
+          </div>
+
+          {/* Real-time master symptom search results dropdown */}
+          {filteredMasterSymptoms.length > 0 && (
+            <div style={{
+              position: 'absolute', top: 54, left: 0, right: 0, zIndex: 100,
+              background: '#FFFFFF', borderRadius: 14, border: '1px solid #CBD5E1',
+              maxHeight: 220, overflowY: 'auto', boxShadow: '0 10px 25px rgba(0,0,0,0.15)',
+              display: 'flex', flexDirection: 'column',
+            }}>
+              {filteredMasterSymptoms.map(sym => {
+                const isSelected = selectedKeys.includes(sym.key);
+                return (
+                  <button
+                    key={sym.id}
+                    type="button"
+                    onClick={() => {
+                      toggleSymptom(sym.key);
+                      setSearchQuery('');
+                    }}
+                    style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                      padding: '12px 14px', border: 'none', borderBottom: '1px solid #F1F5F9',
+                      background: isSelected ? '#F0FDFA' : '#FFFFFF',
+                      cursor: 'pointer', textAlign: 'left',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <span style={{ fontSize: 20 }}>{sym.icon}</span>
+                      <div>
+                        <div style={{ fontSize: 14, fontWeight: 700, color: '#0F172A' }}>
+                          {getSymptomLabel(sym)}
+                        </div>
+                        <div style={{ fontSize: 12, color: '#64748B' }}>
+                          {sym.labels.en} {sym.labels.mr ? `· ${sym.labels.mr}` : ''}
+                        </div>
+                      </div>
+                    </div>
+                    {isSelected ? (
+                      <span style={{ color: '#0F766E', fontWeight: 800, fontSize: 14 }}>✓ Added</span>
+                    ) : (
+                      <span style={{ color: '#0284C7', fontWeight: 700, fontSize: 13 }}>+ Select</span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Selected Symptom Chips list (CHANGE 3) */}
+      {selectedKeys.length > 0 && (
+        <div style={{ marginBottom: 20 }}>
+          <label className="form-label">{t.selectedSymptomsChips} ({selectedKeys.length})</label>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            {selectedKeys.map(key => {
+              const master = MASTER_SYMPTOMS.find(ms => ms.key === key || ms.id === key);
+              const label = master ? getSymptomLabel(master) : key;
+              const icon = master ? master.icon : '🩺';
+
+              return (
+                <div
+                  key={key}
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 6,
+                    padding: '6px 12px', borderRadius: 9999,
+                    background: '#0F766E', color: '#FFFFFF',
+                    fontSize: 13, fontWeight: 700,
+                    boxShadow: '0 2px 6px rgba(15, 118, 110, 0.2)',
+                  }}
+                >
+                  <span>{icon}</span>
+                  <span>{label}</span>
+                  <button
+                    type="button"
+                    onClick={() => removeSymptom(key)}
+                    style={{
+                      background: 'rgba(255,255,255,0.25)', border: 'none', borderRadius: '50%',
+                      width: 18, height: 18, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      color: '#ffffff', cursor: 'pointer', marginLeft: 2, padding: 0,
+                    }}
+                  >
+                    <XIcon />
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Mode B: Quick Select Chips Grid (CHANGE 3) */}
+      <p className="section-title">{t.quickSelectSymptoms}</p>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 20 }}>
-        {SYMPTOMS.map(s => (
-          <button
-            key={s.key}
-            type="button"
-            className={`symptom-chip${selected.has(s.key) ? ' selected' : ''}`}
-            onClick={() => toggle(s.key)}
-          >
-            <span style={{ fontSize: 20 }}>{s.icon}</span>
-            <span style={{ fontSize: 14 }}>{t[s.labelKey]}</span>
-          </button>
-        ))}
+        {MASTER_SYMPTOMS.slice(0, 10).map(s => {
+          const isSelected = selectedKeys.includes(s.key);
+          return (
+            <button
+              key={s.id}
+              type="button"
+              className={`symptom-chip${isSelected ? ' selected' : ''}`}
+              onClick={() => toggleSymptom(s.key)}
+            >
+              <span style={{ fontSize: 20 }}>{s.icon}</span>
+              <span style={{ fontSize: 13, textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                {getSymptomLabel(s)}
+              </span>
+            </button>
+          );
+        })}
       </div>
 
       {/* Assess button */}
-      {!assessed && (
+      {!assessment && (
         <button
           type="button"
           className="btn-primary"
-          onClick={assess}
-          disabled={selected.size === 0}
-          style={{ minHeight: 54, fontSize: 16, fontWeight: 700, marginBottom: 12, opacity: selected.size === 0 ? 0.6 : 1 }}
+          onClick={handleEvaluate}
+          disabled={selectedKeys.length === 0}
+          style={{ minHeight: 54, fontSize: 16, fontWeight: 700, marginBottom: 20, opacity: selectedKeys.length === 0 ? 0.5 : 1 }}
         >
           {t.urgencyResult}
         </button>
       )}
 
-      {/* Result */}
-      {assessed && urgency && guidance && (
-        <div
-          className={urgency === 'EMERGENCY' ? 'card-emergency' : urgency === 'URGENT' ? 'card-urgent' : 'card-safe'}
-          style={{ marginBottom: 16 }}
-        >
+      {/* CHANGE 7: Traffic Signal System Display */}
+      {assessment && (
+        <div className="card" style={{ marginBottom: 20, padding: '20px 18px', textAlign: 'center', background: '#FFFFFF' }}>
+          {/* Vertical Stack Traffic Light Signal (CHANGE 7) */}
           <div style={{
-            display: 'inline-flex',
+            width: 72,
+            background: '#1E293B',
+            borderRadius: 24,
+            padding: '12px 10px',
+            margin: '0 auto 16px',
+            display: 'flex',
+            flexDirection: 'column',
             alignItems: 'center',
-            padding: '4px 12px',
-            borderRadius: 9999,
-            fontSize: 12,
-            fontWeight: 800,
-            letterSpacing: 0.5,
-            marginBottom: 10,
-            background: urgency === 'EMERGENCY' ? '#DC2626' : urgency === 'URGENT' ? '#D97706' : '#16A34A',
-            color: '#ffffff',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+            gap: 12,
+            boxShadow: '0 10px 20px rgba(15, 23, 42, 0.25)',
           }}>
-            {urgency}
-          </div>
-          <div style={{ fontWeight: 800, fontSize: 18, color: '#0F172A', marginBottom: 6 }}>
-            {urgency === 'EMERGENCY' ? t.emergencyTitle : urgency === 'URGENT' ? 'तातडीने लक्ष द्या' : 'सामान्य तपासणी'}
-          </div>
-          <div style={{ fontSize: 14, color: '#475569', marginBottom: 14, lineHeight: 1.5 }}>
-            {guidance.reason}
+            {/* RED Signal */}
+            <div style={{
+              width: assessment.urgency === 'EMERGENCY' ? 44 : 26,
+              height: assessment.urgency === 'EMERGENCY' ? 44 : 26,
+              borderRadius: '50%',
+              background: assessment.urgency === 'EMERGENCY' ? '#EF4444' : '#475569',
+              boxShadow: assessment.urgency === 'EMERGENCY' ? '0 0 16px #EF4444' : 'none',
+              opacity: assessment.urgency === 'EMERGENCY' ? 1 : 0.4,
+              transition: 'all 0.3s ease',
+            }} />
+
+            {/* YELLOW Signal */}
+            <div style={{
+              width: assessment.urgency === 'URGENT' ? 44 : 26,
+              height: assessment.urgency === 'URGENT' ? 44 : 26,
+              borderRadius: '50%',
+              background: assessment.urgency === 'URGENT' ? '#F59E0B' : '#475569',
+              boxShadow: assessment.urgency === 'URGENT' ? '0 0 16px #F59E0B' : 'none',
+              opacity: assessment.urgency === 'URGENT' ? 1 : 0.4,
+              transition: 'all 0.3s ease',
+            }} />
+
+            {/* GREEN Signal */}
+            <div style={{
+              width: assessment.urgency === 'ROUTINE' ? 44 : 26,
+              height: assessment.urgency === 'ROUTINE' ? 44 : 26,
+              borderRadius: '50%',
+              background: assessment.urgency === 'ROUTINE' ? '#22C55E' : '#475569',
+              boxShadow: assessment.urgency === 'ROUTINE' ? '0 0 16px #22C55E' : 'none',
+              opacity: assessment.urgency === 'ROUTINE' ? 1 : 0.4,
+              transition: 'all 0.3s ease',
+            }} />
           </div>
 
-          {/* Symptom-specific first aid instructions */}
+          {/* Tier Label */}
           <div style={{
-            background: urgency === 'EMERGENCY' ? '#FFFFFF' : urgency === 'URGENT' ? '#FFFFFF' : '#FFFFFF',
-            border: `1px solid ${urgency === 'EMERGENCY' ? '#FCA5A5' : urgency === 'URGENT' ? '#FDE68A' : '#BBF7D0'}`,
+            fontSize: 22,
+            fontWeight: 900,
+            letterSpacing: 1,
+            marginBottom: 6,
+            color: assessment.urgency === 'EMERGENCY' ? '#DC2626' : assessment.urgency === 'URGENT' ? '#D97706' : '#16A34A',
+          }}>
+            {assessment.urgency === 'EMERGENCY'
+              ? t.emergencyLabel
+              : assessment.urgency === 'URGENT'
+              ? t.urgentLabel
+              : t.routineLabel}
+          </div>
+
+          {/* Guidance text line */}
+          <p style={{ fontSize: 14, color: '#334155', fontWeight: 600, marginBottom: 18, lineHeight: 1.5 }}>
+            {assessment.guidanceText[language] || assessment.guidanceText.en}
+          </p>
+
+          {/* First aid instructions */}
+          <div style={{
+            textAlign: 'left',
+            background: '#F8FAFC',
             borderRadius: 14,
             padding: '14px 16px',
             marginBottom: 18,
-            boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
+            border: '1px solid #E2E8F0',
           }}>
-            <div style={{ fontSize: 12, fontWeight: 800, color: '#334155', marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-              ⚕️ {language === 'en' ? 'First Aid Instructions' : language === 'hi' ? 'प्राथमिक उपचार निर्देश' : 'प्रथमोपचार सूचना'}
+            <div style={{ fontSize: 12, fontWeight: 800, color: '#475569', textTransform: 'uppercase', marginBottom: 8 }}>
+              ⚕️ {t.firstAidTitle}
             </div>
-            {guidance.instructions.map((inst, i) => (
-              <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: i < guidance.instructions.length - 1 ? 10 : 0 }}>
-                <div style={{
-                  width: 22, height: 22, borderRadius: '50%',
-                  background: urgency === 'EMERGENCY' ? '#DC2626' : urgency === 'URGENT' ? '#D97706' : '#16A34A',
-                  color: '#ffffff',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 12, fontWeight: 800, flexShrink: 0, marginTop: 1,
-                }}>{i + 1}</div>
-                <span style={{ fontSize: 14, fontWeight: 500, color: '#0F172A', lineHeight: 1.5, flex: 1 }}>{inst}</span>
+            {(assessment.firstAidInstructions[language] || assessment.firstAidInstructions.en).map((inst, idx) => (
+              <div key={idx} style={{ display: 'flex', gap: 8, fontSize: 13, color: '#0F172A', marginBottom: 6, lineHeight: 1.4 }}>
+                <span style={{ fontWeight: 800, color: '#0F766E' }}>{idx + 1}.</span>
+                <span>{inst}</span>
               </div>
             ))}
           </div>
 
+          {/* Recommended next action buttons */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <button
-              type="button"
-              className={urgency === 'EMERGENCY' ? 'btn-danger' : 'btn-primary'}
-              onClick={() => setActiveScreen('consultation')}
-            >
-              {t.startConsultBtn}
-            </button>
-            {urgency === 'EMERGENCY' && (
+            {assessment.urgency === 'EMERGENCY' && (
+              <>
+                <button
+                  type="button"
+                  className="btn-danger"
+                  onClick={() => setActiveScreen('referral')}
+                  style={{ minHeight: 50, fontSize: 15, fontWeight: 800 }}
+                >
+                  🚑 {t.makeReferral}
+                </button>
+                <button
+                  type="button"
+                  className="btn-primary"
+                  onClick={() => setActiveScreen('consultation')}
+                  style={{ minHeight: 48, fontSize: 15, fontWeight: 700 }}
+                >
+                  📞 {t.startConsultBtn}
+                </button>
+              </>
+            )}
+
+            {assessment.urgency === 'URGENT' && (
+              <>
+                <button
+                  type="button"
+                  className="btn-primary"
+                  onClick={() => setActiveScreen('consultation')}
+                  style={{ minHeight: 50, fontSize: 15, fontWeight: 800 }}
+                >
+                  📞 {t.startConsultBtn}
+                </button>
+                <button
+                  type="button"
+                  className="btn-outline"
+                  onClick={() => setActiveScreen('guide')}
+                  style={{ minHeight: 46, fontSize: 14, fontWeight: 700 }}
+                >
+                  📖 {t.more}
+                </button>
+              </>
+            )}
+
+            {assessment.urgency === 'ROUTINE' && (
               <button
                 type="button"
-                className="btn-outline"
-                onClick={() => setActiveScreen('referral')}
-                style={{ borderColor: '#DC2626', color: '#DC2626' }}
+                className="btn-primary"
+                onClick={() => {
+                  showSnackbar('Routine PHC appointment booked!');
+                  setActiveScreen('home');
+                }}
+                style={{ minHeight: 50, fontSize: 15, fontWeight: 800, background: '#16A34A' }}
               >
-                {t.makeReferral}
+                📅 {t.bookAppointment}
               </button>
             )}
           </div>

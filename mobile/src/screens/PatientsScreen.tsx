@@ -1,6 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import type { Patient } from '../types';
+import { getLocalizedPatient } from '../utils/localizePatient';
+import { MASTER_SYMPTOMS, type MasterSymptom } from '../constants/masterSymptoms';
+import { evaluateTriage } from '../utils/triageEngine';
 
 const SearchIcon = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
@@ -22,109 +25,503 @@ const CloseIcon = () => (
   </svg>
 );
 
-const UrgencyBadge = ({ urgency }: { urgency?: string }) => {
-  if (!urgency) return null;
+const EditIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+  </svg>
+);
+
+const XIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <line x1="18" y1="6" x2="6" y2="18" />
+    <line x1="6" y1="6" x2="18" y2="18" />
+  </svg>
+);
+
+const UrgencyBadge = ({ urgency, symptoms }: { urgency?: string; symptoms?: string[] }) => {
+  const { t } = useApp();
+  const effectiveUrgency = urgency || (symptoms && symptoms.length > 0 ? evaluateTriage(symptoms).urgency : 'ROUTINE');
+
   const config = {
-    EMERGENCY: { bg: '#FEF2F2', color: '#DC2626', border: '#FCA5A5', label: 'तातडीचे' },
-    URGENT:    { bg: '#FFFBEB', color: '#D97706', border: '#FDE68A', label: 'लक्ष द्या' },
-    ROUTINE:   { bg: '#F0FDF4', color: '#16A34A', border: '#BBF7D0', label: 'सामान्य' },
-  }[urgency] ?? { bg: '#F8FAFC', color: '#64748B', border: '#E2E8F0', label: urgency };
+    EMERGENCY: { bg: '#FEF2F2', color: '#DC2626', border: '#FCA5A5', label: t.emergencyLabel },
+    URGENT:    { bg: '#FFFBEB', color: '#D97706', border: '#FDE68A', label: t.urgentLabel },
+    ROUTINE:   { bg: '#F0FDF4', color: '#16A34A', border: '#BBF7D0', label: t.routineLabel },
+  }[effectiveUrgency] ?? { bg: '#F8FAFC', color: '#64748B', border: '#E2E8F0', label: effectiveUrgency };
 
   return (
     <span style={{
       padding: '3px 10px', borderRadius: 9999,
       background: config.bg, color: config.color, border: `1px solid ${config.border}`,
-      fontSize: 11, fontWeight: 700, letterSpacing: 0.2,
+      fontSize: 12, fontWeight: 800, letterSpacing: 0.2, display: 'inline-flex', alignItems: 'center', gap: 4,
     }}>
-      {config.label}
+      <span>{effectiveUrgency === 'EMERGENCY' ? '🔴' : effectiveUrgency === 'URGENT' ? '🟡' : '🟢'}</span>
+      <span>{config.label}</span>
     </span>
   );
 };
 
-const PatientDetail: React.FC<{ patient: Patient; onClose: () => void }> = ({ patient, onClose }) => {
-  const { t } = useApp();
+const PatientDetail: React.FC<{ patient: Patient; onClose: () => void }> = ({ patient: rawPatient, onClose }) => {
+  const { t, language, updatePatient, showSnackbar } = useApp();
+  const patient = getLocalizedPatient(rawPatient, language);
+
+  const [isEditing, setIsEditing] = useState(false);
+
+  // Edit form states
+  const [editName, setEditName] = useState(rawPatient.name);
+  const [editAge, setEditAge] = useState(rawPatient.age);
+  const [editSex, setEditSex] = useState<'Female' | 'Male' | 'Other'>(rawPatient.sex);
+  const [editVillage, setEditVillage] = useState(rawPatient.village);
+  const [editPhone, setEditPhone] = useState(rawPatient.phone);
+  const [editAbha, setEditAbha] = useState(rawPatient.abhaId || '');
+  const [editSymptoms, setEditSymptoms] = useState<string[]>(rawPatient.symptoms || []);
+  const [editNotes, setEditNotes] = useState(rawPatient.notes || '');
+  const [symptomSearch, setSymptomSearch] = useState('');
+
+  // Triage status evaluated for current symptoms
+  const effectiveUrgency = rawPatient.lastTriage || (rawPatient.symptoms && rawPatient.symptoms.length > 0 ? evaluateTriage(rawPatient.symptoms).urgency : 'ROUTINE');
+  const triageDetails = useMemo(() => evaluateTriage(rawPatient.symptoms || []), [rawPatient.symptoms]);
+
+  const filteredMasterSymptoms = useMemo(() => {
+    if (!symptomSearch.trim()) return [];
+    const q = symptomSearch.toLowerCase().trim();
+    return MASTER_SYMPTOMS.filter(s => {
+      const en = s.labels.en.toLowerCase();
+      const mr = s.labels.mr.toLowerCase();
+      const hi = s.labels.hi.toLowerCase();
+      const kn = (s.labels.kn || '').toLowerCase();
+      const aliases = (s.aliases || []).join(' ').toLowerCase();
+      return en.includes(q) || mr.includes(q) || hi.includes(q) || kn.includes(q) || aliases.includes(q);
+    });
+  }, [symptomSearch]);
+
+  const toggleSymptom = (key: string) => {
+    if (editSymptoms.includes(key)) {
+      setEditSymptoms(editSymptoms.filter(k => k !== key));
+    } else {
+      setEditSymptoms([...editSymptoms, key]);
+    }
+  };
+
+  const removeSymptom = (key: string) => {
+    setEditSymptoms(editSymptoms.filter(k => k !== key));
+  };
+
+  const handleSave = () => {
+    if (!editName.trim()) {
+      showSnackbar(t.invalidNameError);
+      return;
+    }
+
+    const newTriage = evaluateTriage(editSymptoms).urgency;
+
+    const updated: Patient = {
+      ...rawPatient,
+      name: editName.trim(),
+      age: editAge,
+      sex: editSex,
+      village: editVillage.trim(),
+      phone: editPhone.trim(),
+      abhaId: editAbha.trim(),
+      symptoms: editSymptoms,
+      notes: editNotes.trim(),
+      lastTriage: newTriage,
+    };
+
+    updatePatient(updated);
+    showSnackbar(t.patientUpdatedSnackbar || 'Patient updated successfully');
+    setIsEditing(false);
+  };
+
+  const getSymptomLabel = (s: MasterSymptom) => {
+    return s.labels[language] || s.labels.en;
+  };
+
   return (
     <div style={{ position: 'absolute', inset: 0, background: '#F8FAFC', zIndex: 10, display: 'flex', flexDirection: 'column' }}>
       {/* Header */}
       <div style={{
         background: 'linear-gradient(135deg, #0F766E 0%, #0D9488 100%)', color: '#ffffff',
-        padding: '0 20px', height: 64,
+        padding: '0 16px', height: 64,
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         boxShadow: '0 4px 14px rgba(15, 118, 110, 0.25)',
       }}>
-        <div>
-          <div style={{ fontWeight: 800, fontSize: 17 }}>{patient.name}</div>
-          <div style={{ fontSize: 12, opacity: 0.9, fontWeight: 500 }}>{patient.age} {t.yearsOld} · {patient.sex === 'Female' ? 'स्त्री' : 'पुरुष'}</div>
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <div style={{ fontWeight: 800, fontSize: 17, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {isEditing ? t.editPatientTitle : patient.name}
+          </div>
+          {!isEditing && (
+            <div style={{ fontSize: 12, opacity: 0.9, fontWeight: 500 }}>
+              {patient.age} {t.yearsOld} · {patient.sex === 'Female' ? t.female : patient.sex === 'Male' ? t.male : t.other}
+            </div>
+          )}
         </div>
-        <button type="button" className="btn-icon" style={{ color: '#ffffff' }} onClick={onClose}>
-          <CloseIcon />
-        </button>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {!isEditing ? (
+            <button
+              type="button"
+              onClick={() => setIsEditing(true)}
+              style={{
+                background: 'rgba(255, 255, 255, 0.2)', border: '1px solid rgba(255, 255, 255, 0.3)',
+                color: '#ffffff', padding: '6px 12px', borderRadius: 10,
+                fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6,
+                cursor: 'pointer',
+              }}
+            >
+              <EditIcon />
+              <span>{t.edit}</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setIsEditing(false)}
+              style={{
+                background: 'rgba(255, 255, 255, 0.2)', border: 'none',
+                color: '#ffffff', padding: '6px 12px', borderRadius: 10,
+                fontSize: 13, fontWeight: 700, cursor: 'pointer',
+              }}
+            >
+              {t.cancel}
+            </button>
+          )}
+
+          <button type="button" className="btn-icon" style={{ color: '#ffffff' }} onClick={onClose}>
+            <CloseIcon />
+          </button>
+        </div>
       </div>
 
-      <div style={{ flex: 1, overflowY: 'auto', padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
-        {/* Basic info */}
-        <div className="card">
-          <p className="section-title">मूलभूत माहिती</p>
-          <InfoRow label="ABHA ID" value={patient.abhaId ?? '—'} />
-          <div className="divider" />
-          <InfoRow label="गाव" value={patient.village} />
-          <div className="divider" />
-          <InfoRow label="फोन" value={patient.phone} />
-          <div className="divider" />
-          <InfoRow label={t.registrationDate} value={patient.registrationDate} />
-          <div className="divider" />
-          <InfoRow label="शेवटची भेट" value={patient.lastVisit ?? '—'} />
-        </div>
-
-        {/* Status */}
-        <div className="card">
-          <p className="section-title">सध्याची स्थिती</p>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <UrgencyBadge urgency={patient.lastTriage} />
-          </div>
-        </div>
-
-        {/* Symptoms */}
-        {patient.symptoms && patient.symptoms.length > 0 && (
-          <div className="card">
-            <p className="section-title">{t.symptoms}</p>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-              {patient.symptoms.map(s => (
-                <span key={s} style={{
-                  padding: '6px 12px', background: '#F0FDFA',
-                  border: '1px solid #CCFBF1', borderRadius: 10,
-                  fontSize: 13, fontWeight: 600, color: '#0F766E',
-                }}>{s}</span>
-              ))}
+      {/* Main Content Area */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: 18, display: 'flex', flexDirection: 'column', gap: 14 }}>
+        {!isEditing ? (
+          /* VIEW MODE */
+          <>
+            {/* Status Card (Current Status + Triage Guidance) */}
+            <div className="card" style={{ borderLeft: `5px solid ${effectiveUrgency === 'EMERGENCY' ? '#EF4444' : effectiveUrgency === 'URGENT' ? '#F59E0B' : '#22C55E'}` }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                <p className="section-title" style={{ margin: 0 }}>{t.currentStatus}</p>
+                <UrgencyBadge urgency={effectiveUrgency} symptoms={patient.symptoms} />
+              </div>
+              <p style={{ fontSize: 13, color: '#334155', fontWeight: 600, margin: 0, lineHeight: 1.5 }}>
+                {triageDetails.guidanceText[language] || triageDetails.guidanceText.en}
+              </p>
             </div>
-          </div>
-        )}
 
-        {/* Consultations */}
-        {patient.consultations && patient.consultations.length > 0 && (
-          <div className="card">
-            <p className="section-title">{t.previousConsultations}</p>
-            {patient.consultations.map(c => (
-              <div key={c} style={{ fontSize: 14, color: '#0F172A', padding: '6px 0', borderBottom: '1px solid #F1F5F9', fontWeight: 500 }}>{c}</div>
-            ))}
-          </div>
-        )}
+            {/* Basic Info */}
+            <div className="card">
+              <p className="section-title">{t.basicInfo}</p>
+              <InfoRow label="ABHA ID" value={patient.abhaId ?? '—'} />
+              <div className="divider" />
+              <InfoRow label={t.village} value={patient.village} />
+              <div className="divider" />
+              <InfoRow label={t.mobileLabel} value={patient.phone} />
+              <div className="divider" />
+              <InfoRow label={t.registrationDate} value={patient.registrationDate} />
+              <div className="divider" />
+              <InfoRow label={t.lastVisitLabel} value={patient.lastVisit ?? '—'} />
+            </div>
 
-        {/* Referrals */}
-        {patient.referrals && patient.referrals.length > 0 && (
-          <div className="card">
-            <p className="section-title">{t.referrals}</p>
-            {patient.referrals.map(r => (
-              <div key={r} style={{ fontSize: 14, color: '#0F172A', padding: '6px 0', fontWeight: 500 }}>{r}</div>
-            ))}
-          </div>
-        )}
+            {/* Symptoms Card */}
+            <div className="card">
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                <p className="section-title" style={{ margin: 0 }}>{t.symptoms}</p>
+                <button
+                  type="button"
+                  onClick={() => setIsEditing(true)}
+                  style={{ background: 'none', border: 'none', color: '#0F766E', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
+                >
+                  ✏️ {t.editSymptomsLabel}
+                </button>
+              </div>
 
-        {/* Notes */}
-        {patient.notes && (
-          <div className="card">
-            <p className="section-title">{t.notes}</p>
-            <div style={{ fontSize: 14, color: '#475569', lineHeight: 1.6 }}>{patient.notes}</div>
+              {patient.symptoms && patient.symptoms.length > 0 ? (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                  {patient.symptoms.map(s => {
+                    const master = MASTER_SYMPTOMS.find(ms => ms.key === s || ms.id === s);
+                    const label = master ? (master.labels[language] || master.labels.en) : s;
+                    const icon = master ? master.icon : '🩺';
+                    return (
+                      <span key={s} style={{
+                        padding: '6px 12px', background: '#F0FDFA',
+                        border: '1px solid #CCFBF1', borderRadius: 10,
+                        fontSize: 13, fontWeight: 700, color: '#0F766E',
+                        display: 'inline-flex', alignItems: 'center', gap: 6,
+                      }}>
+                        <span>{icon}</span>
+                        <span>{label}</span>
+                      </span>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div style={{ fontSize: 13, color: '#94A3B8', fontStyle: 'italic', fontWeight: 500 }}>
+                  {t.noSymptomsRecorded}
+                </div>
+              )}
+            </div>
+
+            {/* Consultations */}
+            {patient.consultations && patient.consultations.length > 0 && (
+              <div className="card">
+                <p className="section-title">{t.previousConsultations}</p>
+                {patient.consultations.map(c => (
+                  <div key={c} style={{ fontSize: 14, color: '#0F172A', padding: '6px 0', borderBottom: '1px solid #F1F5F9', fontWeight: 500 }}>{c}</div>
+                ))}
+              </div>
+            )}
+
+            {/* Referrals */}
+            {patient.referrals && patient.referrals.length > 0 && (
+              <div className="card">
+                <p className="section-title">{t.referrals}</p>
+                {patient.referrals.map(r => (
+                  <div key={r} style={{ fontSize: 14, color: '#0F172A', padding: '6px 0', fontWeight: 500 }}>{r}</div>
+                ))}
+              </div>
+            )}
+
+            {/* Notes */}
+            {patient.notes && (
+              <div className="card">
+                <p className="section-title">{t.notes}</p>
+                <div style={{ fontSize: 14, color: '#475569', lineHeight: 1.6 }}>{patient.notes}</div>
+              </div>
+            )}
+
+            {/* Edit Patient & Symptoms Action Button */}
+            <button
+              type="button"
+              className="btn-outline"
+              onClick={() => setIsEditing(true)}
+              style={{ minHeight: 48, fontSize: 15, fontWeight: 700, marginTop: 6 }}
+            >
+              ✏️ {t.editPatientTitle}
+            </button>
+          </>
+        ) : (
+          /* EDIT MODE */
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div className="card" style={{ padding: 18 }}>
+              <p className="section-title" style={{ marginBottom: 14 }}>👤 {t.basicInfo}</p>
+
+              {/* Name */}
+              <div style={{ marginBottom: 14 }}>
+                <label className="form-label">{t.patientName} *</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  value={editName}
+                  onChange={e => setEditName(e.target.value)}
+                />
+              </div>
+
+              {/* Age & Sex */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
+                <div>
+                  <label className="form-label">{t.age}</label>
+                  <input
+                    type="number"
+                    className="form-input"
+                    value={editAge}
+                    onChange={e => setEditAge(parseInt(e.target.value, 10) || 0)}
+                  />
+                </div>
+                <div>
+                  <label className="form-label">{t.sex}</label>
+                  <select
+                    className="form-input"
+                    value={editSex}
+                    onChange={e => setEditSex(e.target.value as any)}
+                  >
+                    <option value="Female">{t.female}</option>
+                    <option value="Male">{t.male}</option>
+                    <option value="Other">{t.other}</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Village */}
+              <div style={{ marginBottom: 14 }}>
+                <label className="form-label">{t.village}</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  value={editVillage}
+                  onChange={e => setEditVillage(e.target.value)}
+                />
+              </div>
+
+              {/* Mobile Phone */}
+              <div style={{ marginBottom: 14 }}>
+                <label className="form-label">{t.familyContact}</label>
+                <input
+                  type="tel"
+                  className="form-input"
+                  value={editPhone}
+                  onChange={e => setEditPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                  maxLength={10}
+                />
+              </div>
+
+              {/* ABHA ID */}
+              <div>
+                <label className="form-label">{t.abhaId}</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  value={editAbha}
+                  onChange={e => setEditAbha(e.target.value)}
+                />
+              </div>
+            </div>
+
+            {/* EDIT SYMPTOMS SECTION */}
+            <div className="card" style={{ padding: 18 }}>
+              <p className="section-title" style={{ marginBottom: 12 }}>🩺 {t.editSymptomsLabel}</p>
+
+              {/* Active Selected Symptom Chips */}
+              {editSymptoms.length > 0 && (
+                <div style={{ marginBottom: 14 }}>
+                  <label className="form-label">{t.selectedSymptomsChips} ({editSymptoms.length})</label>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                    {editSymptoms.map(key => {
+                      const master = MASTER_SYMPTOMS.find(ms => ms.key === key || ms.id === key);
+                      const label = master ? getSymptomLabel(master) : key;
+                      const icon = master ? master.icon : '🩺';
+                      return (
+                        <div
+                          key={key}
+                          style={{
+                            display: 'inline-flex', alignItems: 'center', gap: 6,
+                            padding: '6px 12px', borderRadius: 9999,
+                            background: '#0F766E', color: '#FFFFFF',
+                            fontSize: 13, fontWeight: 700,
+                          }}
+                        >
+                          <span>{icon}</span>
+                          <span>{label}</span>
+                          <button
+                            type="button"
+                            onClick={() => removeSymptom(key)}
+                            style={{
+                              background: 'rgba(255,255,255,0.25)', border: 'none', borderRadius: '50%',
+                              width: 18, height: 18, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              color: '#ffffff', cursor: 'pointer', marginLeft: 2, padding: 0,
+                            }}
+                          >
+                            <XIcon />
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Symptom Search Bar */}
+              <div style={{ position: 'relative', marginBottom: 14 }}>
+                <input
+                  type="text"
+                  className="form-input"
+                  placeholder={t.searchSymptomPlaceholder}
+                  value={symptomSearch}
+                  onChange={e => setSymptomSearch(e.target.value)}
+                  style={{ paddingLeft: 36 }}
+                />
+                <div style={{ position: 'absolute', left: 12, top: 14, pointerEvents: 'none' }}>
+                  <SearchIcon />
+                </div>
+
+                {filteredMasterSymptoms.length > 0 && (
+                  <div style={{
+                    position: 'absolute', top: 52, left: 0, right: 0, zIndex: 100,
+                    background: '#FFFFFF', borderRadius: 14, border: '1px solid #CBD5E1',
+                    maxHeight: 200, overflowY: 'auto', boxShadow: '0 10px 25px rgba(0,0,0,0.15)',
+                  }}>
+                    {filteredMasterSymptoms.map(sym => {
+                      const isSel = editSymptoms.includes(sym.key);
+                      return (
+                        <button
+                          key={sym.id}
+                          type="button"
+                          onClick={() => {
+                            toggleSymptom(sym.key);
+                            setSymptomSearch('');
+                          }}
+                          style={{
+                            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                            padding: '10px 14px', border: 'none', borderBottom: '1px solid #F1F5F9',
+                            width: '100%', background: isSel ? '#F0FDFA' : '#FFFFFF', cursor: 'pointer', textAlign: 'left',
+                          }}
+                        >
+                          <span style={{ fontSize: 13, fontWeight: 700, color: '#0F172A' }}>
+                            {sym.icon} {getSymptomLabel(sym)}
+                          </span>
+                          <span style={{ fontSize: 12, color: isSel ? '#0F766E' : '#0284C7', fontWeight: 800 }}>
+                            {isSel ? '✓ Added' : '+ Add'}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Quick Select Symptoms Grid */}
+              <label className="form-label">{t.quickSelectSymptoms}</label>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                {MASTER_SYMPTOMS.slice(0, 10).map(s => {
+                  const isSel = editSymptoms.includes(s.key);
+                  return (
+                    <button
+                      key={s.id}
+                      type="button"
+                      className={`symptom-chip${isSel ? ' selected' : ''}`}
+                      onClick={() => toggleSymptom(s.key)}
+                      style={{ padding: '8px 10px' }}
+                    >
+                      <span>{s.icon}</span>
+                      <span style={{ fontSize: 12, textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                        {getSymptomLabel(s)}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* EDIT NOTES */}
+            <div className="card" style={{ padding: 18 }}>
+              <p className="section-title" style={{ marginBottom: 8 }}>📝 {t.notes}</p>
+              <textarea
+                className="form-input"
+                rows={3}
+                value={editNotes}
+                onChange={e => setEditNotes(e.target.value)}
+                style={{ width: '100%', resize: 'none' }}
+              />
+            </div>
+
+            {/* Save / Cancel Buttons */}
+            <div style={{ display: 'flex', gap: 10, marginTop: 6, marginBottom: 20 }}>
+              <button
+                type="button"
+                className="btn-outline"
+                onClick={() => setIsEditing(false)}
+                style={{ flex: 1, minHeight: 50, fontSize: 15, fontWeight: 700 }}
+              >
+                {t.cancel}
+              </button>
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={handleSave}
+                style={{ flex: 2, minHeight: 50, fontSize: 15, fontWeight: 800 }}
+              >
+                ✓ {t.updatePatientBtn}
+              </button>
+            </div>
           </div>
         )}
       </div>
@@ -185,7 +582,7 @@ export const PatientsScreen: React.FC = () => {
         {filtered.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '48px 16px', color: '#94A3B8' }}>
             <div style={{ fontSize: 44, marginBottom: 12 }}>🔍</div>
-            <div style={{ fontSize: 15, fontWeight: 600 }}>कोणताही रुग्ण सापडला नाही</div>
+            <div style={{ fontSize: 15, fontWeight: 600 }}>{t.noPatientsFound}</div>
           </div>
         ) : filtered.map(patient => (
           <button
@@ -212,11 +609,11 @@ export const PatientsScreen: React.FC = () => {
                   {patient.name}
                 </div>
                 <div style={{ fontSize: 13, color: '#64748B', marginTop: 2, fontWeight: 500 }}>
-                  {patient.age} वर्षे · {patient.village}
+                  {patient.age} {t.yearsOld} · {patient.village}
                   {patient.abhaId ? ` · ${patient.abhaId}` : ''}
                 </div>
                 <div style={{ marginTop: 6 }}>
-                  <UrgencyBadge urgency={patient.lastTriage} />
+                  <UrgencyBadge urgency={patient.lastTriage} symptoms={patient.symptoms} />
                 </div>
               </div>
             </div>

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 
 const CheckIcon = () => (
@@ -14,16 +14,50 @@ const ClockIcon = () => (
   </svg>
 );
 
+const DRAFT_ID = 'referral';
+
 export const ReferralScreen: React.FC = () => {
-  const { t, language, currentPatient, triageResult, showSnackbar } = useApp();
+  const {
+    t,
+    language,
+    currentPatient,
+    triageResult,
+    showSnackbar,
+    saveDraftField,
+    getDraft,
+    clearDraft,
+    setHasUnsavedChanges,
+  } = useApp();
+
+  const [notes, setNotes] = useState('');
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
 
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      const draft = await getDraft(DRAFT_ID);
+      if (active && draft && draft.notes) {
+        setNotes(draft.notes);
+        showSnackbar('Referral draft restored');
+      }
+    })();
+    return () => { active = false; };
+  }, []);
+
+  const handleNotesChange = (val: string) => {
+    setNotes(val);
+    saveDraftField(DRAFT_ID, 'notes', val);
+    setHasUnsavedChanges(Boolean(val.trim() && !sent));
+  };
+
   const handleSend = async () => {
     setSending(true);
-    await new Promise(r => setTimeout(r, 1500));
+    await new Promise(r => setTimeout(r, 1200));
     setSending(false);
     setSent(true);
+    await clearDraft(DRAFT_ID);
+    setHasUnsavedChanges(false);
     showSnackbar(t.referralSuccess);
   };
 
@@ -32,12 +66,6 @@ export const ReferralScreen: React.FC = () => {
     t.instruction2,
     t.instruction3,
   ];
-
-  const waitingTitle = language === 'en'
-    ? 'While waiting for ambulance'
-    : language === 'hi'
-      ? 'एम्बुलेंस आने तक'
-      : 'रुग्णवाहिका येईपर्यंत';
 
   return (
     <div className="screen-body">
@@ -59,7 +87,7 @@ export const ReferralScreen: React.FC = () => {
             flexShrink: 0,
             boxShadow: '0 2px 6px rgba(220, 38, 38, 0.3)',
           }}>
-            EMERGENCY
+            {t.emergencyLabel}
           </span>
         </div>
       </div>
@@ -68,7 +96,7 @@ export const ReferralScreen: React.FC = () => {
       {triageResult?.reason && (
         <div className="card" style={{ marginBottom: 14, padding: '14px 18px', background: '#FFFBEB', borderColor: '#FDE68A' }}>
           <div style={{ fontSize: 12, fontWeight: 800, color: '#D97706', marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-            {language === 'en' ? 'Reason' : language === 'hi' ? 'कारण' : 'कारण'}
+            {t.symptoms}
           </div>
           <div style={{ fontSize: 14, color: '#0F172A', fontWeight: 600, lineHeight: 1.4 }}>
             {triageResult.reason}
@@ -78,10 +106,25 @@ export const ReferralScreen: React.FC = () => {
 
       {/* Referred to */}
       <div className="card" style={{ marginBottom: 14 }}>
-        <p className="section-title">रेफर केलेले रुग्णालय</p>
-        <div style={{ fontWeight: 800, fontSize: 16, color: '#0F172A' }}>{t.referredTo}</div>
-        <div style={{ fontSize: 13, color: '#64748B', marginTop: 3, fontWeight: 500 }}>District Level Hospital · 34 km</div>
+        <p className="section-title">{t.referredHospital}</p>
+        <div style={{ fontWeight: 800, fontSize: 16, color: '#0F172A' }}>{t.districtHospital}</div>
+        <div style={{ fontSize: 13, color: '#64748B', marginTop: 3, fontWeight: 500 }}>{t.distanceKm}</div>
       </div>
+
+      {/* Referral Notes Input */}
+      {!sent && (
+        <div className="card" style={{ marginBottom: 14 }}>
+          <label className="form-label">{t.notes}</label>
+          <textarea
+            className="form-input"
+            rows={2}
+            placeholder={t.notes}
+            value={notes}
+            onChange={e => handleNotesChange(e.target.value)}
+            style={{ width: '100%', resize: 'none' }}
+          />
+        </div>
+      )}
 
       {/* Ambulance */}
       <div className="card" style={{ marginBottom: 14 }}>
@@ -100,15 +143,15 @@ export const ReferralScreen: React.FC = () => {
               </span>
             </div>
             <div className="divider" />
-            <InfoRow label="गाडी नंबर" value={t.vehicle} />
-            <InfoRow label="चालक" value={t.driver} />
-            <InfoRow label="अपेक्षित वेळ" value={t.estimatedArrival} accent />
+            <InfoRow label={t.vehicleNo} value={t.vehicle} />
+            <InfoRow label={t.driverLabel} value={t.driver} />
+            <InfoRow label={t.etaLabel} value={t.estimatedArrival} accent />
             <InfoRow label={t.referralId} value="NMN-2024-007" />
           </div>
         ) : (
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '4px 0' }}>
             <span style={{ color: '#94A3B8' }}><ClockIcon /></span>
-            <span style={{ color: '#64748B', fontSize: 14, fontWeight: 500 }}>रेफरल पाठवल्यावर 108 सूचित होईल</span>
+            <span style={{ color: '#64748B', fontSize: 14, fontWeight: 500 }}>{t.ambulanceNotifyNote}</span>
           </div>
         )}
       </div>
@@ -141,7 +184,7 @@ export const ReferralScreen: React.FC = () => {
       {sent && (
         <div className="card-urgent" style={{ marginBottom: 16 }}>
           <p className="section-title" style={{ color: '#D97706', marginBottom: 10 }}>
-            ⏱ {waitingTitle}
+            ⏱ {t.whileWaiting}
           </p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {instructions.map((inst, i) => (
@@ -160,7 +203,7 @@ export const ReferralScreen: React.FC = () => {
           onClick={handleSend}
           disabled={sending}
         >
-          {sending ? t.sendingReferral : '🚑 रेफरल पाठवा आणि 108 बोलवा'}
+          {sending ? t.sendingReferral : t.sendReferralBtn}
         </button>
       )}
 

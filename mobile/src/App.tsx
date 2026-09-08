@@ -29,6 +29,8 @@ const AppRouter: React.FC = () => {
       triage: 'register',
       consultation: 'triage',
       referral: 'consultation',
+      patients: 'home',
+      followups: 'home',
       guide: 'home',
       profile: 'home',
     };
@@ -38,8 +40,7 @@ const AppRouter: React.FC = () => {
   const screenConfig: Record<string, {
     title: string;
     subtitle?: string;
-    showBack?: boolean;
-    navTab?: string;
+    showBack: boolean;
   }> = {
     home: {
       title: t.greeting,
@@ -65,20 +66,20 @@ const AppRouter: React.FC = () => {
     },
     patients: {
       title: t.patientsTitle,
-      showBack: false,
+      showBack: true,
     },
     followups: {
       title: t.followupTitle,
-      showBack: false,
+      showBack: true,
     },
     guide: {
       title: t.guideTitle,
-      showBack: false,
+      showBack: true,
     },
     profile: {
       title: t.profile ?? 'Profile',
       subtitle: t.ashaWorkerName,
-      showBack: false,
+      showBack: true,
     },
   };
 

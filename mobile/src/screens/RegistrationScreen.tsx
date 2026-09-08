@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import {
   validatePatientName,
@@ -30,8 +30,21 @@ const CheckCircleIcon = () => (
   </svg>
 );
 
+const DRAFT_ID = 'register';
+
 export const RegistrationScreen: React.FC = () => {
-  const { t, addPatient, setActiveScreen, setCurrentPatient, showSnackbar } = useApp();
+  const {
+    t,
+    language,
+    addPatient,
+    setActiveScreen,
+    setCurrentPatient,
+    showSnackbar,
+    saveDraftField,
+    getDraft,
+    clearDraft,
+    setHasUnsavedChanges,
+  } = useApp();
 
   const [name, setName] = useState('');
   const [age, setAge] = useState(25);
@@ -41,12 +54,44 @@ export const RegistrationScreen: React.FC = () => {
   const [phone, setPhone] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  // Touch states for field error messages
   const [nameTouched, setNameTouched] = useState(false);
   const [phoneTouched, setPhoneTouched] = useState(false);
   const [abhaTouched, setAbhaTouched] = useState(false);
 
-  // Field validations
+  // Restore draft from SQLite on screen mount (CHANGE 2)
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      const draft = await getDraft(DRAFT_ID);
+      if (active && draft && Object.keys(draft).length > 0) {
+        if (draft.name) setName(draft.name);
+        if (draft.age) setAge(parseInt(draft.age, 10) || 25);
+        if (draft.sex) setSex(draft.sex as any);
+        if (draft.abhaId) setAbhaId(draft.abhaId);
+        if (draft.village) setVillage(draft.village);
+        if (draft.phone) setPhone(draft.phone);
+        showSnackbar(
+          language === 'en'
+            ? 'Draft restored from SQLite'
+            : language === 'hi'
+            ? 'ड्राफ्ट SQLite से पुनर्प्राप्त किया गया'
+            : language === 'kn'
+            ? 'ಖರಡು SQLite ನಿಂದ ಮರುಸ್ಥಾಪಿಸಲಾಗಿದೆ'
+            : 'ड्राफ्ट SQLite वरून पुनर्संचयित केले'
+        );
+      }
+    })();
+    return () => { active = false; };
+  }, []);
+
+  // Sync unsaved changes state to Context for header back button dialog guard
+  useEffect(() => {
+    const isDirty = Boolean(name.trim() || phone.trim() || abhaId.trim());
+    setHasUnsavedChanges(isDirty);
+    return () => { setHasUnsavedChanges(false); };
+  }, [name, phone, abhaId, setHasUnsavedChanges]);
+
+  // Validations
   const nameVal = validatePatientName(name);
   const phoneVal = validateMobileNumber(phone);
   const abhaVal = validateAbhaId(abhaId);
@@ -56,26 +101,53 @@ export const RegistrationScreen: React.FC = () => {
   const handleNameChange = (val: string) => {
     setName(val);
     setNameTouched(true);
+    saveDraftField(DRAFT_ID, 'name', val);
+  };
+
+  const handleAgeChange = (newAge: number) => {
+    const validAge = Math.max(0, Math.min(120, newAge));
+    setAge(validAge);
+    saveDraftField(DRAFT_ID, 'age', String(validAge));
+  };
+
+  const handleSexChange = (newSex: 'Male' | 'Female' | 'Other') => {
+    setSex(newSex);
+    saveDraftField(DRAFT_ID, 'sex', newSex);
   };
 
   const handlePhoneChange = (val: string) => {
-    // Keep only numbers
     const digitsOnly = val.replace(/\D/g, '').slice(0, 10);
     setPhone(digitsOnly);
     setPhoneTouched(true);
+    saveDraftField(DRAFT_ID, 'phone', digitsOnly);
   };
 
   const handleAbhaChange = (val: string) => {
     const formatted = formatAbhaIdInput(val);
     setAbhaId(formatted);
     setAbhaTouched(true);
+    saveDraftField(DRAFT_ID, 'abhaId', formatted);
+  };
+
+  const handleVillageChange = (val: string) => {
+    setVillage(val);
+    saveDraftField(DRAFT_ID, 'village', val);
   };
 
   const handleScanOrVerifyAbha = () => {
     const demoAbha = '91-8823-4410-12';
     setAbhaId(demoAbha);
     setAbhaTouched(true);
-    showSnackbar('✓ ABHA ID scanned & verified via NHA');
+    saveDraftField(DRAFT_ID, 'abhaId', demoAbha);
+    showSnackbar(
+      language === 'en'
+        ? '✓ ABHA ID scanned & verified via NHA'
+        : language === 'hi'
+        ? '✓ ABHA ID स्कैन व सत्यापित'
+        : language === 'kn'
+        ? '✓ ABHA ID ಪರಿಶೀಲಿಸಲಾಗಿದೆ'
+        : '✓ ABHA ID स्कॅन व सत्यापित'
+    );
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -99,8 +171,20 @@ export const RegistrationScreen: React.FC = () => {
       lastTriage: undefined,
     });
 
+    // Clear draft on successful submit (CHANGE 2)
+    await clearDraft(DRAFT_ID);
+    setHasUnsavedChanges(false);
+
     setCurrentPatient(p);
-    showSnackbar(t.referralSuccess ? 'रुग्ण नोंदणी यशस्वी.' : 'Patient Registration Successful.');
+    showSnackbar(
+      language === 'en'
+        ? 'Patient Registration Successful.'
+        : language === 'hi'
+        ? 'मरीज़ पंजीकरण सफल।'
+        : language === 'kn'
+        ? 'ರೋಗಿ ನೋಂದಣಿ ಯಶಸ್ವಿಯಾಗಿದೆ.'
+        : 'रुग्ण नोंदणी यशस्वी.'
+    );
     setSubmitting(false);
     setActiveScreen('triage');
   };
@@ -145,9 +229,9 @@ export const RegistrationScreen: React.FC = () => {
         <div>
           <label className="form-label">{t.age} ({t.yearsOld})</label>
           <div className="number-picker">
-            <button type="button" className="number-picker-btn" onClick={() => setAge(a => Math.max(0, a - 1))}>−</button>
+            <button type="button" className="number-picker-btn" onClick={() => handleAgeChange(age - 1)}>−</button>
             <div className="number-picker-value">{age}</div>
-            <button type="button" className="number-picker-btn" onClick={() => setAge(a => Math.min(120, a + 1))}>+</button>
+            <button type="button" className="number-picker-btn" onClick={() => handleAgeChange(age + 1)}>+</button>
           </div>
         </div>
 
@@ -160,7 +244,7 @@ export const RegistrationScreen: React.FC = () => {
                 key={s}
                 type="button"
                 className={`sex-btn${sex === s ? ' selected' : ''}`}
-                onClick={() => setSex(s)}
+                onClick={() => handleSexChange(s)}
               >
                 {s === 'Female' ? t.female : s === 'Male' ? t.male : t.other}
               </button>
@@ -168,7 +252,7 @@ export const RegistrationScreen: React.FC = () => {
           </div>
         </div>
 
-        {/* ABHA ID with Format Validation & Verification Badge */}
+        {/* ABHA ID */}
         <div>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
             <label className="form-label" style={{ marginBottom: 0 }}>{t.abhaId} *</label>
@@ -226,7 +310,7 @@ export const RegistrationScreen: React.FC = () => {
             type="text"
             className="form-input"
             value={village}
-            onChange={e => setVillage(e.target.value)}
+            onChange={e => handleVillageChange(e.target.value)}
             style={{ background: '#F8FAFC', color: '#475569' }}
           />
           <p style={{ margin: '6px 0 0', fontSize: 12, color: '#94A3B8', fontWeight: 500 }}>
@@ -234,7 +318,7 @@ export const RegistrationScreen: React.FC = () => {
           </p>
         </div>
 
-        {/* Family Contact Number (10 digits) */}
+        {/* Family Contact Number */}
         <div>
           <label className="form-label">{t.familyContact} *</label>
           <div className="form-input-with-icon">

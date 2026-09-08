@@ -1,15 +1,5 @@
 import type { Language } from '../types';
 
-/**
- * Symptom-specific triage protocols based on NHM / WHO / ASHA training guidelines.
- *
- * Each symptom key maps to:
- * - priority: higher = more dangerous, used when merging multiple symptoms
- * - icon: emoji for the offline-guide step card
- * - reason: trilingual urgency reason string
- * - instructions: 4 pre-referral first-aid steps (trilingual)
- */
-
 export interface TriageProtocol {
   priority: number;
   icon: string;
@@ -25,6 +15,7 @@ export const TRIAGE_PROTOCOLS: Record<string, TriageProtocol> = {
       mr: 'श्वास घेण्यास त्रास — वायुमार्ग मोकळा ठेवा',
       hi: 'सांस लेने में तकलीफ — वायुमार्ग खुला रखें',
       en: 'Breathing difficulty — keep airway open',
+      kn: 'ಉಸಿರಾಟದ ತೊಂದರೆ — ವಾಯುಮಾರ್ಗವನ್ನು ಮುಕ್ತವಾಗಿರಿಸಿ',
     },
     instructions: {
       mr: [
@@ -45,6 +36,12 @@ export const TRIAGE_PROTOCOLS: Record<string, TriageProtocol> = {
         'Count breaths per minute',
         'If lips or nails turn blue, call 108 immediately',
       ],
+      kn: [
+        'ರೋಗಿಯನ್ನು ನೇರವಾಗಿ ಕುಳಿತುಕೊಳ್ಳಿಸಿ',
+        'ಬಿಗಿಯಾದ ಬಟ್ಟೆಗಳನ್ನು ಸಡಿಲಗೊಳಿಸಿ',
+        'ಪ್ರತಿ ನಿಮಿಷದ ಉಸಿರಾಟವನ್ನು ಎಣಿಸಿ',
+        'ತುಟಿಗಳು ನೀಲಿ ಬಣ್ಣಕ್ಕೆ ತಿರುಗಿದರೆ 108 ಗೆ ಕರೆ ಮಾಡಿ',
+      ],
     },
   },
 
@@ -55,6 +52,7 @@ export const TRIAGE_PROTOCOLS: Record<string, TriageProtocol> = {
       mr: 'गर्भावस्थेतील धोक्याची चिन्हे — तातडीने रुग्णालयात न्या',
       hi: 'गर्भावस्था में खतरे के संकेत — तुरंत अस्पताल ले जाएं',
       en: 'Pregnancy danger signs — transport to hospital immediately',
+      kn: 'ಗರ್ಭಧಾರಣೆಯ ಅಪಾಯದ ಚಿಹ್ನೆಗಳು',
     },
     instructions: {
       mr: [
@@ -75,6 +73,12 @@ export const TRIAGE_PROTOCOLS: Record<string, TriageProtocol> = {
         'Check fetal movement — note if decreased',
         'If bleeding or water leaks, apply clean cloth and leave immediately',
       ],
+      kn: [
+        'ರೋಗಿಯನ್ನು ಎಡಭಾಗಕ್ಕೆ ಮಲಗಿಸಿ',
+        'ಆಹಾರ ಅಥವಾ ನೀರನ್ನು ಕೊಡಬೇಡಿ',
+        'ಮಗುವಿನ ಚಲನೆಯನ್ನು ಪರಿಶೀಲಿಸಿ',
+        'ರಕ್ತಸ್ರಾವವಾದರೆ ಸ್ವಚ್ಛ ಬಟ್ಟೆಯನ್ನು ಇಡಿ',
+      ],
     },
   },
 
@@ -85,6 +89,7 @@ export const TRIAGE_PROTOCOLS: Record<string, TriageProtocol> = {
       mr: 'तीव्र ताप — तापमान नियंत्रित करा',
       hi: 'तेज़ बुखार — तापमान नियंत्रित करें',
       en: 'High fever — manage temperature',
+      kn: 'ಹೆಚ್ಚಿನ ಜ್ವರ — ತಾಪಮಾನವನ್ನು ನಿಯಂತ್ರಿಸಿ',
     },
     instructions: {
       mr: [
@@ -105,6 +110,12 @@ export const TRIAGE_PROTOCOLS: Record<string, TriageProtocol> = {
         'Remove heavy clothing and blankets',
         'Check temperature every 30 minutes',
       ],
+      kn: [
+        'ಸಾಮಾನ್ಯ ನೀರಿನ ಬಟ್ಟೆಯಿಂದ ಮೈಯನ್ನು ಒರೆಸಿ',
+        'ಪ್ರಜ್ಞೆಯಲ್ಲಿದ್ದರೆ ORS ನೀಡಿ',
+        'ದಪ್ಪನೆಯ ಬಟ್ಟೆಗಳನ್ನು ತೆಗೆಯಿರಿ',
+        'ಪ್ರತಿ 30 ನಿಮಿಷಗಳಿಗೊಮ್ಮೆ ತಾಪಮಾನ ತಪಾಸಣೆ ಮಾಡಿ',
+      ],
     },
   },
 
@@ -115,6 +126,7 @@ export const TRIAGE_PROTOCOLS: Record<string, TriageProtocol> = {
       mr: '५ वर्षांखालील आजारी बालक — धोक्याची चिन्हे तपासा',
       hi: '5 साल से छोटा बीमार बच्चा — खतरे के संकेत जांचें',
       en: 'Sick child under 5 — check for danger signs',
+      kn: 'ಅಸ್ವಸ್ಥ ಮಗು (5 ವರ್ಷದೊಳಗಿನ)',
     },
     instructions: {
       mr: [
@@ -135,6 +147,12 @@ export const TRIAGE_PROTOCOLS: Record<string, TriageProtocol> = {
         'Gently clear nose and airway',
         'If convulsions occur, turn on side — do not put anything in mouth',
       ],
+      kn: [
+        'ಮಗುವನ್ನು ಬೆಚ್ಚಗೆ ಇಡಿ',
+        'ಎದೆಹಾಲು ನೀಡುವುದನ್ನು ಮುಂದುವರಿಸಿ',
+        'ಉಸಿರಾಟದ ಮಾರ್ಗವನ್ನು ಸ್ವಚ್ಛಗೊಳಿಸಿ',
+        'ಫಿಟ್ಸ್ ಬಂದರೆ ಬದಿಗೆ ಮಲಗಿಸಿ',
+      ],
     },
   },
 
@@ -145,10 +163,11 @@ export const TRIAGE_PROTOCOLS: Record<string, TriageProtocol> = {
       mr: 'तीव्र डोकेदुखी — स्ट्रोक / मेंदूज्वराचा धोका',
       hi: 'तीव्र सिरदर्द — स्ट्रोक / मेनिनजाइटिस का खतरा',
       en: 'Severe headache — stroke / meningitis risk',
+      kn: 'ತೀವ್ರ ತಲೆನೋವು',
     },
     instructions: {
       mr: [
-        'रुग्णाला अंधाऱ्या, शांत खोलीत झोपवा',
+        'रुग्णाला अंधार्या, शांत खोलीत झोपवा',
         'ऍस्पिरिन / कोणतेही औषध देऊ नका',
         'दर ५ मिनिटांनी शुद्धी तपासा — बोलतो का, नाव सांगतो का',
         'डोकेदुखी सुरू झाल्याची वेळ नोंद करा',
@@ -165,6 +184,12 @@ export const TRIAGE_PROTOCOLS: Record<string, TriageProtocol> = {
         'Check consciousness every 5 minutes — is patient responsive?',
         'Note the time headache started',
       ],
+      kn: [
+        'ರೋಗಿಯನ್ನು ಶಾಂತ ಕೋಣೆಯಲ್ಲಿ ಮಲಗಿಸಿ',
+        'ಆಸ್ಪಿರಿನ್ ನೀಡಬೇಡಿ',
+        'ಪ್ರತಿ 5 ನಿಮಿಷಗಳಿಗೊಮ್ಮೆ ಪ್ರಜ್ಞೆಯನ್ನು ಪರೀಕ್ಷಿಸಿ',
+        'ಸಮಯವನ್ನು ನೋಟ್ ಮಾಡಿ',
+      ],
     },
   },
 
@@ -175,6 +200,7 @@ export const TRIAGE_PROTOCOLS: Record<string, TriageProtocol> = {
       mr: 'तीव्र अशक्तपणा — रक्तक्षय / हायपोग्लायसेमियाचा धोका',
       hi: 'गंभीर कमज़ोरी — एनीमिया / हाइपोग्लाइसीमिया का खतरा',
       en: 'Severe weakness — anaemia / hypoglycaemia risk',
+      kn: 'ತೀವ್ರ ನಿಸ್ಸತ್ವ',
     },
     instructions: {
       mr: [
@@ -195,6 +221,12 @@ export const TRIAGE_PROTOCOLS: Record<string, TriageProtocol> = {
         'Do not leave unattended — fall risk',
         'Check pulse — note if very slow or very fast',
       ],
+      kn: [
+        'ರೋಗಿಯನ್ನು ಮಲಗಿಸಿ, ಕಾಲುಗಳನ್ನು ಸ್ವಲ್ಪ ಎತ್ತರಿಸಿ',
+        'ಸಾಧ್ಯವಾದರೆ ORS ನೀಡಿ',
+        'ಒಬ್ಬಂಟಿಯಾಗಿ ಬಿಡಬೇಡಿ',
+        'ನಾಡಿಮಿಡಿತವನ್ನು ಪರೀಕ್ಷಿಸಿ',
+      ],
     },
   },
 
@@ -205,6 +237,7 @@ export const TRIAGE_PROTOCOLS: Record<string, TriageProtocol> = {
       mr: 'सतत उलटी — निर्जलीकरणाचा धोका',
       hi: 'लगातार उल्टी — निर्जलीकरण का खतरा',
       en: 'Persistent vomiting — dehydration risk',
+      kn: 'ನಿರಂತರ ವಾಂತಿ',
     },
     instructions: {
       mr: [
@@ -225,6 +258,12 @@ export const TRIAGE_PROTOCOLS: Record<string, TriageProtocol> = {
         'Do not give solid food',
         'If eyes are sunken or skin is dry, rush to hospital',
       ],
+      kn: [
+        'ತಲೆಯನ್ನು ಪಕ್ಕಕ್ಕೆ ತಿರುಗಿಸಿ',
+        'ಸ್ವಲ್ಪ ಸ್ವಲ್ಪ ORS ನೀಡಿ',
+        'ಘನ ಆಹಾರವನ್ನು ನೀಡಬೇಡಿ',
+        'ಆಸ್ಪತ್ರೆಗೆ ಕರೆದೊಯ್ಯಿರಿ',
+      ],
     },
   },
 
@@ -235,6 +274,7 @@ export const TRIAGE_PROTOCOLS: Record<string, TriageProtocol> = {
       mr: 'दीर्घकालीन आजाराची तीव्रता — औषधे आणि नोंदी सोबत ठेवा',
       hi: 'पुरानी बीमारी बिगड़ी — दवाइयां और रिकॉर्ड साथ रखें',
       en: 'Chronic disease flare-up — carry medicines and records',
+      kn: 'ದೀರ್ಘಕಾಲದ ಕಾಯಿಲೆ',
     },
     instructions: {
       mr: [
@@ -255,18 +295,16 @@ export const TRIAGE_PROTOCOLS: Record<string, TriageProtocol> = {
         'Keep patient calm — do not panic',
         'Measure BP / blood sugar (if available) and note readings',
       ],
+      kn: [
+        'ಎಲ್ಲಾ ಔಷಧಿಗಳನ್ನು ತೆಗೆದುಕೊಂಡು ಹೋಗಿ',
+        'ಕೊನೆಯ ಡೋಸ್ ಸಮಯವನ್ನು ನೋಟ್ ಮಾಡಿ',
+        'ರೋಗಿಯನ್ನು ಶಾಂತವಾಗಿರಿಸಿ',
+        'ರಕ್ತದೊತ್ತಡ ಪರಿಶೀಲಿಸಿ',
+      ],
     },
   },
 };
 
-/**
- * Given a set of selected symptom keys and a language, returns:
- * - reason: the urgency reason string from the highest-priority symptom
- * - instructions: merged unique instructions from all selected symptoms,
- *   ordered by priority (highest first), capped at 5
- * - dominantIcon: the icon of the highest-priority symptom
- * - dominantKey: the key of the highest-priority symptom
- */
 export function getTriageGuidance(
   selectedKeys: string[],
   language: Language
@@ -280,7 +318,6 @@ export function getTriageGuidance(
     return { reason: '', instructions: [], dominantIcon: '🏥', dominantKey: '' };
   }
 
-  // Sort by priority descending
   const sorted = selectedKeys
     .filter(k => k in TRIAGE_PROTOCOLS)
     .sort((a, b) => TRIAGE_PROTOCOLS[b].priority - TRIAGE_PROTOCOLS[a].priority);
@@ -291,12 +328,12 @@ export function getTriageGuidance(
 
   const dominant = TRIAGE_PROTOCOLS[sorted[0]];
 
-  // Merge instructions from all selected, in priority order, removing duplicates
   const seen = new Set<string>();
   const merged: string[] = [];
   for (const key of sorted) {
     const protocol = TRIAGE_PROTOCOLS[key];
-    for (const inst of protocol.instructions[language]) {
+    const instList = protocol.instructions[language] || protocol.instructions.en;
+    for (const inst of instList) {
       if (!seen.has(inst)) {
         seen.add(inst);
         merged.push(inst);
@@ -305,7 +342,7 @@ export function getTriageGuidance(
   }
 
   return {
-    reason: dominant.reason[language],
+    reason: dominant.reason[language] || dominant.reason.en,
     instructions: merged.slice(0, 5),
     dominantIcon: dominant.icon,
     dominantKey: sorted[0],

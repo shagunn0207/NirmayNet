@@ -87,9 +87,9 @@ export const ConsultationScreen: React.FC = () => {
             ) : callState === 'lost' || callState === 'offline' ? (
               <span style={{ fontSize: 12, color: '#DC2626', fontWeight: 700 }}>📡 {t.signalLost}</span>
             ) : callState === 'connecting' ? (
-              <span style={{ fontSize: 12, color: '#D97706', fontWeight: 700 }}>⏳ जोडत आहे...</span>
+              <span style={{ fontSize: 12, color: '#D97706', fontWeight: 700 }}>⏳ {t.connectingCall}</span>
             ) : (
-              <span style={{ fontSize: 12, color: '#94A3B8', fontWeight: 500 }}>{t.networkTest} आधी करा</span>
+              <span style={{ fontSize: 12, color: '#94A3B8', fontWeight: 500 }}>{t.networkTest}</span>
             )}
           </div>
         </div>
@@ -114,13 +114,13 @@ export const ConsultationScreen: React.FC = () => {
         {callState === 'idle' && (
           <>
             <div style={{ color: '#94A3B8' }}><VideoOffIcon /></div>
-            <span style={{ color: '#64748B', fontSize: 14, fontWeight: 600 }}>कॅमेरा बंद आहे</span>
+            <span style={{ color: '#64748B', fontSize: 14, fontWeight: 600 }}>{t.cameraClosed}</span>
           </>
         )}
         {callState === 'connecting' && (
           <>
             <div style={{ width: 56, height: 56, border: '3px solid #0F766E', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
-            <span style={{ color: '#94A3B8', fontSize: 14, fontWeight: 600 }}>कनेक्ट होत आहे...</span>
+            <span style={{ color: '#94A3B8', fontSize: 14, fontWeight: 600 }}>{t.connectingCall}</span>
           </>
         )}
         {callState === 'connected' && (
@@ -170,7 +170,7 @@ export const ConsultationScreen: React.FC = () => {
             }}
             onClick={() => setMuted(m => !m)}
           >
-            {muted ? '🔇 म्यूट' : '🎤 ' + t.mute}
+            {muted ? '🔇 ' + t.mute : '🎤 ' + t.mute}
           </button>
           <button
             type="button"
@@ -188,7 +188,7 @@ export const ConsultationScreen: React.FC = () => {
           style={{ minHeight: 52, fontSize: 15, fontWeight: 700 }}
           onClick={() => setActiveScreen('guide')}
         >
-          ऑफलाइन मार्गदर्शक उघडा
+          {t.openOfflineGuide}
         </button>
       ) : (
         <button
@@ -198,7 +198,7 @@ export const ConsultationScreen: React.FC = () => {
           onClick={startCall}
           disabled={callState === 'connecting'}
         >
-          {callState === 'connecting' ? 'जोडत आहे...' : t.startVideoCall}
+          {callState === 'connecting' ? t.connectingCall : t.startVideoCall}
         </button>
       )}
 

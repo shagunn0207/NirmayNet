@@ -207,7 +207,7 @@ export const LoginScreen: React.FC = () => {
               disabled={loading}
               style={{ fontSize: 16, fontWeight: 700, marginTop: 4 }}
             >
-              {loading ? 'लॉग इन होत आहे...' : t.loginButton}
+              {loading ? t.loggingIn : t.loginButton}
             </button>
 
             {/* Offline login note */}

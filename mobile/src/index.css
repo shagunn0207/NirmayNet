@@ -147,7 +147,9 @@ html, body {
 /* Screen body */
 .screen-body {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   padding: 20px;
   padding-bottom: 84px;
   scrollbar-width: thin;

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 
 // Icons
@@ -41,8 +41,46 @@ const AlertCircleIcon = () => (
   </svg>
 );
 
+const PencilIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
+  </svg>
+);
+
+const TrashIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="3 6 5 6 21 6" />
+    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+  </svg>
+);
+
+const PlusIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <line x1="12" y1="5" x2="12" y2="19" />
+    <line x1="5" y1="12" x2="19" y2="12" />
+  </svg>
+);
+
 export const HomeScreen: React.FC = () => {
-  const { t, setActiveScreen, setActiveTab, setCurrentPatient, patients } = useApp();
+  const {
+    t,
+    setActiveScreen,
+    setActiveTab,
+    setCurrentPatient,
+    patients,
+    tasks,
+    addNewTask,
+    updateTaskItem,
+    deleteTaskItem,
+  } = useApp();
+
+  const [isAddingTask, setIsAddingTask] = useState(false);
+  const [newTaskTitle, setNewTaskTitle] = useState('');
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
+  const [editingTitle, setEditingTitle] = useState('');
+
+  const [reminderFilter, setReminderFilter] = useState<'today' | 'scheduled' | 'all' | 'completed'>('today');
+
   const urgentPatient = patients.find(p => p.lastTriage === 'EMERGENCY');
 
   const goTo = (screen: string, tab?: string) => {
@@ -50,19 +88,276 @@ export const HomeScreen: React.FC = () => {
     if (tab) setActiveTab(tab);
   };
 
+  const handleCreateTask = async () => {
+    if (!newTaskTitle.trim()) return;
+    await addNewTask(newTaskTitle);
+    setNewTaskTitle('');
+    setIsAddingTask(false);
+  };
+
+  const startEdit = (id: string, currentTitle: string) => {
+    setEditingTaskId(id);
+    setEditingTitle(currentTitle);
+  };
+
+  const saveEdit = async (id: string) => {
+    if (editingTitle.trim()) {
+      await updateTaskItem(id, editingTitle.trim());
+    }
+    setEditingTaskId(null);
+  };
+
+  const cancelEdit = () => {
+    setEditingTaskId(null);
+    setEditingTitle('');
+  };
+
+  const filteredReminders = tasks.filter(task => {
+    if (reminderFilter === 'completed') return task.visited;
+    if (reminderFilter === 'today') return !task.visited && (task.urgency === 'EMERGENCY' || task.id === 'T1' || task.title.toLowerCase().includes('anc') || !task.category);
+    if (reminderFilter === 'scheduled') return !task.visited && (task.urgency === 'URGENT' || task.id !== 'T1');
+    return true; // 'all'
+  });
+
   return (
     <div className="screen-body">
-      {/* Today's summary card */}
+      {/* Reminders Layout Section (Replaces Today's Work & Tasks) */}
       <div style={{ marginBottom: 20 }}>
-        <p className="section-title">{t.todayWork}</p>
-        <div className="card" style={{ padding: '16px 18px' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <SummaryRow icon="📋" text={t.followupsCount} color="#475569" />
-            <div style={{ height: 1, background: '#F1F5F9' }} />
-            <SummaryRow icon="🔄" text={t.syncPending} color="#D97706" />
-            <div style={{ height: 1, background: '#F1F5F9' }} />
-            <SummaryRow icon="⚠️" text={t.urgentCase} color="#DC2626" />
+        {/* Header Title & SQLite Status */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <p className="section-title" style={{ margin: 0, fontSize: 18, fontWeight: 800, color: '#0F172A' }}>
+              🔔 {t.reminders}
+            </p>
+            <span style={{ fontSize: 12, fontWeight: 800, color: '#0F766E', background: '#F0FDFA', padding: '2px 8px', borderRadius: 12, border: '1px solid #CCFBF1' }}>
+              {filteredReminders.length}
+            </span>
           </div>
+          <span style={{ fontSize: 11, fontWeight: 700, color: '#64748B', background: '#F1F5F9', padding: '2px 8px', borderRadius: 12 }}>
+            SQLite Synced
+          </span>
+        </div>
+
+        {/* Filter Badges Row: today, scheduled, all, completed */}
+        <div style={{
+          display: 'flex',
+          gap: 8,
+          marginBottom: 14,
+          overflowX: 'auto',
+          paddingBottom: 4,
+          scrollbarWidth: 'none',
+        }}>
+          {[
+            { key: 'today', icon: '📅', label: t.filterToday, count: tasks.filter(t => !t.visited && (t.urgency === 'EMERGENCY' || t.id === 'T1' || t.title.toLowerCase().includes('anc') || !t.category)).length },
+            { key: 'scheduled', icon: '🗓️', label: t.filterScheduled, count: tasks.filter(t => !t.visited && t.id !== 'T1').length },
+            { key: 'all', icon: '📋', label: t.filterAll, count: tasks.length },
+            { key: 'completed', icon: '✅', label: t.filterCompleted, count: tasks.filter(t => t.visited).length },
+          ].map(b => {
+            const isActive = reminderFilter === b.key;
+            return (
+              <button
+                key={b.key}
+                type="button"
+                onClick={() => setReminderFilter(b.key as any)}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '8px 14px',
+                  borderRadius: 9999,
+                  border: isActive ? '1.5px solid #0F766E' : '1px solid #E2E8F0',
+                  background: isActive ? '#0F766E' : '#FFFFFF',
+                  color: isActive ? '#FFFFFF' : '#475569',
+                  fontWeight: isActive ? 800 : 600,
+                  fontSize: 13,
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                  boxShadow: isActive ? '0 3px 10px rgba(15, 118, 110, 0.2)' : '0 1px 3px rgba(0,0,0,0.04)',
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                <span>{b.icon}</span>
+                <span>{b.label}</span>
+                <span style={{
+                  fontSize: 11,
+                  padding: '1px 6px',
+                  borderRadius: 9999,
+                  background: isActive ? 'rgba(255,255,255,0.25)' : '#F1F5F9',
+                  color: isActive ? '#FFFFFF' : '#64748B',
+                  fontWeight: 800,
+                }}>
+                  {b.count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Reminders List Card */}
+        <div className="card" style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {filteredReminders.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '24px 16px', color: '#94A3B8' }}>
+              <div style={{ fontSize: 32, marginBottom: 6 }}>🔔</div>
+              <div style={{ fontSize: 14, fontWeight: 600 }}>
+                {reminderFilter === 'completed' ? 'No completed reminders yet' : 'No reminders in this list'}
+              </div>
+            </div>
+          ) : (
+            filteredReminders.map(task => (
+              <div
+                key={task.id}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 10,
+                  padding: '12px 14px',
+                  borderRadius: 14,
+                  background: task.visited ? '#F8FAFC' : '#FFFFFF',
+                  border: task.visited ? '1px solid #E2E8F0' : '1px solid #CBD5E1',
+                  boxShadow: task.visited ? 'none' : '0 2px 6px rgba(0,0,0,0.03)',
+                }}
+              >
+                {editingTaskId === task.id ? (
+                  <div style={{ display: 'flex', gap: 8, flex: 1, alignItems: 'center' }}>
+                    <input
+                      type="text"
+                      className="form-input"
+                      value={editingTitle}
+                      onChange={e => setEditingTitle(e.target.value)}
+                      style={{ minHeight: 38, fontSize: 14, padding: '4px 10px' }}
+                      autoFocus
+                    />
+                    <button
+                      type="button"
+                      className="btn-primary"
+                      onClick={() => saveEdit(task.id)}
+                      style={{ minHeight: 38, padding: '0 12px', fontSize: 13 }}
+                    >
+                      {t.save}
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-outline"
+                      onClick={cancelEdit}
+                      style={{ minHeight: 38, padding: '0 10px', fontSize: 13 }}
+                    >
+                      {t.cancel}
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 0 }}>
+                      <input
+                        type="checkbox"
+                        checked={task.visited}
+                        onChange={e => updateTaskItem(task.id, task.title, e.target.checked)}
+                        style={{ width: 20, height: 20, cursor: 'pointer', accentColor: '#0F766E', flexShrink: 0 }}
+                      />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{
+                          fontSize: 14,
+                          fontWeight: 700,
+                          color: task.visited ? '#94A3B8' : '#0F172A',
+                          textDecoration: task.visited ? 'line-through' : 'none',
+                          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                        }}>
+                          {task.title}
+                        </div>
+                        {task.category && (
+                          <span style={{
+                            display: 'inline-block',
+                            marginTop: 2,
+                            fontSize: 11,
+                            fontWeight: 700,
+                            color: task.urgency === 'EMERGENCY' ? '#DC2626' : '#0F766E',
+                            background: task.urgency === 'EMERGENCY' ? '#FEF2F2' : '#F0FDFA',
+                            padding: '1px 7px',
+                            borderRadius: 6,
+                          }}>
+                            {task.category}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                      <button
+                        type="button"
+                        onClick={() => startEdit(task.id, task.title)}
+                        style={{ background: 'none', border: 'none', color: '#0F766E', padding: 6, cursor: 'pointer' }}
+                        title={t.edit}
+                      >
+                        <PencilIcon />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => deleteTaskItem(task.id)}
+                        style={{ background: 'none', border: 'none', color: '#DC2626', padding: 6, cursor: 'pointer' }}
+                        title={t.delete}
+                      >
+                        <TrashIcon />
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            ))
+          )}
+
+          {/* Add Reminder Inline Form */}
+          {isAddingTask ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 4, padding: 14, borderRadius: 14, background: '#F0FDFA', border: '1.5px solid #CCFBF1' }}>
+              <input
+                type="text"
+                className="form-input"
+                placeholder={t.typeReminderPlaceholder}
+                value={newTaskTitle}
+                onChange={e => setNewTaskTitle(e.target.value)}
+                autoFocus
+              />
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                <button
+                  type="button"
+                  className="btn-outline"
+                  onClick={() => setIsAddingTask(false)}
+                  style={{ minHeight: 40, padding: '0 14px', fontSize: 14 }}
+                >
+                  {t.cancel}
+                </button>
+                <button
+                  type="button"
+                  className="btn-primary"
+                  onClick={handleCreateTask}
+                  style={{ minHeight: 40, padding: '0 18px', fontSize: 14 }}
+                >
+                  {t.save}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              type="button"
+              className="btn-outline"
+              onClick={() => setIsAddingTask(true)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8,
+                minHeight: 46,
+                borderColor: '#0F766E',
+                color: '#0F766E',
+                fontWeight: 700,
+                fontSize: 15,
+                borderRadius: 14,
+                marginTop: 4,
+              }}
+            >
+              <PlusIcon />
+              <span>{t.addReminder}</span>
+            </button>
+          )}
         </div>
       </div>
 

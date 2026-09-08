@@ -1,5 +1,6 @@
 import React from 'react';
 import { Minus, Plus } from 'lucide-react';
+import { useApp } from '../../context/AppContext';
 
 interface NumberPickerProps {
   value: number;
@@ -16,6 +17,7 @@ export const NumberPicker: React.FC<NumberPickerProps> = ({
   max = 120,
   label,
 }) => {
+  const { t } = useApp();
   const handleDecrement = () => {
     if (value > min) onChange(value - 1);
   };
@@ -40,7 +42,7 @@ export const NumberPicker: React.FC<NumberPickerProps> = ({
 
         <div className="flex-1 text-center">
           <span className="text-3xl font-black text-slate-900">{value}</span>
-          <span className="text-sm font-semibold text-slate-600 block">वर्षे / Years</span>
+          <span className="text-sm font-semibold text-slate-600 block">{t.yearsOld}</span>
         </div>
 
         <button

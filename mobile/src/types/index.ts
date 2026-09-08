@@ -1,4 +1,4 @@
-export type Language = 'mr' | 'hi' | 'en';
+export type Language = 'mr' | 'hi' | 'en' | 'kn';
 
 export type UrgencyLevel = 'EMERGENCY' | 'URGENT' | 'ROUTINE';
 
