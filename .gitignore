@@ -216,3 +216,11 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# macOS system metadata files
+.DS_Store
+*.DS_Store
+._*
+.Spotlight-V100
+.Trashes
+
