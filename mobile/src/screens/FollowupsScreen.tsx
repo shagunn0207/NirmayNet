@@ -26,7 +26,7 @@ export const FollowupsScreen: React.FC = () => {
   };
 
   return (
-    <div className="screen-body">
+    <div className="screen-body" style={{ paddingBottom: 90 }}>
       {pending.length === 0 && done.length > 0 && (
         <div style={{
           padding: '24px 20px',

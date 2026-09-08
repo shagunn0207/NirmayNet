@@ -22,6 +22,12 @@ interface TriageResult {
   dominantIcon: string;
 }
 
+export type UserAccount = {
+  username: string;
+  fullName: string;
+  role?: string;
+};
+
 interface AppContextType {
   language: Language;
   setLanguage: (lang: Language) => void;
@@ -29,7 +35,10 @@ interface AppContextType {
   networkStatus: NetworkStatus;
   setNetworkStatus: (s: NetworkStatus) => void;
   isLoggedIn: boolean;
+  currentUser: UserAccount | null;
+  updateUserAccount: (updatedUser: Partial<UserAccount>) => void;
   login: (username: string, password: string) => boolean;
+  signup: (username: string, password: string, fullName?: string) => boolean;
   logout: () => void;
   activeTab: string;
   setActiveTab: (tab: string) => void;
@@ -50,6 +59,8 @@ interface AppContextType {
   // Followup items
   followups: FollowUpItem[];
   toggleVisited: (id: string) => void;
+  addFollowup: (patient: Patient, category?: string) => void;
+  isFollowup: (patientId: string) => boolean;
 
   // Editable Tasks (CHANGE 1)
   tasks: TaskItem[];
@@ -80,6 +91,25 @@ interface AppContextType {
 const DEMO_ACCOUNT = {
   username: 'ASHA_NAND_023',
   password: 'asha2024',
+};
+
+// localStorage key for persisted user accounts
+const ACCOUNTS_KEY = 'niramaynet_accounts';
+
+type StoredAccount = { username: string; password: string; fullName?: string; role?: string };
+
+const getStoredAccounts = (): StoredAccount[] => {
+  try {
+    return JSON.parse(localStorage.getItem(ACCOUNTS_KEY) || '[]');
+  } catch {
+    return [];
+  }
+};
+
+const saveAccount = (acc: StoredAccount) => {
+  const existing = getStoredAccounts();
+  const updated = [...existing.filter(a => a.username !== acc.username), acc];
+  localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(updated));
 };
 
 const INITIAL_PATIENTS: Patient[] = [
@@ -176,9 +206,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
   const [networkStatus, setNetworkStatus] = useState<NetworkStatus>('synced');
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(() => {
+    try { return Boolean(localStorage.getItem('niramaynet_session')); } catch { return false; }
+  });
+  const [currentUser, setCurrentUser] = useState<UserAccount | null>(() => {
+    try {
+      const sess = localStorage.getItem('niramaynet_session');
+      if (sess) return JSON.parse(sess);
+    } catch {}
+    return { username: 'ASHA_NAND_023', fullName: 'Shagun', role: 'ASHA Worker' };
+  });
   const [activeTab, setActiveTab] = useState('home');
-  const [activeScreen, setActiveScreen] = useState('login');
+  const [activeScreen, setActiveScreen] = useState(() => {
+    try { return localStorage.getItem('niramaynet_session') ? 'home' : 'login'; } catch { return 'login'; }
+  });
 
   const [patients, setPatients] = useState<Patient[]>(INITIAL_PATIENTS);
   const [currentPatient, setCurrentPatient] = useState<Patient | null>(INITIAL_PATIENTS[0]);
@@ -353,24 +394,70 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const login = (username: string, password: string): boolean => {
+    let userObj: UserAccount | null = null;
+    // Check demo account
     if (username === DEMO_ACCOUNT.username && password === DEMO_ACCOUNT.password) {
-      setIsLoggedIn(true);
-      setActiveScreen('home');
-      setActiveTab('home');
-      return true;
+      userObj = { username: 'ASHA_NAND_023', fullName: 'Shagun', role: 'ASHA Worker' };
+    } else {
+      // Check stored user accounts
+      const accounts = getStoredAccounts();
+      const found = accounts.find(a => a.username === username && a.password === password);
+      if (found) {
+        userObj = { username: found.username, fullName: found.fullName || found.username, role: found.role || 'ASHA Worker' };
+      } else if (networkStatus === 'offline' && username === DEMO_ACCOUNT.username) {
+        userObj = { username: 'ASHA_NAND_023', fullName: 'Shagun', role: 'ASHA Worker' };
+        showSnackbar('इंटरनेट कनेक्शन उपलब्ध नाही. ऑफलाइन मोड सुरू आहे.');
+      }
     }
-    if (networkStatus === 'offline' && username === DEMO_ACCOUNT.username) {
+
+    if (userObj) {
+      setCurrentUser(userObj);
+      try { localStorage.setItem('niramaynet_session', JSON.stringify(userObj)); } catch {}
       setIsLoggedIn(true);
       setActiveScreen('home');
       setActiveTab('home');
-      showSnackbar('इंटरनेट कनेक्शन उपलब्ध नाही. ऑफलाइन मोड सुरू आहे.');
       return true;
     }
     return false;
   };
 
+  const signup = (username: string, password: string, fullName?: string): boolean => {
+    const accounts = getStoredAccounts();
+    // Don't allow duplicate usernames or overriding demo
+    if (username === DEMO_ACCOUNT.username || accounts.find(a => a.username === username)) {
+      return false; // username already taken
+    }
+    const nameToUse = fullName && fullName.trim() ? fullName.trim() : username;
+    const newAccount: StoredAccount = { username, password, fullName: nameToUse, role: 'ASHA Worker' };
+    saveAccount(newAccount);
+
+    const userObj: UserAccount = { username: newAccount.username, fullName: newAccount.fullName || newAccount.username, role: 'ASHA Worker' };
+    setCurrentUser(userObj);
+    try { localStorage.setItem('niramaynet_session', JSON.stringify(userObj)); } catch {}
+    setIsLoggedIn(true);
+    setActiveScreen('home');
+    setActiveTab('home');
+    return true;
+  };
+
+  const updateUserAccount = (updatedUser: Partial<UserAccount>) => {
+    setCurrentUser(prev => {
+      if (!prev) return null;
+      const newUser = { ...prev, ...updatedUser };
+      try { localStorage.setItem('niramaynet_session', JSON.stringify(newUser)); } catch {}
+      const accounts = getStoredAccounts();
+      const existing = accounts.find(a => a.username === prev.username);
+      if (existing) {
+        saveAccount({ ...existing, fullName: newUser.fullName, role: newUser.role });
+      }
+      return newUser;
+    });
+  };
+
   const logout = () => {
     setIsLoggedIn(false);
+    setCurrentUser(null);
+    try { localStorage.removeItem('niramaynet_session'); } catch {}
     setActiveScreen('login');
     setActiveTab('home');
     setHasUnsavedChanges(false);
@@ -397,14 +484,76 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       ...updatedP,
       lastTriage: computedTriage,
     };
+    
+    // Find old patient to match name changes in tasks
+    const oldP = patients.find(p => p.id === finalPatient.id);
+
+    // 1. Update main patients list
     setPatients(prev => prev.map(p => p.id === finalPatient.id ? finalPatient : p));
+    
+    // 2. Update current selected patient if open
     if (currentPatient && currentPatient.id === finalPatient.id) {
       setCurrentPatient(finalPatient);
+    }
+
+    // 3. Update matching follow-up records (reflect name, age, sex, phone, urgency)
+    setFollowups(prev => prev.map(f => {
+      if (f.patientId === finalPatient.id) {
+        return {
+          ...f,
+          patientName: finalPatient.name,
+          patientAge: finalPatient.age,
+          patientSex: finalPatient.sex,
+          phone: finalPatient.phone,
+          urgency: finalPatient.lastTriage || f.urgency,
+        };
+      }
+      return f;
+    }));
+
+    // 4. Update matching task (reminder) titles and urgencies
+    if (oldP && oldP.name !== finalPatient.name) {
+      setTasks(prev => prev.map(t => {
+        if (t.title.includes(oldP.name)) {
+          const updatedTitle = t.title.replace(oldP.name, finalPatient.name);
+          const updatedUrgency = finalPatient.lastTriage || t.urgency;
+          openDatabaseAsync('niramaynet.db').then(db => {
+            db.runAsync('UPDATE tasks SET title = ?, urgency = ? WHERE id = ?', [updatedTitle, updatedUrgency, t.id]);
+          });
+          return { ...t, title: updatedTitle, urgency: updatedUrgency };
+        }
+        return t;
+      }));
     }
   };
 
   const toggleVisited = (id: string) => {
     setFollowups(prev => prev.map(f => f.id === id ? { ...f, visited: !f.visited } : f));
+  };
+
+  const addFollowup = (patient: Patient, category = 'Follow-up Check') => {
+    const alreadyExists = followups.some(f => f.patientId === patient.id && !f.visited);
+    if (alreadyExists) {
+      showSnackbar('Patient already has a pending follow-up');
+      return;
+    }
+    const newItem: FollowUpItem = {
+      id: `F${Date.now()}`,
+      patientId: patient.id,
+      patientName: patient.name,
+      patientAge: patient.age,
+      patientSex: patient.sex,
+      category,
+      urgency: patient.lastTriage || 'ROUTINE',
+      visited: false,
+      phone: patient.phone,
+    };
+    setFollowups(prev => [newItem, ...prev]);
+    showSnackbar(`${patient.name} added to follow-ups`);
+  };
+
+  const isFollowup = (patientId: string): boolean => {
+    return followups.some(f => f.patientId === patientId && !f.visited);
   };
 
   const showSnackbar = (msg: string, duration = 3000) => {
@@ -430,12 +579,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     <AppContext.Provider value={{
       language, setLanguage, t,
       networkStatus, setNetworkStatus,
-      isLoggedIn, login, logout,
+      isLoggedIn, currentUser, updateUserAccount, login, logout,
       activeTab, setActiveTab,
       activeScreen, setActiveScreen,
       patients, addPatient, updatePatient, currentPatient, setCurrentPatient,
       triageResult, setTriageResult,
-      followups, toggleVisited,
+      followups, toggleVisited, addFollowup, isFollowup,
       tasks, addNewTask, updateTaskItem, deleteTaskItem,
       saveDraftField, getDraft, clearDraft,
       hasUnsavedChanges, setHasUnsavedChanges,
@@ -443,6 +592,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       pendingNavScreen, setPendingNavScreen,
       confirmBackNavigation, cancelBackNavigation,
       snackbar, showSnackbar,
+      signup,
     }}>
       {children}
     </AppContext.Provider>

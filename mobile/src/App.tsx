@@ -13,7 +13,7 @@ import { OfflineGuideScreen } from './screens/OfflineGuideScreen';
 import { ProfileScreen } from './screens/ProfileScreen';
 
 const AppRouter: React.FC = () => {
-  const { isLoggedIn, activeScreen, setActiveScreen, t, currentPatient } = useApp();
+  const { isLoggedIn, activeScreen, setActiveScreen, t, currentPatient, currentUser } = useApp();
 
   if (!isLoggedIn) {
     return (
@@ -43,7 +43,7 @@ const AppRouter: React.FC = () => {
     showBack: boolean;
   }> = {
     home: {
-      title: t.greeting,
+      title: `${t.greeting}, ${currentUser?.fullName || t.ashaWorkerName}`,
       subtitle: t.subCentre,
       showBack: false,
     },
@@ -78,7 +78,7 @@ const AppRouter: React.FC = () => {
     },
     profile: {
       title: t.profile ?? 'Profile',
-      subtitle: t.ashaWorkerName,
+      subtitle: currentUser?.fullName || t.ashaWorkerName,
       showBack: true,
     },
   };

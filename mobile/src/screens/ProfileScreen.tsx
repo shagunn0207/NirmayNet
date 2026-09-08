@@ -4,7 +4,22 @@ import { useApp } from '../context/AppContext';
 import type { Language } from '../types';
 
 export const ProfileScreen: React.FC = () => {
-  const { t, language, setLanguage, logout, networkStatus } = useApp();
+  const { t, language, setLanguage, logout, networkStatus, currentUser, updateUserAccount, showSnackbar } = useApp();
+
+  const [isEditingName, setIsEditingName] = React.useState(false);
+  const [nameInput, setNameInput] = React.useState(currentUser?.fullName || '');
+
+  React.useEffect(() => {
+    setNameInput(currentUser?.fullName || '');
+  }, [currentUser?.fullName]);
+
+  const handleSaveName = () => {
+    if (nameInput.trim()) {
+      updateUserAccount({ fullName: nameInput.trim() });
+      showSnackbar(t.patientUpdatedSnackbar || 'Profile name updated');
+      setIsEditingName(false);
+    }
+  };
 
   return (
     <div className="screen-body">
@@ -17,31 +32,79 @@ export const ProfileScreen: React.FC = () => {
         boxShadow: '0 8px 24px rgba(15, 118, 110, 0.25)',
         display: 'flex',
         alignItems: 'center',
+        justifyContent: 'space-between',
         gap: 16,
         marginBottom: 16,
       }}>
-        <div style={{
-          width: 64, height: 64,
-          borderRadius: '50%',
-          background: '#ffffff',
-          color: '#0F766E',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 32, fontWeight: 800,
-          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.12)',
-          flexShrink: 0,
-        }}>
-          👩‍⚕️
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column' }}>
-          <span style={{ fontSize: 11, fontWeight: 800, color: '#CCFBF1', textTransform: 'uppercase', letterSpacing: 0.8 }}>
-            {t.ashaWorkerRole}
-          </span>
-          <h2 style={{ margin: '2px 0 0', fontSize: 22, fontWeight: 800, color: '#ffffff' }}>
-            {t.ashaWorkerName}
-          </h2>
-          <p style={{ margin: '2px 0 0', fontSize: 12, color: 'rgba(255,255,255,0.85)', fontWeight: 600 }}>
-            ID: ASHA-NND-8842 · ABHA Facilitator
-          </p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16, flex: 1, minWidth: 0 }}>
+          <div style={{
+            width: 60, height: 60,
+            borderRadius: '50%',
+            background: '#ffffff',
+            color: '#0F766E',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 30, fontWeight: 800,
+            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.12)',
+            flexShrink: 0,
+          }}>
+            👩‍⚕️
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0 }}>
+            <span style={{ fontSize: 11, fontWeight: 800, color: '#CCFBF1', textTransform: 'uppercase', letterSpacing: 0.8 }}>
+              {currentUser?.role || t.ashaWorkerRole}
+            </span>
+
+            {isEditingName ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                <input
+                  type="text"
+                  value={nameInput}
+                  onChange={e => setNameInput(e.target.value)}
+                  style={{
+                    background: '#ffffff', color: '#0F172A',
+                    border: 'none', borderRadius: 8,
+                    padding: '4px 8px', fontSize: 15, fontWeight: 700,
+                    width: '100%', outline: 'none',
+                  }}
+                  autoFocus
+                />
+                <button
+                  type="button"
+                  onClick={handleSaveName}
+                  style={{
+                    background: '#16A34A', color: '#ffffff',
+                    border: 'none', borderRadius: 8,
+                    padding: '6px 12px', fontSize: 12, fontWeight: 800,
+                    cursor: 'pointer', whiteSpace: 'nowrap',
+                  }}
+                >
+                  {t.save}
+                </button>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <h2 style={{ margin: '2px 0 0', fontSize: 22, fontWeight: 800, color: '#ffffff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {currentUser?.fullName || t.ashaWorkerName}
+                </h2>
+                <button
+                  type="button"
+                  onClick={() => setIsEditingName(true)}
+                  style={{
+                    background: 'rgba(255, 255, 255, 0.22)', border: 'none',
+                    borderRadius: 6, color: '#ffffff', fontSize: 12,
+                    padding: '2px 6px', cursor: 'pointer', fontWeight: 700,
+                  }}
+                  title="Edit Name"
+                >
+                  ✏️
+                </button>
+              </div>
+            )}
+
+            <p style={{ margin: '2px 0 0', fontSize: 12, color: 'rgba(255,255,255,0.85)', fontWeight: 600 }}>
+              ID: {currentUser?.username ? `ASHA-${currentUser.username}` : 'ASHA-NND-8842'} · ABHA Facilitator
+            </p>
+          </div>
         </div>
       </div>
 
@@ -114,7 +177,7 @@ export const ProfileScreen: React.FC = () => {
           <Globe className="w-4 h-4 text-teal-700" />
           <span>{t.selectLanguage}</span>
         </label>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 6 }}>
           {[
             { key: 'mr', label: 'मराठी' },
             { key: 'hi', label: 'हिंदी' },

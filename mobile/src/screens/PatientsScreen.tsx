@@ -2,8 +2,9 @@ import React, { useState, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import type { Patient } from '../types';
 import { getLocalizedPatient } from '../utils/localizePatient';
-import { MASTER_SYMPTOMS, type MasterSymptom } from '../constants/masterSymptoms';
+import { MASTER_SYMPTOMS, getCommonQuickSymptoms, type MasterSymptom } from '../constants/masterSymptoms';
 import { evaluateTriage } from '../utils/triageEngine';
+
 
 const SearchIcon = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
@@ -15,6 +16,12 @@ const SearchIcon = () => (
 const ChevronRightIcon = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
     <polyline points="9 18 15 12 9 6" />
+  </svg>
+);
+
+const ChevronLeftIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="15 18 9 12 15 6" />
   </svg>
 );
 
@@ -62,7 +69,7 @@ const UrgencyBadge = ({ urgency, symptoms }: { urgency?: string; symptoms?: stri
 };
 
 const PatientDetail: React.FC<{ patient: Patient; onClose: () => void }> = ({ patient: rawPatient, onClose }) => {
-  const { t, language, updatePatient, showSnackbar } = useApp();
+  const { t, language, updatePatient, showSnackbar, addFollowup, isFollowup, setActiveScreen, setActiveTab } = useApp();
   const patient = getLocalizedPatient(rawPatient, language);
 
   const [isEditing, setIsEditing] = useState(false);
@@ -138,7 +145,7 @@ const PatientDetail: React.FC<{ patient: Patient; onClose: () => void }> = ({ pa
   };
 
   return (
-    <div style={{ position: 'absolute', inset: 0, background: '#F8FAFC', zIndex: 10, display: 'flex', flexDirection: 'column' }}>
+    <div style={{ position: 'absolute', top: -64, left: 0, right: 0, bottom: 0, zIndex: 300, background: '#F8FAFC', display: 'flex', flexDirection: 'column' }}>
       {/* Header */}
       <div style={{
         background: 'linear-gradient(135deg, #0F766E 0%, #0D9488 100%)', color: '#ffffff',
@@ -146,15 +153,31 @@ const PatientDetail: React.FC<{ patient: Patient; onClose: () => void }> = ({ pa
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         boxShadow: '0 4px 14px rgba(15, 118, 110, 0.25)',
       }}>
-        <div style={{ minWidth: 0, flex: 1 }}>
-          <div style={{ fontWeight: 800, fontSize: 17, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            {isEditing ? t.editPatientTitle : patient.name}
-          </div>
-          {!isEditing && (
-            <div style={{ fontSize: 12, opacity: 0.9, fontWeight: 500 }}>
-              {patient.age} {t.yearsOld} · {patient.sex === 'Female' ? t.female : patient.sex === 'Male' ? t.male : t.other}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0 }}>
+          <button
+            type="button"
+            className="btn-icon"
+            onClick={onClose}
+            style={{
+              width: 36, height: 36, borderRadius: '50%',
+              background: 'rgba(255, 255, 255, 0.2)', border: '1px solid rgba(255, 255, 255, 0.3)',
+              color: '#FFFFFF', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              cursor: 'pointer', flexShrink: 0,
+            }}
+            title={t.back}
+          >
+            <ChevronLeftIcon />
+          </button>
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div style={{ fontWeight: 800, fontSize: 17, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {isEditing ? t.editPatientTitle : patient.name}
             </div>
-          )}
+            {!isEditing && (
+              <div style={{ fontSize: 12, opacity: 0.9, fontWeight: 500 }}>
+                {patient.age} {t.yearsOld} · {patient.sex === 'Female' ? t.female : patient.sex === 'Male' ? t.male : t.other}
+              </div>
+            )}
+          </div>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -193,7 +216,7 @@ const PatientDetail: React.FC<{ patient: Patient; onClose: () => void }> = ({ pa
       </div>
 
       {/* Main Content Area */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: 18, display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: 18, paddingBottom: 90, display: 'flex', flexDirection: 'column', gap: 14 }}>
         {!isEditing ? (
           /* VIEW MODE */
           <>
@@ -289,12 +312,46 @@ const PatientDetail: React.FC<{ patient: Patient; onClose: () => void }> = ({ pa
               </div>
             )}
 
+            {/* Mark as Follow-up button */}
+            {(() => {
+              const alreadyFollowup = isFollowup(rawPatient.id);
+              return (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (alreadyFollowup) {
+                      // Navigate to followups screen
+                      setActiveScreen('followups');
+                      setActiveTab('followups');
+                      onClose();
+                    } else {
+                      addFollowup(rawPatient);
+                    }
+                  }}
+                  style={{
+                    minHeight: 52, fontSize: 15, fontWeight: 800,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                    borderRadius: 14, cursor: 'pointer', fontFamily: 'inherit',
+                    background: alreadyFollowup
+                      ? 'linear-gradient(135deg, #0F766E 0%, #0D9488 100%)'
+                      : '#F0FDFA',
+                    color: alreadyFollowup ? '#ffffff' : '#0F766E',
+                    border: alreadyFollowup ? 'none' : '1.5px solid #0F766E',
+                    boxShadow: alreadyFollowup ? '0 4px 12px rgba(15, 118, 110, 0.3)' : 'none',
+                    marginTop: 4,
+                  } as React.CSSProperties}
+                >
+                  {alreadyFollowup ? '✅ In Follow-ups — Tap to View' : '📋 Mark as Follow-up'}
+                </button>
+              );
+            })()}
+
             {/* Edit Patient & Symptoms Action Button */}
             <button
               type="button"
               className="btn-outline"
               onClick={() => setIsEditing(true)}
-              style={{ minHeight: 48, fontSize: 15, fontWeight: 700, marginTop: 6 }}
+              style={{ minHeight: 48, fontSize: 15, fontWeight: 700, marginTop: 2 }}
             >
               ✏️ {t.editPatientTitle}
             </button>
@@ -317,7 +374,7 @@ const PatientDetail: React.FC<{ patient: Patient; onClose: () => void }> = ({ pa
               </div>
 
               {/* Age & Sex */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 12, marginBottom: 14 }}>
                 <div>
                   <label className="form-label">{t.age}</label>
                   <input
@@ -470,8 +527,8 @@ const PatientDetail: React.FC<{ patient: Patient; onClose: () => void }> = ({ pa
 
               {/* Quick Select Symptoms Grid */}
               <label className="form-label">{t.quickSelectSymptoms}</label>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                {MASTER_SYMPTOMS.slice(0, 10).map(s => {
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8, width: '100%', boxSizing: 'border-box' }}>
+                {getCommonQuickSymptoms().map(s => {
                   const isSel = editSymptoms.includes(s.key);
                   return (
                     <button
@@ -479,10 +536,10 @@ const PatientDetail: React.FC<{ patient: Patient; onClose: () => void }> = ({ pa
                       type="button"
                       className={`symptom-chip${isSel ? ' selected' : ''}`}
                       onClick={() => toggleSymptom(s.key)}
-                      style={{ padding: '8px 10px' }}
+                      style={{ padding: '8px 10px', width: '100%', boxSizing: 'border-box', minWidth: 0 }}
                     >
-                      <span>{s.icon}</span>
-                      <span style={{ fontSize: 12, textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                      <span style={{ flexShrink: 0, fontSize: 16 }}>{s.icon}</span>
+                      <span style={{ fontSize: 12, flex: 1, minWidth: 0, textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', textAlign: 'left' }}>
                         {getSymptomLabel(s)}
                       </span>
                     </button>
@@ -539,17 +596,51 @@ const InfoRow = ({ label, value }: { label: string; value: string }) => (
 export const PatientsScreen: React.FC = () => {
   const { t, patients, setCurrentPatient } = useApp();
   const [query, setQuery] = useState('');
-  const [selected, setSelected] = useState<Patient | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  const filtered = patients.filter(p =>
-    p.name.toLowerCase().includes(query.toLowerCase()) ||
-    (p.abhaId?.includes(query) ?? false)
-  );
+  const selected = patients.find(p => p.id === selectedId) || null;
+
+  // Category filter state
+  type SexFilter = 'all' | 'Male' | 'Female' | 'Other';
+  type AgeFilter = 'all' | 'infant' | 'child' | 'adult' | 'middle' | 'senior';
+  const [sexFilter, setSexFilter] = useState<SexFilter>('all');
+  const [ageFilter, setAgeFilter] = useState<AgeFilter>('all');
+
+  const getAgeGroup = (age: number): AgeFilter => {
+    if (age <= 5) return 'infant';
+    if (age <= 18) return 'child';
+    if (age <= 45) return 'adult';
+    if (age <= 55) return 'middle';
+    return 'senior';
+  };
+
+  const ageGroups: { key: AgeFilter; label: string }[] = [
+    { key: 'all', label: t.allPatients },
+    { key: 'infant', label: t.ageInfant },
+    { key: 'child', label: t.ageChild },
+    { key: 'adult', label: t.ageAdult },
+    { key: 'middle', label: t.ageMiddleAged },
+    { key: 'senior', label: t.ageSenior },
+  ];
+
+  const sexGroups: { key: SexFilter; icon: string; label: string }[] = [
+    { key: 'all', icon: '👥', label: t.allPatients },
+    { key: 'Female', icon: '👩', label: t.sexFemale },
+    { key: 'Male', icon: '👨', label: t.sexMale },
+    { key: 'Other', icon: '🧑', label: t.sexOther },
+  ];
+
+  const filtered = patients.filter(p => {
+    const nameMatch = p.name.toLowerCase().includes(query.toLowerCase()) || (p.abhaId?.includes(query) ?? false);
+    const sexMatch = sexFilter === 'all' || p.sex === sexFilter;
+    const ageMatch = ageFilter === 'all' || getAgeGroup(p.age) === ageFilter;
+    return nameMatch && sexMatch && ageMatch;
+  });
 
   if (selected) {
     return (
       <div style={{ position: 'relative', flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-        <PatientDetail patient={selected} onClose={() => setSelected(null)} />
+        <PatientDetail patient={selected} onClose={() => setSelectedId(null)} />
       </div>
     );
   }
@@ -557,8 +648,8 @@ export const PatientsScreen: React.FC = () => {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
       {/* Search bar */}
-      <div style={{ padding: '16px 20px', background: '#ffffff', borderBottom: '1px solid #E2E8F0' }}>
-        <div style={{ position: 'relative' }}>
+      <div style={{ padding: '16px 20px 0', background: '#ffffff', borderBottom: '1px solid #E2E8F0' }}>
+        <div style={{ position: 'relative', marginBottom: 12 }}>
           <span style={{
             position: 'absolute', left: 14, top: '50%',
             transform: 'translateY(-50%)', color: '#94A3B8',
@@ -574,6 +665,56 @@ export const PatientsScreen: React.FC = () => {
             onChange={e => setQuery(e.target.value)}
             style={{ paddingLeft: 42 }}
           />
+        </div>
+
+        {/* Sex Filter Row */}
+        <div style={{ display: 'flex', gap: 8, marginBottom: 10, overflowX: 'auto', scrollbarWidth: 'none' }}>
+          {sexGroups.map(g => {
+            const active = sexFilter === g.key;
+            return (
+              <button
+                key={g.key}
+                type="button"
+                onClick={() => setSexFilter(g.key)}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 5,
+                  padding: '5px 12px', borderRadius: 9999, whiteSpace: 'nowrap',
+                  border: active ? '1.5px solid #0F766E' : '1px solid #E2E8F0',
+                  background: active ? '#0F766E' : '#FFFFFF',
+                  color: active ? '#FFFFFF' : '#475569',
+                  fontWeight: active ? 800 : 600, fontSize: 13, cursor: 'pointer',
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                <span>{g.icon}</span><span>{g.label}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Age Group Filter Row */}
+        <div style={{ display: 'flex', gap: 8, marginBottom: 12, overflowX: 'auto', scrollbarWidth: 'none', paddingBottom: 2 }}>
+          {ageGroups.map(g => {
+            const active = ageFilter === g.key;
+            return (
+              <button
+                key={g.key}
+                type="button"
+                onClick={() => setAgeFilter(g.key)}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 5,
+                  padding: '5px 12px', borderRadius: 9999, whiteSpace: 'nowrap',
+                  border: active ? '1.5px solid #0D9488' : '1px solid #E2E8F0',
+                  background: active ? '#0D9488' : '#FFFFFF',
+                  color: active ? '#FFFFFF' : '#475569',
+                  fontWeight: active ? 800 : 600, fontSize: 12, cursor: 'pointer',
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                {g.label}
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -591,7 +732,7 @@ export const PatientsScreen: React.FC = () => {
             className="patient-row"
             onClick={() => {
               setCurrentPatient(patient);
-              setSelected(patient);
+              setSelectedId(patient.id);
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: 14, flex: 1, minWidth: 0 }}>

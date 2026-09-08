@@ -148,11 +148,16 @@ html, body {
 .screen-body {
   flex: 1;
   min-height: 0;
+  width: 100%;
+  box-sizing: border-box;
   overflow-y: auto;
+  overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
-  padding: 20px;
-  padding-bottom: 84px;
+  overscroll-behavior: contain;
+  padding: 18px;
+  padding-bottom: 96px;
   scrollbar-width: thin;
+  scrollbar-color: #CBD5E1 transparent;
 }
 
 .screen-body-noscroll {
@@ -169,7 +174,10 @@ html, body {
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: 18px;
-  padding: 20px;
+  padding: 18px;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
   box-shadow: var(--shadow-sm);
   transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
 }
@@ -600,16 +608,20 @@ html, body {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 12px 16px;
+  padding: 10px 12px;
   border: 1.5px solid var(--border);
   border-radius: 14px;
   background: #ffffff;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
   cursor: pointer;
   color: var(--text-primary);
   font-family: inherit;
-  min-height: 50px;
+  min-height: 48px;
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
   box-shadow: var(--shadow-sm);
   transition: all 0.15s ease;
 }
@@ -633,7 +645,9 @@ html, body {
   align-items: center;
   gap: 10px;
   width: 100%;
-  padding: 24px;
+  max-width: 100%;
+  box-sizing: border-box;
+  padding: 18px 16px;
   background: #ffffff;
   border: 2px dashed var(--border);
   border-radius: 18px;
@@ -641,6 +655,8 @@ html, body {
   font-family: inherit;
   transition: all 0.15s ease;
   box-shadow: var(--shadow-sm);
+  text-align: center;
+  overflow: hidden;
 }
 
 .voice-btn:hover {

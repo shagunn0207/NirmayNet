@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
-import { MASTER_SYMPTOMS, SYMPTOM_CATEGORIES, type MasterSymptom } from '../constants/masterSymptoms';
+import { MASTER_SYMPTOMS, SYMPTOM_CATEGORIES, getCommonQuickSymptoms, type MasterSymptom } from '../constants/masterSymptoms';
 import { evaluateTriage, type TriageAssessment } from '../utils/triageEngine';
 
 const DRAFT_ID = 'triage';
@@ -45,6 +45,8 @@ export const TriageScreen: React.FC = () => {
 
   const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
+
+  const commonQuickSymptoms = useMemo(() => getCommonQuickSymptoms(), []);
 
   // Voice input state (CHANGE 4)
   const [isListening, setIsListening] = useState(false);
@@ -483,10 +485,10 @@ export const TriageScreen: React.FC = () => {
         </div>
       )}
 
-      {/* Mode B: Quick Select Chips Grid (CHANGE 3) */}
+      {/* Mode B: Quick Select Chips Grid (8 Common Primary Symptoms) */}
       <p className="section-title">{t.quickSelectSymptoms}</p>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 20 }}>
-        {MASTER_SYMPTOMS.slice(0, 10).map(s => {
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 10, marginBottom: 20, width: '100%', boxSizing: 'border-box' }}>
+        {commonQuickSymptoms.map(s => {
           const isSelected = selectedKeys.includes(s.key);
           return (
             <button
@@ -494,9 +496,10 @@ export const TriageScreen: React.FC = () => {
               type="button"
               className={`symptom-chip${isSelected ? ' selected' : ''}`}
               onClick={() => toggleSymptom(s.key)}
+              style={{ width: '100%', boxSizing: 'border-box', minWidth: 0 }}
             >
-              <span style={{ fontSize: 20 }}>{s.icon}</span>
-              <span style={{ fontSize: 13, textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+              <span style={{ fontSize: 20, flexShrink: 0 }}>{s.icon}</span>
+              <span style={{ fontSize: 13, flex: 1, minWidth: 0, textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', textAlign: 'left' }}>
                 {getSymptomLabel(s)}
               </span>
             </button>
@@ -517,59 +520,23 @@ export const TriageScreen: React.FC = () => {
         </button>
       )}
 
-      {/* CHANGE 7: Traffic Signal System Display */}
+      {/* Triage Result Display — Emoji indicator */}
       {assessment && (
-        <div className="card" style={{ marginBottom: 20, padding: '20px 18px', textAlign: 'center', background: '#FFFFFF' }}>
-          {/* Vertical Stack Traffic Light Signal (CHANGE 7) */}
+        <div className="card" style={{ marginBottom: 20, padding: '24px 18px', textAlign: 'center', background: '#FFFFFF' }}>
+          {/* Large Emoji Circle */}
           <div style={{
-            width: 72,
-            background: '#1E293B',
-            borderRadius: 24,
-            padding: '12px 10px',
-            margin: '0 auto 16px',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            gap: 12,
-            boxShadow: '0 10px 20px rgba(15, 23, 42, 0.25)',
+            fontSize: 72,
+            lineHeight: 1,
+            marginBottom: 14,
+            filter: 'drop-shadow(0 4px 12px rgba(0,0,0,0.15))',
+            animation: 'pulse 1.5s ease-in-out',
           }}>
-            {/* RED Signal */}
-            <div style={{
-              width: assessment.urgency === 'EMERGENCY' ? 44 : 26,
-              height: assessment.urgency === 'EMERGENCY' ? 44 : 26,
-              borderRadius: '50%',
-              background: assessment.urgency === 'EMERGENCY' ? '#EF4444' : '#475569',
-              boxShadow: assessment.urgency === 'EMERGENCY' ? '0 0 16px #EF4444' : 'none',
-              opacity: assessment.urgency === 'EMERGENCY' ? 1 : 0.4,
-              transition: 'all 0.3s ease',
-            }} />
-
-            {/* YELLOW Signal */}
-            <div style={{
-              width: assessment.urgency === 'URGENT' ? 44 : 26,
-              height: assessment.urgency === 'URGENT' ? 44 : 26,
-              borderRadius: '50%',
-              background: assessment.urgency === 'URGENT' ? '#F59E0B' : '#475569',
-              boxShadow: assessment.urgency === 'URGENT' ? '0 0 16px #F59E0B' : 'none',
-              opacity: assessment.urgency === 'URGENT' ? 1 : 0.4,
-              transition: 'all 0.3s ease',
-            }} />
-
-            {/* GREEN Signal */}
-            <div style={{
-              width: assessment.urgency === 'ROUTINE' ? 44 : 26,
-              height: assessment.urgency === 'ROUTINE' ? 44 : 26,
-              borderRadius: '50%',
-              background: assessment.urgency === 'ROUTINE' ? '#22C55E' : '#475569',
-              boxShadow: assessment.urgency === 'ROUTINE' ? '0 0 16px #22C55E' : 'none',
-              opacity: assessment.urgency === 'ROUTINE' ? 1 : 0.4,
-              transition: 'all 0.3s ease',
-            }} />
+            {assessment.urgency === 'EMERGENCY' ? '🔴' : assessment.urgency === 'URGENT' ? '🟡' : '🟢'}
           </div>
 
           {/* Tier Label */}
           <div style={{
-            fontSize: 22,
+            fontSize: 26,
             fontWeight: 900,
             letterSpacing: 1,
             marginBottom: 6,

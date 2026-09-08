@@ -64,6 +64,8 @@ const PlusIcon = () => (
 export const HomeScreen: React.FC = () => {
   const {
     t,
+    language,
+    currentUser,
     setActiveScreen,
     setActiveTab,
     setCurrentPatient,
@@ -72,6 +74,8 @@ export const HomeScreen: React.FC = () => {
     addNewTask,
     updateTaskItem,
     deleteTaskItem,
+    networkStatus,
+    setNetworkStatus,
   } = useApp();
 
   const [isAddingTask, setIsAddingTask] = useState(false);
@@ -119,8 +123,48 @@ export const HomeScreen: React.FC = () => {
     return true; // 'all'
   });
 
+  const getGreetingPrefix = () => {
+    switch (language) {
+      case 'mr': return 'नमस्कार';
+      case 'hi': return 'नमस्ते';
+      case 'kn': return 'ನಮಸ್ಕಾರ';
+      default: return 'Welcome back,';
+    }
+  };
+
   return (
     <div className="screen-body">
+      {/* Logged-in User Welcome Banner */}
+      <div style={{
+        background: 'linear-gradient(135deg, #0F766E 0%, #0D9488 100%)',
+        borderRadius: 18,
+        padding: '16px 20px',
+        color: '#ffffff',
+        marginBottom: 16,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        boxShadow: '0 4px 14px rgba(15, 118, 110, 0.2)',
+      }}>
+        <div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: '#CCFBF1', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+            {getGreetingPrefix()}
+          </div>
+          <div style={{ fontSize: 20, fontWeight: 800, color: '#ffffff', marginTop: 2 }}>
+            {currentUser?.fullName || t.ashaWorkerName} 👋
+          </div>
+        </div>
+        <div style={{
+          width: 44, height: 44, borderRadius: '50%',
+          background: 'rgba(255, 255, 255, 0.2)',
+          border: '1.5px solid rgba(255, 255, 255, 0.35)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: 22, fontWeight: 800,
+        }}>
+          👩‍⚕️
+        </div>
+      </div>
+
       {/* Reminders Layout Section (Replaces Today's Work & Tasks) */}
       <div style={{ marginBottom: 20 }}>
         {/* Header Title & SQLite Status */}
@@ -133,9 +177,34 @@ export const HomeScreen: React.FC = () => {
               {filteredReminders.length}
             </span>
           </div>
-          <span style={{ fontSize: 11, fontWeight: 700, color: '#64748B', background: '#F1F5F9', padding: '2px 8px', borderRadius: 12 }}>
-            SQLite Synced
-          </span>
+          {/* Network-aware sync indicator */}
+          {networkStatus === 'offline' ? (
+            <span style={{
+              fontSize: 11, fontWeight: 700, color: '#B45309',
+              background: '#FEF3C7', padding: '4px 10px', borderRadius: 12,
+              border: '1px solid #FDE68A', display: 'inline-flex', alignItems: 'center', gap: 4,
+            }}>
+              📶 {t.syncWhenOnline}
+            </span>
+          ) : (
+            <button
+              type="button"
+              onClick={() => {
+                setNetworkStatus('syncing');
+                setTimeout(() => setNetworkStatus('synced'), 1500);
+              }}
+              style={{
+                fontSize: 11, fontWeight: 800, color: networkStatus === 'syncing' ? '#0F766E' : '#0369A1',
+                background: networkStatus === 'syncing' ? '#F0FDFA' : '#EFF6FF',
+                padding: '4px 12px', borderRadius: 12,
+                border: `1px solid ${networkStatus === 'syncing' ? '#CCFBF1' : '#BAE6FD'}`,
+                cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4,
+              }}
+            >
+              {networkStatus === 'syncing' ? '🔄 Syncing…' : `☁️ ${t.syncNow}`}
+            </button>
+          )}
+
         </div>
 
         {/* Filter Badges Row: today, scheduled, all, completed */}

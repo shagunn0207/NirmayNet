@@ -87,6 +87,21 @@ export interface TranslationDict {
   urgentTasks: string;
   openPatient: string;
   urgentNeedsAttention: string;
+  syncNow: string;
+  syncWhenOnline: string;
+
+  // Patient filters
+  filterBySex: string;
+  filterByAge: string;
+  allPatients: string;
+  sexMale: string;
+  sexFemale: string;
+  sexOther: string;
+  ageInfant: string;
+  ageChild: string;
+  ageAdult: string;
+  ageMiddleAged: string;
+  ageSenior: string;
 
   // Registration
   regTitle: string;
@@ -291,7 +306,7 @@ export const translations: Record<Language, TranslationDict> = {
     statusOffline: 'ऑफलाइन',
     statusSyncing: 'डेटा समक्रमित करत आहे...',
 
-    greeting: 'नमस्कार, सावित्रीबाई',
+    greeting: 'नमस्कार',
     subCentre: 'चिंचपाडा उपकेंद्र',
     todayWork: 'आजचे काम',
     editTodayWork: 'आजचे काम संपादित करा',
@@ -320,6 +335,20 @@ export const translations: Record<Language, TranslationDict> = {
     urgentTasks: 'तातडीची कामे',
     openPatient: 'रुग्ण उघडा',
     urgentNeedsAttention: 'तातडीची तपासणी आवश्यक',
+    syncNow: 'आत्ता समक्रमित करा',
+    syncWhenOnline: 'नेटवर्क मिळताच समक्रमित होईल',
+    filterBySex: 'लिंगानुसार',
+    filterByAge: 'वयोगटानुसार',
+    allPatients: 'सर्व',
+    sexMale: 'पुरुष',
+    sexFemale: 'महिला',
+    sexOther: 'इतर',
+    ageInfant: 'अर्भक (0–5)',
+    ageChild: 'मुले (5–18)',
+    ageAdult: 'प्रौढ (18–45)',
+    ageMiddleAged: 'मध्यम वय (45–55)',
+    ageSenior: 'ज्येष्ठ नागरिक (55+)',
+
 
     regTitle: 'नवीन रुग्ण नोंदणी',
     regSubtitle: 'रुग्णाची अचूक माहिती भरा (नाव, मोबाईल व ABHA ID)',
@@ -514,7 +543,7 @@ export const translations: Record<Language, TranslationDict> = {
     statusOffline: 'ऑफलाइन',
     statusSyncing: 'डेटा सिंक कर रहे हैं...',
 
-    greeting: 'नमस्ते, सावित्रीबाई',
+    greeting: 'नमस्ते',
     subCentre: 'चिंचपाडा उप-केंद्र',
     todayWork: 'आज का काम',
     editTodayWork: 'आज का काम संपादित करें',
@@ -543,6 +572,20 @@ export const translations: Record<Language, TranslationDict> = {
     urgentTasks: 'जरूरी काम',
     openPatient: 'मरीज़ खोलें',
     urgentNeedsAttention: 'तत्काल जांच आवश्यक',
+    syncNow: 'अभी सिंक करें',
+    syncWhenOnline: 'नेटवर्क मिलने पर सिंक होगा',
+    filterBySex: 'लिंग अनुसार',
+    filterByAge: 'आयु वर्ग अनुसार',
+    allPatients: 'सभी',
+    sexMale: 'पुरुष',
+    sexFemale: 'महिला',
+    sexOther: 'अन्य',
+    ageInfant: 'शिशु (0–5)',
+    ageChild: 'बच्चा (5–18)',
+    ageAdult: 'वयस्क (18–45)',
+    ageMiddleAged: 'मध्यम आयु (45–55)',
+    ageSenior: 'वरिष्ठ नागरिक (55+)',
+
 
     regTitle: 'नया मरीज़ पंजीकरण',
     regSubtitle: 'मरीज़ की सही जानकारी भरें (नाम, मोबाइल व ABHA ID)',
@@ -737,7 +780,7 @@ export const translations: Record<Language, TranslationDict> = {
     statusOffline: 'Offline',
     statusSyncing: 'Syncing data...',
 
-    greeting: 'Hello, Savitribai',
+    greeting: 'Hello',
     subCentre: 'Chinchpada Sub-Centre',
     todayWork: "Today's Work",
     editTodayWork: "Edit Today's Work Summary",
@@ -766,6 +809,20 @@ export const translations: Record<Language, TranslationDict> = {
     urgentTasks: 'Urgent Tasks',
     openPatient: 'Open Patient',
     urgentNeedsAttention: 'Urgent examination required',
+    syncNow: 'Sync Now',
+    syncWhenOnline: 'Will sync when connected',
+    filterBySex: 'By Sex',
+    filterByAge: 'By Age Group',
+    allPatients: 'All',
+    sexMale: 'Male',
+    sexFemale: 'Female',
+    sexOther: 'Other',
+    ageInfant: 'Infant (0–5)',
+    ageChild: 'Child (5–18)',
+    ageAdult: 'Adult (18–45)',
+    ageMiddleAged: 'Middle Aged (45–55)',
+    ageSenior: 'Senior (55+)',
+
 
     regTitle: 'New Patient Registration',
     regSubtitle: 'Enter accurate patient details (Name, Mobile & ABHA ID)',
@@ -960,7 +1017,7 @@ export const translations: Record<Language, TranslationDict> = {
     statusOffline: 'ಆಫ್‌ಲೈನ್',
     statusSyncing: 'ಡೇಟಾ ಸಿಂಕ್ ಆಗುತ್ತಿದೆ...',
 
-    greeting: 'ನಮಸ್ಕಾರ, ಸಾವಿತ್ರಿಬಾಯಿ',
+    greeting: 'ನಮಸ್ಕಾರ',
     subCentre: 'ಚಿಂಚಪಾಡ ಉಪ-ಕೇಂದ್ರ',
     todayWork: 'ಇಂದಿನ ಕೆಲಸ',
     editTodayWork: 'ಇಂದಿನ ಕೆಲಸದ ಸಾರಾಂಶವನ್ನು ಸಂಪಾದಿಸಿ',
@@ -989,6 +1046,20 @@ export const translations: Record<Language, TranslationDict> = {
     urgentTasks: 'ತುರ್ತು ಕಾರ್ಯಗಳು',
     openPatient: 'ರೋಗಿಯನ್ನು ತೆರೆಯಿರಿ',
     urgentNeedsAttention: 'ತುರ್ತು ತಪಾಸಣೆ ಅಗತ್ಯವಿದೆ',
+    syncNow: 'ಈಗ ಸಿಂಕ್ ಮಾಡಿ',
+    syncWhenOnline: 'ಸಂಪರ್ಕ ಸಿಕ್ಕಾಗ ಸಿಂಕ್ ಆಗುತ್ತದೆ',
+    filterBySex: 'ಲಿಂಗದ ಪ್ರಕಾರ',
+    filterByAge: 'ವಯೋಮಾನದ ಪ್ರಕಾರ',
+    allPatients: 'ಎಲ್ಲರೂ',
+    sexMale: 'ಪುರುಷ',
+    sexFemale: 'ಮಹಿಳೆ',
+    sexOther: 'ಇತರ',
+    ageInfant: 'ಶಿಶು (0–5)',
+    ageChild: 'ಮಕ್ಕಳು (5–18)',
+    ageAdult: 'ವಯಸ್ಕ (18–45)',
+    ageMiddleAged: 'ಮಧ್ಯ ವಯಸ್ಕ (45–55)',
+    ageSenior: 'ಹಿರಿಯ ನಾಗರಿಕ (55+)',
+
 
     regTitle: 'ಹೊಸ ರೋಗಿಯ ನೋಂದಣಿ',
     regSubtitle: 'ರೋಗಿಯ ಸರಿಯಾದ ವಿವರಗಳನ್ನು ಭರ್ತಿ ಮಾಡಿ (ಹೆಸರು, ಮೊಬೈಲ್ ಮತ್ತು ABHA ID)',

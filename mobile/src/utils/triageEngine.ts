@@ -1,5 +1,5 @@
 import type { UrgencyLevel, Language } from '../types';
-import { MASTER_SYMPTOMS } from '../constants/masterSymptoms';
+import { MASTER_SYMPTOMS, type MasterSymptom } from '../constants/masterSymptoms';
 
 export interface TriageAssessment {
   urgency: UrgencyLevel;
@@ -19,156 +19,147 @@ export interface TriageAssessment {
 }
 
 export function evaluateTriage(selectedSymptomKeys: string[]): TriageAssessment {
-  const keys = new Set(selectedSymptomKeys.map(k => k.toLowerCase()));
-
-  const has = (...syms: string[]) => syms.some(s => keys.has(s.toLowerCase()));
-
-  // 1. EMERGENCY (Red 🔴) Rules
-  const isEmergencyConvulsions = has('convulsions', 'seizures', 'convulsions_in_child');
-  const isUnconscious = has('very_sleepy_unconscious', 'fainting');
-  const isSevereBreathlessness = has('breathlessness', 'shortness_of_breath') && has('chest_tightness', 'rapid_breathing', 'chest_pain');
-  const isUncontrolledBleeding = has('bleeding') && has('blood_in_stool');
-  const isPaediatricEmergency = has('chest_indrawing') || (has('fast_breathing_child') && has('convulsions_in_child'));
-  const isPreeclampsiaRisk = (has('swollen_hands') || has('swollen_feet')) && (has('severe_headache') || has('blurred_vision_pregnancy')) && (has('high_bp_symptoms') || has('maternal_pregnancy'));
-  const isPregnancyHeavyBleeding = has('bleeding') && has('maternal_pregnancy');
-
-  if (
-    isEmergencyConvulsions ||
-    isUnconscious ||
-    isSevereBreathlessness ||
-    isUncontrolledBleeding ||
-    isPaediatricEmergency ||
-    isPreeclampsiaRisk ||
-    isPregnancyHeavyBleeding ||
-    has('convulsions', 'very_sleepy_unconscious', 'chest_indrawing')
-  ) {
+  if (!selectedSymptomKeys || selectedSymptomKeys.length === 0) {
     return {
-      urgency: 'EMERGENCY',
+      urgency: 'ROUTINE',
       guidanceText: {
-        en: 'Contact PHC doctor immediately and call 108 Ambulance',
-        mr: 'तातडीने प्राथमिक आरोग्य केंद्र (PHC) डॉक्टरांशी संपर्क साधा आणि १०८ बोलवा',
-        hi: 'तुरंत प्राथमिक स्वास्थ्य केंद्र (PHC) डॉक्टर से संपर्क करें और 108 बुलाएं',
-        kn: 'ತಕ್ಷಣ ಪಿಎಚ್‌ಸಿ ವೈದ್ಯರನ್ನು ಸಂಪರ್ಕಿಸಿ ಮತ್ತು 108 ಆಂಬ್ಯುಲೆನ್ಸ್ ಕರೆ ಮಾಡಿ',
+        en: 'No specific symptoms selected. Perform routine wellness check.',
+        mr: 'कोणतीही विशिष्ट लक्षणे निवडलेली नाहीत. नियमित आरोग्य तपासणी करा.',
+        hi: 'कोई विशिष्ट लक्षण चयनित नहीं। सामान्य स्वास्थ्य जांच करें।',
+        kn: 'ಯಾವುದೇ ಲಕ್ಷಣಗಳನ್ನು ಆಯ್ಕೆ ಮಾಡಲಾಗಿಲ್ಲ.',
       },
-      matchedRules: ['EMERGENCY_CRITICAL_SYMPTOMS'],
+      matchedRules: ['ROUTINE_CHECK'],
       recommendedAction: {
         primaryBtn: { labelKey: 'startConsultation', action: 'consultation' },
-        secondaryBtn: { labelKey: 'makeReferral', action: 'referral' },
       },
       firstAidInstructions: {
-        en: [
-          'Keep patient lying on left side and loosen tight clothing.',
-          'Do NOT give anything by mouth (food or water).',
-          'Check breathing every 2 minutes and stay until ambulance arrives.',
-        ],
-        mr: [
-          'रुग्णाला डाव्या कुशीवर झोपवा आणि कपडे सैल करा.',
-          'तोंडातून काहीही (अन्न किंवा पाणी) देऊ नका.',
-          'दर २ मिनिटांनी श्वास तपासा आणि रुग्णवाहिका येईपर्यंत सोबत राहा.',
-        ],
-        hi: [
-          'मरीज़ को बाईं करवट लिटाएं और कपड़े ढीले करें।',
-          'मुंह से कुछ भी (खाना या पानी) न दें।',
-          'हर 2 मिनट में सांस जांचें और एम्बुलेंस आने तक साथ रहें।',
-        ],
-        kn: [
-          'ರೋಗಿಯನ್ನು ಎಡಭಾಗಕ್ಕೆ ಮಲಗಿಸಿ ಮತ್ತು ಬಟ್ಟೆಯನ್ನು ಸಡಿಲಗೊಳಿಸಿ.',
-          'ಆಹಾರ ಅಥವಾ ನೀರನ್ನು ಕೊಡಬೇಡಿ.',
-          'ಪ್ರತಿ 2 ನಿಮಿಷಗಳಿಗೊಮ್ಮೆ ಉಸಿರಾಟವನ್ನು ಪರಿಶೀಲಿಸಿ.',
-        ],
+        en: ['Ensure general rest & hydration.', 'Monitor temperature & pulse.'],
+        mr: ['विश्रांती घ्या व पाणी प्या.', 'तापमान व नाडीची नोंद ठेवा.'],
+        hi: ['पर्याप्त आराम करें और पानी पीएं।', 'तापमान और नाड़ी जांचें।'],
+        kn: ['ಸಾಕಷ್ಟು ವಿಶ್ರಾಂತಿ ಪಡೆಯಿರಿ.', 'ತಾಪಮಾನ ಪರೀಕ್ಷಿಸಿ.'],
       },
     };
   }
 
-  // 2. URGENT (Yellow 🟡) Rules
-  const isHighFever2Days = has('high_fever', 'fever') && (has('chills') || has('sweating') || has('weakness'));
-  const isPregnancyMildSwelling = has('maternal_pregnancy') && (has('swollen_feet') || has('reduced_fetal_movement'));
-  const isChildFeverNotFeeding = (has('not_feeding') || has('unable_to_drink')) && (has('fever') || has('paediatric'));
-  const isModerateBreathlessness = has('breathlessness') || has('shortness_of_breath') || has('wheezing');
-  const isSevereAbdominalPain = has('abdominal_pain') || (has('vomiting') && has('diarrhoea'));
-  const isChronicNewSymptoms = (has('high_blood_sugar_symptoms') || has('high_bp_symptoms')) && has('dizziness', 'headache', 'palpitations');
+  // Find matching symptoms from MASTER_SYMPTOMS
+  const keysLower = new Set(selectedSymptomKeys.map(k => k.toLowerCase()));
+  const matchedSymptoms = MASTER_SYMPTOMS.filter(s =>
+    keysLower.has(s.id.toLowerCase()) ||
+    keysLower.has(s.key.toLowerCase()) ||
+    (s.labels && Object.values(s.labels).some(lbl => keysLower.has(lbl.toLowerCase())))
+  );
 
-  if (
-    isHighFever2Days ||
-    isPregnancyMildSwelling ||
-    isChildFeverNotFeeding ||
-    isModerateBreathlessness ||
-    isSevereAbdominalPain ||
-    isChronicNewSymptoms ||
-    has('high_fever', 'swollen_feet', 'reduced_fetal_movement', 'not_feeding', 'abdominal_pain')
-  ) {
-    return {
-      urgency: 'URGENT',
-      guidanceText: {
-        en: 'Refer to Sub-Centre or schedule doctor consultation within 24 hours',
-        mr: '२४ तासांच्या आत उपकेंद्र किंवा डॉक्टरांचा सल्ला घ्या',
-        hi: '24 घंटे के भीतर उप-केंद्र या डॉक्टर का परामर्श लें',
-        kn: '24 ಗಂಟೆಗಳ ಒಳಗೆ ವೈದ್ಯರ ಸಂಪರ್ಕ ಪಡೆಯಿರಿ',
-      },
-      matchedRules: ['URGENT_EVALUATION_NEEDED'],
-      recommendedAction: {
-        primaryBtn: { labelKey: 'startConsultation', action: 'consultation' },
-        secondaryBtn: { labelKey: 'guidePrev', action: 'guide' },
-      },
-      firstAidInstructions: {
-        en: [
-          'Give damp cloth sponging for high fever.',
-          'Provide ORS / fluids if conscious and able to drink.',
-          'Monitor symptoms closely and prepare for PHC visit.',
-        ],
-        mr: [
-          'ताप जास्त असल्यास ओल्या कपड्याने अंग पुसा.',
-          'पीऊ शकत असल्यास ORS किंवा द्रव पदार्थ द्या.',
-          'लक्षणांवर बारकाईने लक्ष ठेवा आणि PHC भेटीची तयारी करा.',
-        ],
-        hi: [
-          'बुखार तेज होने पर गीली पट्टी का इस्तेमाल करें।',
-          'यदि पी सकते हैं तो ORS या तरल पदार्थ दें।',
-          'लक्षणों पर नज़र रखें और PHC जाने की तैयारी करें।',
-        ],
-        kn: [
-          'ತಾಪಮಾನ ಹೆಚ್ಚಿದ್ದರೆ ಒದ್ದೆಯಾದ ಬಟ್ಟೆಯಿಂದ ಒರೆಸಿ.',
-          'ಸಾಧ್ಯವಾದರೆ ORS ನೀಡಿ.',
-          'ಲಕ್ಷಣಗಳನ್ನು ಗಮನಿಸಿ.',
-        ],
-      },
-    };
+  // Fallback if keys don't directly match master dataset
+  let overallUrgency: UrgencyLevel = 'ROUTINE';
+  const hasEmergency = matchedSymptoms.some(s => s.urgency === 'EMERGENCY') ||
+    selectedSymptomKeys.some(k => ['convulsions', 'seizures', 'chest_pain', 'snake_bite', 'breathlessness', 'unconscious', 'bleeding'].includes(k.toLowerCase()));
+  
+  const hasUrgent = matchedSymptoms.some(s => s.urgency === 'URGENT') ||
+    selectedSymptomKeys.some(k => ['high_fever', 'swollen_feet', 'vomiting', 'abdominal_pain'].includes(k.toLowerCase()));
+
+  if (hasEmergency) {
+    overallUrgency = 'EMERGENCY';
+  } else if (hasUrgent) {
+    overallUrgency = 'URGENT';
   }
 
-  // 3. ROUTINE (Green 🟢) Rules
+  // Filter symptoms matching the overall highest urgency
+  const primarySymptoms = matchedSymptoms.filter(s => s.urgency === overallUrgency);
+  const targetSymptoms = primarySymptoms.length > 0 ? primarySymptoms : matchedSymptoms;
+
+  // Build tailored guidance and first aid instructions
+  const languages: Language[] = ['en', 'mr', 'hi', 'kn'];
+  const guidanceText: Record<Language, string> = { en: '', mr: '', hi: '', kn: '' };
+  const firstAidInstructions: Record<Language, string[]> = { en: [], mr: [], hi: [], kn: [] };
+
+  languages.forEach(lang => {
+    // Compile guidance text from active symptoms with triageHelp
+    const guidanceParts: string[] = [];
+    const firstAidSteps: string[] = [];
+
+    targetSymptoms.forEach(sym => {
+      if (sym.triageHelp?.guidance) {
+        const text = sym.triageHelp.guidance[lang] || sym.triageHelp.guidance.en;
+        if (text && !guidanceParts.includes(text)) {
+          guidanceParts.push(text);
+        }
+      }
+      if (sym.triageHelp?.firstAid) {
+        const steps = sym.triageHelp.firstAid[lang] || sym.triageHelp.firstAid.en;
+        if (steps && Array.isArray(steps)) {
+          steps.forEach(st => {
+            if (st && !firstAidSteps.includes(st)) {
+              firstAidSteps.push(st);
+            }
+          });
+        }
+      }
+    });
+
+    if (guidanceParts.length > 0) {
+      guidanceText[lang] = guidanceParts.join(' ');
+    } else {
+      // Default clinical fallbacks by urgency
+      if (overallUrgency === 'EMERGENCY') {
+        guidanceText[lang] = {
+          en: 'CRITICAL MEDICAL EMERGENCY: Call 108 Ambulance immediately and alert PHC Medical Officer.',
+          mr: 'अत्यंत गंभीर वैद्यकीय आणीबाणी: तातडीने १०८ रुग्णवाहिका बोलवा आणि PHC डॉक्टरांना कळवा.',
+          hi: 'गंभीर चिकित्सीय आपात स्थिति: तुरंत 108 एम्बुलेंस बुलाएं और PHC डॉक्टर को सूचित करें।',
+          kn: 'ತೀವ್ರ ತುರ್ತು ಸ್ಥಿತಿ: ತಕ್ಷಣ 108 ಆಂಬ್ಯುಲೆನ್ಸ್ ಕರೆ ಮಾಡಿ ಮತ್ತು ಪಿಎಚ್‌ಸಿ ವೈದ್ಯರಿಗೆ ತಿಳಿಸಿ.',
+        }[lang];
+      } else if (overallUrgency === 'URGENT') {
+        guidanceText[lang] = {
+          en: 'URGENT EVALUATION NEEDED: Refer patient to Sub-Centre or schedule doctor consultation within 24 hours.',
+          mr: 'तातडीची तपासणी आवश्यक: २४ तासांच्या आत उपकेंद्र किंवा डॉक्टरांचा सल्ला घ्या.',
+          hi: 'त्वरित जांच आवश्यक: 24 घंटे के भीतर उप-केंद्र या डॉक्टर का परामर्श लें।',
+          kn: 'ತುರ್ತು ಪರೀಕ್ಷೆ ಅಗತ್ಯ: 24 ಗಂಟೆಗಳ ಒಳಗೆ ವೈದ್ಯರ ಸಂಪರ್ಕ ಪಡೆಯಿರಿ.',
+        }[lang];
+      } else {
+        guidanceText[lang] = {
+          en: 'ROUTINE CARE: Provide supportive care and schedule routine Sub-Centre follow-up this week.',
+          mr: 'नियमित काळजी: प्रथमोपचार करा आणि या आठवड्यात उपकेंद्रात तपासणी करा.',
+          hi: 'सामान्य देखभाल: प्राथमिक उपचार दें और इस सप्ताह उप-केंद्र में दिखाएं।',
+          kn: 'ಸಾಮಾನ್ಯ ಆರೈಕೆ: ಈ ವಾರ ನಿಯಮಿತ ತಪಾಸಣೆ ಮಾಡಿ.',
+        }[lang];
+      }
+    }
+
+    if (firstAidSteps.length > 0) {
+      firstAidInstructions[lang] = firstAidSteps;
+    } else {
+      if (overallUrgency === 'EMERGENCY') {
+        firstAidInstructions[lang] = {
+          en: ['Keep patient calm and lying down.', 'Do NOT give anything by mouth if unconscious/seizuring.', 'Transport immediately in 108 Ambulance.'],
+          mr: ['रुग्णाला शांत ठेवून झोपवून ठेवा.', 'शुद्ध नसल्यास तोंडात काहीही देऊ नका.', '१०८ ने त्वरित रुग्णालयात न्या.'],
+          hi: ['मरीज़ को शांत रखकर लिटाएं।', 'बेहोश होने पर मुंह से कुछ न दें।', '108 से तुरंत अस्पताल ले जाएं।'],
+          kn: ['ರೋಗಿಯನ್ನು ಶಾಂತವಾಗಿರಿಸಿ.', 'ಆಹಾರ ಅಥವಾ ನೀರು ಕೊಡಬೇಡಿ.', '108 ಆಂಬ್ಯುಲೆನ್ಸ್ ಕರೆ ಮಾಡಿ.'],
+        }[lang];
+      } else if (overallUrgency === 'URGENT') {
+        firstAidInstructions[lang] = {
+          en: ['Provide oral fluids or ORS if able to swallow.', 'Keep patient comfortable and rest.', 'Monitor symptoms closely and visit PHC.'],
+          mr: ['गिळू शकत असल्यास भरपूर पाणी किंवा ORS द्या.', 'विश्रांती घ्यायला सांगा.', 'PHC मध्ये दाखवा.'],
+          hi: ['यदि पी सकते हैं तो ORS या तरल दें।', 'आराम करने दें।', 'PHC में दिखाएं।'],
+          kn: ['ORS ನೀಡಿ.', 'ವಿಶ್ರಾಂತಿ ಪಡೆಯಿರಿ.', 'PHC ಗೆ ಕರೆದೊಯ್ಯಿರಿ.'],
+        }[lang];
+      } else {
+        firstAidInstructions[lang] = {
+          en: ['Ensure adequate rest and hydration.', 'Continue prescribed routine medicines.', 'Follow up if symptoms persist.'],
+          mr: ['विश्रांती घ्या व पाणी प्या.', 'नियमित औषधे सुरू ठेवा.', 'लक्षणे राहिल्यास पुन्हा दाखवा.'],
+          hi: ['पर्याप्त आराम करें और पानी पीएं।', 'नियमित दवाएं जारी रखें।', 'लक्षण रहने पर दिखाएं।'],
+          kn: ['ವಿಶ್ರಾಂತಿ ಪಡೆಯಿರಿ.', 'ಔಷಧಿಗಳನ್ನು ಮುಂದುವರಿಸಿ.', 'PHC ಗೆ ತೋರಿಸಿ.'],
+        }[lang];
+      }
+    }
+  });
+
   return {
-    urgency: 'ROUTINE',
-    guidanceText: {
-      en: 'Schedule a routine PHC visit or sub-centre follow-up this week',
-      mr: 'या आठवड्यात नियमित तपासणीसाठी उपकेंद्र किंवा PHC ला भेट द्या',
-      hi: 'इस सप्ताह नियमित जांच के लिए उप-केंद्र या PHC जाएं',
-      kn: 'ಈ ವಾರ ನಿಯಮಿತ ತಪಾಸಣೆ ವೇಳಾಪಟ್ಟಿ ಮಾಡಿ',
-    },
-    matchedRules: ['ROUTINE_CARE'],
+    urgency: overallUrgency,
+    guidanceText,
+    matchedRules: [overallUrgency + '_TRIAGE_EVALUATION'],
     recommendedAction: {
       primaryBtn: { labelKey: 'startConsultation', action: 'consultation' },
+      secondaryBtn: overallUrgency !== 'ROUTINE' ? { labelKey: 'makeReferral', action: 'referral' } : undefined,
     },
-    firstAidInstructions: {
-      en: [
-        'Ensure adequate rest and hydration.',
-        'Continue prescribed routine medicines.',
-        'Follow up with ASHA worker if symptoms worsen.',
-      ],
-      mr: [
-        'पुरेशी विश्रांती घ्या आणि भरपूर पाणी प्या.',
-        'नियमित औषधे सुरू ठेवा.',
-        'लक्षणे वाढल्यास आशा सेविकेशी संपर्क साधा.',
-      ],
-      hi: [
-        'पर्याप्त आराम करें और पर्याप्त पानी पीएं।',
-        'नियमित दवाएं जारी रखें।',
-        'लक्षण बिगड़ने पर आशा कार्यकर्ता से संपर्क करें।',
-      ],
-      kn: [
-        'ಸಾಕಷ್ಟು ವಿಶ್ರಾಂತಿ ತೆಗೆದುಕೊಳ್ಳಿ.',
-        'ಔಷಧಿಗಳನ್ನು ಮುಂದುವರಿಸಿ.',
-        'ಲಕ್ಷಣಗಳು ಹೆಚ್ಚಾದರೆ ವೈದ್ಯರನ್ನು ಸಂಪರ್ಕಿಸಿ.',
-      ],
-    },
+    firstAidInstructions,
   };
 }
