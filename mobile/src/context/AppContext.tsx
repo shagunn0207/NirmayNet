@@ -26,6 +26,10 @@ export type UserAccount = {
   username: string;
   fullName: string;
   role?: string;
+  subCentre?: string;
+  phc?: string;
+  mobile?: string;
+  coveredPopulation?: string;
 };
 
 interface AppContextType {
@@ -39,6 +43,8 @@ interface AppContextType {
   updateUserAccount: (updatedUser: Partial<UserAccount>) => void;
   login: (username: string, password: string) => boolean;
   signup: (username: string, password: string, fullName?: string) => boolean;
+  isFirstLogin: boolean;
+  setIsFirstLogin: (val: boolean) => void;
   logout: () => void;
   activeTab: string;
   setActiveTab: (tab: string) => void;
@@ -65,7 +71,7 @@ interface AppContextType {
   // Editable Tasks (CHANGE 1)
   tasks: TaskItem[];
   addNewTask: (title: string, category?: string, urgency?: UrgencyLevel) => Promise<void>;
-  updateTaskItem: (id: string, newTitle: string, visited?: boolean) => Promise<void>;
+  updateTaskItem: (id: string, newTitle: string, visited?: boolean, urgency?: UrgencyLevel) => Promise<void>;
   deleteTaskItem: (id: string) => Promise<void>;
 
   // Form Draft Persistence (CHANGE 2)
@@ -89,8 +95,8 @@ interface AppContextType {
 }
 
 const DEMO_ACCOUNT = {
-  username: 'ASHA_NAND_023',
-  password: 'asha2024',
+  username: 'shagun',
+  password: '123456',
 };
 
 // localStorage key for persisted user accounts
@@ -214,7 +220,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const sess = localStorage.getItem('niramaynet_session');
       if (sess) return JSON.parse(sess);
     } catch {}
-    return { username: 'ASHA_NAND_023', fullName: 'Shagun', role: 'ASHA Worker' };
+    return null;
   });
   const [activeTab, setActiveTab] = useState('home');
   const [activeScreen, setActiveScreen] = useState(() => {
@@ -269,9 +275,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [showBackConfirmation, setShowBackConfirmation] = useState(false);
   const [pendingNavScreen, setPendingNavScreen] = useState<string | null>(null);
 
+  const [isFirstLogin, setIsFirstLogin] = useState(false);
+
   const [snackbar, setSnackbar] = useState<string | null>(null);
+  const snackbarTimerRef = React.useRef<any>(null);
 
   const t = translations[language] ?? translations.mr;
+
+  // Clear snackbar when active screen or tab changes
+  useEffect(() => {
+    setSnackbar(null);
+  }, [activeScreen, activeTab]);
 
   // Initialize SQLite on mount and load language + tasks
   useEffect(() => {
@@ -340,13 +354,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     );
   };
 
-  const updateTaskItem = async (id: string, newTitle: string, visited?: boolean) => {
+  const updateTaskItem = async (id: string, newTitle: string, visited?: boolean, urgency?: UrgencyLevel) => {
     setTasks(prev => prev.map(t => {
       if (t.id === id) {
         return {
           ...t,
           title: newTitle !== undefined ? newTitle.trim() : t.title,
           visited: visited !== undefined ? visited : t.visited,
+          urgency: urgency !== undefined ? urgency : t.urgency,
         };
       }
       return t;
@@ -356,8 +371,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const existing = tasks.find(t => t.id === id);
     const updatedTitle = newTitle !== undefined ? newTitle.trim() : existing?.title || '';
     const updatedVisited = visited !== undefined ? (visited ? 1 : 0) : (existing?.visited ? 1 : 0);
+    const updatedUrgency = urgency !== undefined ? urgency : (existing?.urgency || 'ROUTINE');
 
-    await db.runAsync('UPDATE tasks SET title = ?, visited = ? WHERE id = ?', [updatedTitle, updatedVisited, id]);
+    await db.runAsync('UPDATE tasks SET title = ?, visited = ?, urgency = ? WHERE id = ?', [updatedTitle, updatedVisited, updatedUrgency, id]);
   };
 
   const deleteTaskItem = async (id: string) => {
@@ -393,19 +409,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     await db.runAsync('DELETE FROM drafts WHERE draft_id = ?', [draftId]);
   };
 
+  const DEFAULT_PROFILE_FIELDS = {
+    subCentre: 'Chinchpada',
+    phc: 'Dhadgaon PHC',
+    mobile: '9823011234',
+    coveredPopulation: '1,250 citizens (240 families)',
+  };
+
   const login = (username: string, password: string): boolean => {
     let userObj: UserAccount | null = null;
-    // Check demo account
+    // Check demo / built-in account
     if (username === DEMO_ACCOUNT.username && password === DEMO_ACCOUNT.password) {
-      userObj = { username: 'ASHA_NAND_023', fullName: 'Shagun', role: 'ASHA Worker' };
+      userObj = { username: DEMO_ACCOUNT.username, fullName: 'Shagun', role: 'ASHA Worker', ...DEFAULT_PROFILE_FIELDS };
     } else {
       // Check stored user accounts
       const accounts = getStoredAccounts();
       const found = accounts.find(a => a.username === username && a.password === password);
       if (found) {
-        userObj = { username: found.username, fullName: found.fullName || found.username, role: found.role || 'ASHA Worker' };
+        userObj = { ...DEFAULT_PROFILE_FIELDS, ...found, fullName: found.fullName || found.username, role: found.role || 'ASHA Worker' };
       } else if (networkStatus === 'offline' && username === DEMO_ACCOUNT.username) {
-        userObj = { username: 'ASHA_NAND_023', fullName: 'Shagun', role: 'ASHA Worker' };
+        userObj = { username: DEMO_ACCOUNT.username, fullName: 'Shagun', role: 'ASHA Worker', ...DEFAULT_PROFILE_FIELDS };
         showSnackbar('इंटरनेट कनेक्शन उपलब्ध नाही. ऑफलाइन मोड सुरू आहे.');
       }
     }
@@ -423,20 +446,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const signup = (username: string, password: string, fullName?: string): boolean => {
     const accounts = getStoredAccounts();
-    // Don't allow duplicate usernames or overriding demo
     if (username === DEMO_ACCOUNT.username || accounts.find(a => a.username === username)) {
       return false; // username already taken
     }
     const nameToUse = fullName && fullName.trim() ? fullName.trim() : username;
-    const newAccount: StoredAccount = { username, password, fullName: nameToUse, role: 'ASHA Worker' };
+    const newAccount: StoredAccount & Partial<UserAccount> = { username, password, fullName: nameToUse, role: 'ASHA Worker', ...DEFAULT_PROFILE_FIELDS };
     saveAccount(newAccount);
 
-    const userObj: UserAccount = { username: newAccount.username, fullName: newAccount.fullName || newAccount.username, role: 'ASHA Worker' };
-    setCurrentUser(userObj);
-    try { localStorage.setItem('niramaynet_session', JSON.stringify(userObj)); } catch {}
-    setIsLoggedIn(true);
-    setActiveScreen('home');
-    setActiveTab('home');
+    setIsFirstLogin(true);
     return true;
   };
 
@@ -448,7 +465,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const accounts = getStoredAccounts();
       const existing = accounts.find(a => a.username === prev.username);
       if (existing) {
-        saveAccount({ ...existing, fullName: newUser.fullName, role: newUser.role });
+        saveAccount({ ...existing, ...newUser });
       }
       return newUser;
     });
@@ -556,9 +573,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return followups.some(f => f.patientId === patientId && !f.visited);
   };
 
-  const showSnackbar = (msg: string, duration = 3000) => {
+  const showSnackbar = (msg: string, duration = 2500) => {
+    if (snackbarTimerRef.current) clearTimeout(snackbarTimerRef.current);
     setSnackbar(msg);
-    setTimeout(() => setSnackbar(null), duration);
+    snackbarTimerRef.current = setTimeout(() => setSnackbar(null), duration);
   };
 
   const confirmBackNavigation = () => {
@@ -593,6 +611,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       confirmBackNavigation, cancelBackNavigation,
       snackbar, showSnackbar,
       signup,
+      isFirstLogin, setIsFirstLogin,
     }}>
       {children}
     </AppContext.Provider>

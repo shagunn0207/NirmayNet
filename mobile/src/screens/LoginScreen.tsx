@@ -58,13 +58,14 @@ export const LoginScreen: React.FC = () => {
   const [showConfirm, setShowConfirm] = useState(false);
 
   const [error, setError] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
   const [loading, setLoading] = useState(false);
 
   const isOnline = networkStatus !== 'offline';
 
   const resetForm = () => {
     setUsername(''); setPassword(''); setFullName(''); setConfirmPassword('');
-    setError(''); setShowPassword(false); setShowConfirm(false);
+    setError(''); setSuccessMsg(''); setShowPassword(false); setShowConfirm(false);
   };
 
   const switchMode = (newMode: 'login' | 'signup') => {
@@ -85,7 +86,13 @@ export const LoginScreen: React.FC = () => {
       await new Promise(r => setTimeout(r, 600));
       const ok = signup(username.trim(), password, fullName.trim());
       setLoading(false);
-      if (!ok) setError('This username is already taken. Please choose a different one.');
+      if (!ok) {
+        setError('This username is already taken. Please choose a different one.');
+      } else {
+        switchMode('login');
+        setUsername(username.trim());
+        setSuccessMsg('Account created successfully! Please log in.');
+      }
     } else {
       if (!username.trim() || !password) { setError('Please enter your username and password'); return; }
       setLoading(true);
@@ -148,7 +155,7 @@ export const LoginScreen: React.FC = () => {
                 transition: 'all 0.2s ease',
               }}
             >
-              {m === 'login' ? '🔑 Login' : '✨ Sign Up'}
+              {m === 'login' ? 'Login' : 'Sign Up'}
             </button>
           ))}
         </div>
@@ -274,6 +281,17 @@ export const LoginScreen: React.FC = () => {
               </div>
             )}
 
+            {/* Success message */}
+            {successMsg && (
+              <div style={{
+                padding: '12px 16px', background: '#F0FDFA',
+                border: '1px solid #CCFBF1', borderRadius: 12,
+                color: '#0F766E', fontSize: 14, fontWeight: 600,
+              }}>
+                ✅ {successMsg}
+              </div>
+            )}
+
             {/* Forgot password — login only */}
             {mode === 'login' && (
               <div style={{ textAlign: 'right', marginTop: -6 }}>
@@ -295,7 +313,7 @@ export const LoginScreen: React.FC = () => {
             >
               {loading
                 ? (mode === 'login' ? t.loggingIn : 'Creating account…')
-                : (mode === 'login' ? t.loginButton : '✨ Create Account')}
+                : (mode === 'login' ? t.loginButton : 'Create Account')}
             </button>
 
             {/* Network status note */}
@@ -316,17 +334,8 @@ export const LoginScreen: React.FC = () => {
           </form>
         </div>
 
-        {/* Demo hint — login mode only */}
-        {mode === 'login' && (
-          <div style={{
-            marginTop: 16, padding: '12px 16px',
-            background: '#F0FDFA', border: '1px solid #CCFBF1',
-            borderRadius: 14, fontSize: 13, color: '#0F766E',
-          }}>
-            <span style={{ fontWeight: 800 }}>Demo Login: </span>
-            ID: <code style={{ background: '#E6FFFA', padding: '2px 6px', borderRadius: 4 }}>ASHA_NAND_023</code> · Pass: <code style={{ background: '#E6FFFA', padding: '2px 6px', borderRadius: 4 }}>asha2024</code>
-          </div>
-        )}
+
+
 
         {/* Signup note — login mode */}
         {mode === 'login' && (

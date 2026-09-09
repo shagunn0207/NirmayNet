@@ -13,6 +13,15 @@ const SearchIcon = () => (
   </svg>
 );
 
+const MicIcon = ({ size = 18 }: { size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+    <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+    <line x1="12" y1="19" x2="12" y2="23" />
+    <line x1="8" y1="23" x2="16" y2="23" />
+  </svg>
+);
+
 const ChevronRightIcon = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
     <polyline points="9 18 15 12 9 6" />
@@ -81,6 +90,7 @@ const PatientDetail: React.FC<{ patient: Patient; onClose: () => void }> = ({ pa
   const [editVillage, setEditVillage] = useState(rawPatient.village);
   const [editPhone, setEditPhone] = useState(rawPatient.phone);
   const [editAbha, setEditAbha] = useState(rawPatient.abhaId || '');
+  const [editAllergies, setEditAllergies] = useState(rawPatient.allergies || '');
   const [editSymptoms, setEditSymptoms] = useState<string[]>(rawPatient.symptoms || []);
   const [editNotes, setEditNotes] = useState(rawPatient.notes || '');
   const [symptomSearch, setSymptomSearch] = useState('');
@@ -130,6 +140,7 @@ const PatientDetail: React.FC<{ patient: Patient; onClose: () => void }> = ({ pa
       village: editVillage.trim(),
       phone: editPhone.trim(),
       abhaId: editAbha.trim(),
+      allergies: editAllergies.trim() || undefined,
       symptoms: editSymptoms,
       notes: editNotes.trim(),
       lastTriage: newTriage,
@@ -239,6 +250,8 @@ const PatientDetail: React.FC<{ patient: Patient; onClose: () => void }> = ({ pa
               <InfoRow label={t.village} value={patient.village} />
               <div className="divider" />
               <InfoRow label={t.mobileLabel} value={patient.phone} />
+              <div className="divider" />
+              <InfoRow label={t.allergiesLabel} value={patient.allergies ? `⚠️ ${patient.allergies}` : 'None'} />
               <div className="divider" />
               <InfoRow label={t.registrationDate} value={patient.registrationDate} />
               <div className="divider" />
@@ -422,13 +435,25 @@ const PatientDetail: React.FC<{ patient: Patient; onClose: () => void }> = ({ pa
               </div>
 
               {/* ABHA ID */}
-              <div>
+              <div style={{ marginBottom: 14 }}>
                 <label className="form-label">{t.abhaId}</label>
                 <input
                   type="text"
                   className="form-input"
                   value={editAbha}
                   onChange={e => setEditAbha(e.target.value)}
+                />
+              </div>
+
+              {/* Known Allergies */}
+              <div>
+                <label className="form-label">⚠️ {t.allergiesLabel}</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  value={editAllergies}
+                  onChange={e => setEditAllergies(e.target.value)}
+                  placeholder={t.allergiesPlaceholder}
                 />
               </div>
             </div>
@@ -539,7 +564,7 @@ const PatientDetail: React.FC<{ patient: Patient; onClose: () => void }> = ({ pa
                       style={{ padding: '8px 10px', width: '100%', boxSizing: 'border-box', minWidth: 0 }}
                     >
                       <span style={{ flexShrink: 0, fontSize: 16 }}>{s.icon}</span>
-                      <span style={{ fontSize: 12, flex: 1, minWidth: 0, textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', textAlign: 'left' }}>
+                      <span style={{ fontSize: 13, fontWeight: 700, flex: 1, minWidth: 0, whiteSpace: 'normal', wordBreak: 'break-word', lineHeight: 1.25, textAlign: 'left' }}>
                         {getSymptomLabel(s)}
                       </span>
                     </button>
@@ -594,9 +619,59 @@ const InfoRow = ({ label, value }: { label: string; value: string }) => (
 );
 
 export const PatientsScreen: React.FC = () => {
-  const { t, patients, setCurrentPatient } = useApp();
+  const { t, language, patients, setCurrentPatient } = useApp();
   const [query, setQuery] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [isListening, setIsListening] = useState(false);
+
+  const handleMicClick = () => {
+    setIsListening(true);
+    setQuery('');
+
+    const speechLang = language === 'mr' ? 'mr-IN' : language === 'hi' ? 'hi-IN' : language === 'kn' ? 'kn-IN' : 'en-IN';
+
+    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+      try {
+        const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+        const recognition = new SpeechRecognition();
+        recognition.continuous = false;
+        recognition.interimResults = true;
+        recognition.lang = speechLang;
+
+        recognition.onresult = (event: any) => {
+          let text = '';
+          for (let i = event.resultIndex; i < event.results.length; ++i) {
+            text += event.results[i][0].transcript;
+          }
+          setQuery(text);
+        };
+
+        recognition.onend = () => {
+          setIsListening(false);
+        };
+
+        recognition.onerror = () => {
+          simulatePatientMic();
+        };
+
+        recognition.start();
+        return;
+      } catch (err) {
+        console.warn('Speech recognition error in patient search:', err);
+      }
+    }
+    simulatePatientMic();
+  };
+
+  const simulatePatientMic = () => {
+    const sample = language === 'en' ? 'Rekha Patil'
+      : language === 'hi' ? 'रेखा पाटिल'
+      : language === 'kn' ? 'ರೇಖಾ ಪಾಟೀಲ್'
+      : 'रेखा पाटील';
+
+    setQuery(sample);
+    setIsListening(false);
+  };
 
   const selected = patients.find(p => p.id === selectedId) || null;
 
@@ -631,10 +706,12 @@ export const PatientsScreen: React.FC = () => {
   ];
 
   const filtered = patients.filter(p => {
-    const nameMatch = p.name.toLowerCase().includes(query.toLowerCase()) || (p.abhaId?.includes(query) ?? false);
+    const qLower = query.toLowerCase();
+    const nameMatch = p.name.toLowerCase().includes(qLower) || (p.abhaId?.includes(query) ?? false) || p.village.toLowerCase().includes(qLower);
+    const symptomMatch = p.symptoms?.some(s => s.toLowerCase().includes(qLower)) ?? false;
     const sexMatch = sexFilter === 'all' || p.sex === sexFilter;
     const ageMatch = ageFilter === 'all' || getAgeGroup(p.age) === ageFilter;
-    return nameMatch && sexMatch && ageMatch;
+    return (nameMatch || symptomMatch) && sexMatch && ageMatch;
   });
 
   if (selected) {
@@ -663,8 +740,27 @@ export const PatientsScreen: React.FC = () => {
             placeholder={t.searchPlaceholder}
             value={query}
             onChange={e => setQuery(e.target.value)}
-            style={{ paddingLeft: 42 }}
+            style={{ paddingLeft: 42, paddingRight: 48 }}
           />
+
+          {/* Chrome-style Voice Search Mic button */}
+          <button
+            type="button"
+            onClick={handleMicClick}
+            style={{
+              position: 'absolute', right: 8, top: 8,
+              width: 34, height: 34, borderRadius: '50%',
+              background: isListening ? '#DC2626' : '#F0FDFA',
+              border: isListening ? '1.5px solid #DC2626' : '1px solid #CCFBF1',
+              color: isListening ? '#ffffff' : '#0F766E',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              cursor: 'pointer', transition: 'all 0.15s ease',
+              boxShadow: isListening ? '0 0 10px rgba(220, 38, 38, 0.4)' : 'none',
+            }}
+            title="Voice Search Patients & Symptoms"
+          >
+            <MicIcon size={18} />
+          </button>
         </div>
 
         {/* Sex Filter Row */}

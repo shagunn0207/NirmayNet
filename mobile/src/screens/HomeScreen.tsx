@@ -76,10 +76,12 @@ export const HomeScreen: React.FC = () => {
     deleteTaskItem,
     networkStatus,
     setNetworkStatus,
+    isFirstLogin,
   } = useApp();
 
   const [isAddingTask, setIsAddingTask] = useState(false);
   const [newTaskTitle, setNewTaskTitle] = useState('');
+  const [isNewTaskUrgent, setIsNewTaskUrgent] = useState(false);
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState('');
 
@@ -94,8 +96,9 @@ export const HomeScreen: React.FC = () => {
 
   const handleCreateTask = async () => {
     if (!newTaskTitle.trim()) return;
-    await addNewTask(newTaskTitle);
+    await addNewTask(newTaskTitle, 'General', isNewTaskUrgent ? 'URGENT' : 'ROUTINE');
     setNewTaskTitle('');
+    setIsNewTaskUrgent(false);
     setIsAddingTask(false);
   };
 
@@ -128,7 +131,7 @@ export const HomeScreen: React.FC = () => {
       case 'mr': return 'नमस्कार';
       case 'hi': return 'नमस्ते';
       case 'kn': return 'ನಮಸ್ಕಾರ';
-      default: return 'Welcome back,';
+      default: return isFirstLogin ? 'Welcome,' : 'Welcome back,';
     }
   };
 
@@ -151,7 +154,7 @@ export const HomeScreen: React.FC = () => {
             {getGreetingPrefix()}
           </div>
           <div style={{ fontSize: 20, fontWeight: 800, color: '#ffffff', marginTop: 2 }}>
-            {currentUser?.fullName || t.ashaWorkerName} 👋
+            {currentUser?.fullName || t.ashaWorkerName}
           </div>
         </div>
         <div style={{
@@ -272,106 +275,130 @@ export const HomeScreen: React.FC = () => {
               </div>
             </div>
           ) : (
-            filteredReminders.map(task => (
-              <div
-                key={task.id}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: 10,
-                  padding: '12px 14px',
-                  borderRadius: 14,
-                  background: task.visited ? '#F8FAFC' : '#FFFFFF',
-                  border: task.visited ? '1px solid #E2E8F0' : '1px solid #CBD5E1',
-                  boxShadow: task.visited ? 'none' : '0 2px 6px rgba(0,0,0,0.03)',
-                }}
-              >
-                {editingTaskId === task.id ? (
-                  <div style={{ display: 'flex', gap: 8, flex: 1, alignItems: 'center' }}>
-                    <input
-                      type="text"
-                      className="form-input"
-                      value={editingTitle}
-                      onChange={e => setEditingTitle(e.target.value)}
-                      style={{ minHeight: 38, fontSize: 14, padding: '4px 10px' }}
-                      autoFocus
-                    />
-                    <button
-                      type="button"
-                      className="btn-primary"
-                      onClick={() => saveEdit(task.id)}
-                      style={{ minHeight: 38, padding: '0 12px', fontSize: 13 }}
-                    >
-                      {t.save}
-                    </button>
-                    <button
-                      type="button"
-                      className="btn-outline"
-                      onClick={cancelEdit}
-                      style={{ minHeight: 38, padding: '0 10px', fontSize: 13 }}
-                    >
-                      {t.cancel}
-                    </button>
-                  </div>
-                ) : (
-                  <>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 0 }}>
+            filteredReminders.map(task => {
+              const isUrgent = task.urgency === 'URGENT' || task.urgency === 'EMERGENCY';
+              return (
+                <div
+                  key={task.id}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 10,
+                    padding: '12px 14px',
+                    borderRadius: 14,
+                    background: task.visited ? '#F8FAFC' : isUrgent ? '#FEF2F2' : '#FFFFFF',
+                    border: task.visited ? '1px solid #E2E8F0' : isUrgent ? '1.5px solid #FCA5A5' : '1px solid #CBD5E1',
+                    borderLeft: !task.visited && isUrgent ? '5px solid #DC2626' : undefined,
+                    boxShadow: task.visited ? 'none' : '0 2px 6px rgba(0,0,0,0.03)',
+                  }}
+                >
+                  {editingTaskId === task.id ? (
+                    <div style={{ display: 'flex', gap: 8, flex: 1, alignItems: 'center' }}>
                       <input
-                        type="checkbox"
-                        checked={task.visited}
-                        onChange={e => updateTaskItem(task.id, task.title, e.target.checked)}
-                        style={{ width: 20, height: 20, cursor: 'pointer', accentColor: '#0F766E', flexShrink: 0 }}
+                        type="text"
+                        className="form-input"
+                        value={editingTitle}
+                        onChange={e => setEditingTitle(e.target.value)}
+                        style={{ minHeight: 38, fontSize: 14, padding: '4px 10px' }}
+                        autoFocus
                       />
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{
-                          fontSize: 14,
-                          fontWeight: 700,
-                          color: task.visited ? '#94A3B8' : '#0F172A',
-                          textDecoration: task.visited ? 'line-through' : 'none',
-                          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                        }}>
-                          {task.title}
-                        </div>
-                        {task.category && (
-                          <span style={{
-                            display: 'inline-block',
-                            marginTop: 2,
-                            fontSize: 11,
+                      <button
+                        type="button"
+                        className="btn-primary"
+                        onClick={() => saveEdit(task.id)}
+                        style={{ minHeight: 38, padding: '0 12px', fontSize: 13 }}
+                      >
+                        {t.save}
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-outline"
+                        onClick={cancelEdit}
+                        style={{ minHeight: 38, padding: '0 10px', fontSize: 13 }}
+                      >
+                        {t.cancel}
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 0 }}>
+                        <input
+                          type="checkbox"
+                          checked={task.visited}
+                          onChange={e => updateTaskItem(task.id, task.title, e.target.checked, task.urgency)}
+                          style={{ width: 20, height: 20, cursor: 'pointer', accentColor: '#0F766E', flexShrink: 0 }}
+                        />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{
+                            fontSize: 14,
                             fontWeight: 700,
-                            color: task.urgency === 'EMERGENCY' ? '#DC2626' : '#0F766E',
-                            background: task.urgency === 'EMERGENCY' ? '#FEF2F2' : '#F0FDFA',
-                            padding: '1px 7px',
-                            borderRadius: 6,
+                            color: task.visited ? '#94A3B8' : isUrgent ? '#991B1B' : '#0F172A',
+                            textDecoration: task.visited ? 'line-through' : 'none',
+                            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
                           }}>
-                            {task.category}
-                          </span>
-                        )}
+                            {task.title}
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3 }}>
+                            {task.category && (
+                              <span style={{
+                                display: 'inline-block',
+                                fontSize: 11,
+                                fontWeight: 700,
+                                color: isUrgent ? '#DC2626' : '#0F766E',
+                                background: isUrgent ? '#FFE4E6' : '#F0FDFA',
+                                padding: '1px 7px',
+                                borderRadius: 6,
+                              }}>
+                                {task.category}
+                              </span>
+                            )}
+                          </div>
+                        </div>
                       </div>
-                    </div>
 
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                      <button
-                        type="button"
-                        onClick={() => startEdit(task.id, task.title)}
-                        style={{ background: 'none', border: 'none', color: '#0F766E', padding: 6, cursor: 'pointer' }}
-                        title={t.edit}
-                      >
-                        <PencilIcon />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => deleteTaskItem(task.id)}
-                        style={{ background: 'none', border: 'none', color: '#DC2626', padding: 6, cursor: 'pointer' }}
-                        title={t.delete}
-                      >
-                        <TrashIcon />
-                      </button>
-                    </div>
-                  </>
-                )}
-              </div>
-            ))
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                        {/* Toggle Urgent / Important Badge */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const nextUrgency = isUrgent ? 'ROUTINE' : 'URGENT';
+                            updateTaskItem(task.id, task.title, task.visited, nextUrgency);
+                          }}
+                          style={{
+                            display: 'inline-flex', alignItems: 'center', gap: 4,
+                            padding: '4px 9px', borderRadius: 20,
+                            border: isUrgent ? '1.5px solid #FCA5A5' : '1px solid #CBD5E1',
+                            background: isUrgent ? '#FEF2F2' : '#FFFFFF',
+                            color: isUrgent ? '#DC2626' : '#64748B',
+                            fontSize: 11, fontWeight: 800, cursor: 'pointer',
+                          }}
+                          title="Click to mark urgent/important"
+                        >
+                          {isUrgent ? '🔴 Urgent' : '⚪ Normal'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => startEdit(task.id, task.title)}
+                          style={{ background: 'none', border: 'none', color: '#0F766E', padding: 6, cursor: 'pointer' }}
+                          title={t.edit}
+                        >
+                          <PencilIcon />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => deleteTaskItem(task.id)}
+                          style={{ background: 'none', border: 'none', color: '#DC2626', padding: 6, cursor: 'pointer' }}
+                          title={t.delete}
+                        >
+                          <TrashIcon />
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              );
+            })
           )}
 
           {/* Add Reminder Inline Form */}
@@ -385,23 +412,39 @@ export const HomeScreen: React.FC = () => {
                 onChange={e => setNewTaskTitle(e.target.value)}
                 autoFocus
               />
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
                 <button
                   type="button"
-                  className="btn-outline"
-                  onClick={() => setIsAddingTask(false)}
-                  style={{ minHeight: 40, padding: '0 14px', fontSize: 14 }}
+                  onClick={() => setIsNewTaskUrgent(u => !u)}
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 6,
+                    padding: '6px 12px', borderRadius: 20,
+                    border: isNewTaskUrgent ? '1.5px solid #DC2626' : '1px solid #CBD5E1',
+                    background: isNewTaskUrgent ? '#FEF2F2' : '#FFFFFF',
+                    color: isNewTaskUrgent ? '#991B1B' : '#64748B',
+                    fontSize: 12, fontWeight: 800, cursor: 'pointer',
+                  }}
                 >
-                  {t.cancel}
+                  <span>{isNewTaskUrgent ? '🔴 Urgent / Important' : '⚪ Mark Urgent'}</span>
                 </button>
-                <button
-                  type="button"
-                  className="btn-primary"
-                  onClick={handleCreateTask}
-                  style={{ minHeight: 40, padding: '0 18px', fontSize: 14 }}
-                >
-                  {t.save}
-                </button>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button
+                    type="button"
+                    className="btn-outline"
+                    onClick={() => { setIsAddingTask(false); setIsNewTaskUrgent(false); }}
+                    style={{ minHeight: 38, padding: '0 14px', fontSize: 13 }}
+                  >
+                    {t.cancel}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-primary"
+                    onClick={handleCreateTask}
+                    style={{ minHeight: 38, padding: '0 18px', fontSize: 13 }}
+                  >
+                    {t.save}
+                  </button>
+                </div>
               </div>
             </div>
           ) : (
@@ -456,34 +499,117 @@ export const HomeScreen: React.FC = () => {
         </div>
       </div>
 
-      {/* Urgent tasks */}
-      {urgentPatient && (
-        <div>
-          <p className="section-title">{t.urgentTasks}</p>
-          <div className="card-emergency">
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 14 }}>
-              <AlertCircleIcon />
-              <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 700, fontSize: 16, color: '#0F172A' }}>
-                  {urgentPatient.name} — {t.symptomBreathing}
-                </div>
-                <div style={{ fontSize: 13, color: '#475569', marginTop: 3 }}>
-                  {t.urgentNeedsAttention}
-                </div>
-              </div>
+      {/* Urgent Tasks Section on Dashboard */}
+      {(() => {
+        const urgentReminders = tasks.filter(t => !t.visited && (t.urgency === 'URGENT' || t.urgency === 'EMERGENCY'));
+        const hasUrgentItems = urgentReminders.length > 0 || Boolean(urgentPatient);
+
+        if (!hasUrgentItems) return null;
+
+        return (
+          <div style={{ marginBottom: 20 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+              <p className="section-title" style={{ margin: 0, color: '#DC2626' }}>
+                ⚡ {t.urgentTasks} ({urgentReminders.length + (urgentPatient ? 1 : 0)})
+              </p>
+              <span style={{ fontSize: 11, fontWeight: 800, color: '#DC2626', background: '#FEF2F2', padding: '2px 8px', borderRadius: 10, border: '1px solid #FCA5A5' }}>
+                High Priority
+              </span>
             </div>
-            <button
-              className="btn-danger"
-              onClick={() => {
-                setCurrentPatient(urgentPatient);
-                goTo('triage');
-              }}
-            >
-              {t.openPatient}
-            </button>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {/* Emergency Triage Patient Card */}
+              {urgentPatient && (
+                <div className="card-emergency">
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 14 }}>
+                    <AlertCircleIcon />
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 800, fontSize: 16, color: '#0F172A' }}>
+                        {urgentPatient.name} — {t.symptomBreathing}
+                      </div>
+                      <div style={{ fontSize: 13, color: '#475569', marginTop: 3, fontWeight: 500 }}>
+                        {t.urgentNeedsAttention}
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    className="btn-danger"
+                    onClick={() => {
+                      setCurrentPatient(urgentPatient);
+                      goTo('triage');
+                    }}
+                  >
+                    {t.openPatient}
+                  </button>
+                </div>
+              )}
+
+              {/* Marked Urgent Reminders Cards */}
+              {urgentReminders.map(uTask => (
+                <div
+                  key={uTask.id}
+                  style={{
+                    background: '#FEF2F2',
+                    border: '1.5px solid #FCA5A5',
+                    borderLeft: '5px solid #DC2626',
+                    borderRadius: 16,
+                    padding: '14px 16px',
+                    boxShadow: '0 2px 8px rgba(220,38,38,0.08)',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10, marginBottom: 10 }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                        <span style={{ fontSize: 12, fontWeight: 800, color: '#DC2626', background: '#FFE4E6', padding: '2px 8px', borderRadius: 6 }}>
+                          🔴 URGENT REMINDER
+                        </span>
+                        {uTask.category && (
+                          <span style={{ fontSize: 11, fontWeight: 700, color: '#0F766E', background: '#F0FDFA', padding: '2px 6px', borderRadius: 6 }}>
+                            {uTask.category}
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ fontWeight: 800, fontSize: 15, color: '#991B1B' }}>
+                        {uTask.title}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button
+                      type="button"
+                      onClick={() => updateTaskItem(uTask.id, uTask.title, true, uTask.urgency)}
+                      style={{
+                        flex: 1, minHeight: 38,
+                        background: '#DC2626', color: '#FFFFFF',
+                        border: 'none', borderRadius: 10,
+                        fontSize: 13, fontWeight: 800, cursor: 'pointer',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                      }}
+                    >
+                      ✓ Mark Done
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => updateTaskItem(uTask.id, uTask.title, uTask.visited, 'ROUTINE')}
+                      style={{
+                        minHeight: 38, padding: '0 12px',
+                        background: '#FFFFFF', color: '#64748B',
+                        border: '1px solid #CBD5E1', borderRadius: 10,
+                        fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                      }}
+                      title="Remove from Urgent tasks"
+                    >
+                      Unmark Urgent
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 };

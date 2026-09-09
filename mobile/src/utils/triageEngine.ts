@@ -46,7 +46,7 @@ export function evaluateTriage(selectedSymptomKeys: string[]): TriageAssessment 
   const matchedSymptoms = MASTER_SYMPTOMS.filter(s =>
     keysLower.has(s.id.toLowerCase()) ||
     keysLower.has(s.key.toLowerCase()) ||
-    (s.labels && Object.values(s.labels).some(lbl => keysLower.has(lbl.toLowerCase())))
+    (s.labels && Object.values(s.labels).some((lbl: string | undefined) => Boolean(lbl && keysLower.has(lbl.toLowerCase()))))
   );
 
   // Fallback if keys don't directly match master dataset

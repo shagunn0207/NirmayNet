@@ -19,6 +19,7 @@ export interface Patient {
   referrals?: string[];
   consultations?: string[];
   notes?: string;
+  allergies?: string;
 }
 
 export interface FollowUpItem {
@@ -32,3 +33,44 @@ export interface FollowUpItem {
   visited: boolean;
   phone: string;
 }
+
+export interface MasterSymptom {
+  id: string;
+  key: string;
+  categoryKey: string;
+  icon: string;
+  labels: {
+    en: string;
+    mr: string;
+    hi: string;
+    kn?: string;
+  };
+  aliases?: string[];
+  urgency?: UrgencyLevel;
+  triageHelp?: {
+    guidance: {
+      en: string;
+      mr: string;
+      hi: string;
+      kn?: string;
+    };
+    firstAid: {
+      en: string[];
+      mr: string[];
+      hi: string[];
+      kn?: string[];
+    };
+  };
+}
+
+export interface SymptomCategory {
+  key: string;
+  title: {
+    en: string;
+    mr: string;
+    hi: string;
+    kn?: string;
+  };
+  icon: string;
+}
+

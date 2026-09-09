@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 
 const PhoneIcon = () => (
@@ -16,8 +16,20 @@ const CheckIcon = () => (
 export const FollowupsScreen: React.FC = () => {
   const { t, followups, toggleVisited } = useApp();
 
-  const pending = followups.filter(f => !f.visited);
-  const done = followups.filter(f => f.visited);
+  type CategoryFilter = 'all' | 'Female' | 'Male' | 'Child' | 'Senior';
+  const [activeFilter, setActiveFilter] = useState<CategoryFilter>('all');
+
+  const filterItem = (f: any) => {
+    if (activeFilter === 'all') return true;
+    if (activeFilter === 'Female') return f.patientSex === 'Female';
+    if (activeFilter === 'Male') return f.patientSex === 'Male';
+    if (activeFilter === 'Child') return f.patientAge <= 18 || (f.category && (f.category.toLowerCase().includes('child') || f.category.toLowerCase().includes('pediatric'))) || (f.patientName && f.patientName.toLowerCase().includes('baby'));
+    if (activeFilter === 'Senior') return f.patientAge >= 55;
+    return true;
+  };
+
+  const pending = followups.filter(f => !f.visited && filterItem(f));
+  const done = followups.filter(f => f.visited && filterItem(f));
 
   const getUrgencyLabel = (urg: string) => {
     if (urg === 'EMERGENCY') return t.emergency;
@@ -27,6 +39,53 @@ export const FollowupsScreen: React.FC = () => {
 
   return (
     <div className="screen-body" style={{ paddingBottom: 90 }}>
+      {/* Category Pills Row: All, Female, Male, Child, Senior */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 16, overflowX: 'auto', scrollbarWidth: 'none', paddingBottom: 2 }}>
+        {[
+          { key: 'all', icon: '👥', label: 'All' },
+          { key: 'Female', icon: '👩', label: t.sexFemale || 'Female' },
+          { key: 'Male', icon: '👨', label: t.sexMale || 'Male' },
+          { key: 'Child', icon: '👶', label: 'Child / Infant' },
+          { key: 'Senior', icon: '👵', label: 'Senior' },
+        ].map(cat => {
+          const isActive = activeFilter === cat.key;
+          const count = followups.filter(f => !f.visited && (
+            cat.key === 'all' ? true :
+            cat.key === 'Female' ? f.patientSex === 'Female' :
+            cat.key === 'Male' ? f.patientSex === 'Male' :
+            cat.key === 'Child' ? (f.patientAge <= 18 || (f.category && (f.category.toLowerCase().includes('child') || f.category.toLowerCase().includes('pediatric'))) || (f.patientName && f.patientName.toLowerCase().includes('baby'))) :
+            f.patientAge >= 55
+          )).length;
+
+          return (
+            <button
+              key={cat.key}
+              type="button"
+              onClick={() => setActiveFilter(cat.key as any)}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+                padding: '6px 14px', borderRadius: 9999, whiteSpace: 'nowrap',
+                border: isActive ? '1.5px solid #0F766E' : '1px solid #E2E8F0',
+                background: isActive ? '#0F766E' : '#FFFFFF',
+                color: isActive ? '#FFFFFF' : '#475569',
+                fontWeight: isActive ? 800 : 600, fontSize: 13,
+                cursor: 'pointer', boxShadow: isActive ? '0 3px 10px rgba(15, 118, 110, 0.2)' : '0 1px 3px rgba(0,0,0,0.04)',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              <span>{cat.icon}</span>
+              <span>{cat.label}</span>
+              <span style={{
+                fontSize: 11, padding: '1px 6px', borderRadius: 9999,
+                background: isActive ? 'rgba(255,255,255,0.25)' : '#F1F5F9',
+                color: isActive ? '#FFFFFF' : '#64748B', fontWeight: 800,
+              }}>
+                {count}
+              </span>
+            </button>
+          );
+        })}
+      </div>
       {pending.length === 0 && done.length > 0 && (
         <div style={{
           padding: '24px 20px',

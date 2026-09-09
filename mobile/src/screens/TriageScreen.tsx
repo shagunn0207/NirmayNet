@@ -280,6 +280,65 @@ export const TriageScreen: React.FC = () => {
     return s.labels[language] || s.labels.en;
   };
 
+  const [isSearchListening, setIsSearchListening] = useState(false);
+
+  const handleSearchMicClick = () => {
+    setIsSearchListening(true);
+    setSearchQuery('');
+
+    const speechLang = language === 'mr' ? 'mr-IN' : language === 'hi' ? 'hi-IN' : language === 'kn' ? 'kn-IN' : 'en-IN';
+
+    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+      try {
+        const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+        const recognition = new SpeechRecognition();
+        recognition.continuous = false;
+        recognition.interimResults = true;
+        recognition.lang = speechLang;
+
+        recognition.onresult = (event: any) => {
+          let text = '';
+          for (let i = event.resultIndex; i < event.results.length; ++i) {
+            text += event.results[i][0].transcript;
+          }
+          setSearchQuery(text);
+        };
+
+        recognition.onend = () => {
+          setIsSearchListening(false);
+        };
+
+        recognition.onerror = () => {
+          simulateSearchMic();
+        };
+
+        recognition.start();
+        return;
+      } catch (err) {
+        console.warn('Speech recognition error in search bar:', err);
+      }
+    }
+    simulateSearchMic();
+  };
+
+  const simulateSearchMic = () => {
+    const sampleQueries = language === 'en' ? ['Breathing difficulty']
+      : language === 'hi' ? ['सांस लेने में तकलीफ']
+      : language === 'kn' ? ['ಉಸಿರಾಟದ ತೊಂದರೆ']
+      : ['श्वास घेण्यास त्रास'];
+
+    let idx = 0;
+    const interval = setInterval(() => {
+      if (idx < sampleQueries.length) {
+        setSearchQuery(sampleQueries[idx]);
+        idx++;
+      } else {
+        clearInterval(interval);
+        setIsSearchListening(false);
+      }
+    }, 600);
+  };
+
   return (
     <div className="screen-body">
       {/* Patient summary */}
@@ -377,7 +436,7 @@ export const TriageScreen: React.FC = () => {
         )}
       </div>
 
-      {/* Mode A: Symptom Real-Time Search Bar (CHANGE 3) */}
+      {/* Mode A: Symptom Real-Time Search Bar with Chrome-Style Mic */}
       <div style={{ marginBottom: 16 }}>
         <p className="section-title">{t.searchSymptomPlaceholder.split(' ')[0]} Symptom</p>
         <div style={{ position: 'relative' }}>
@@ -388,12 +447,58 @@ export const TriageScreen: React.FC = () => {
               placeholder={t.searchSymptomPlaceholder}
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
-              style={{ paddingLeft: 38 }}
+              style={{ paddingLeft: 38, paddingRight: searchQuery ? 76 : 46 }}
             />
             <div style={{ position: 'absolute', left: 12, top: 14, pointerEvents: 'none' }}>
               <SearchIcon />
             </div>
+
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                style={{
+                  position: 'absolute', right: 42, top: 13,
+                  background: 'none', border: 'none', color: '#94A3B8',
+                  cursor: 'pointer', padding: 4, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}
+                title="Clear search"
+              >
+                <XIcon />
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={handleSearchMicClick}
+              style={{
+                position: 'absolute', right: 8, top: 8,
+                width: 34, height: 34, borderRadius: '50%',
+                background: isSearchListening ? '#DC2626' : '#F0FDFA',
+                border: isSearchListening ? '1.5px solid #DC2626' : '1px solid #CCFBF1',
+                color: isSearchListening ? '#ffffff' : '#0F766E',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                cursor: 'pointer', transition: 'all 0.15s ease',
+                boxShadow: isSearchListening ? '0 0 10px rgba(220, 38, 38, 0.4)' : 'none',
+              }}
+              title="Voice Search (English, Hindi, Marathi, Kannada)"
+            >
+              <MicIcon size={18} />
+            </button>
           </div>
+
+          {/* Active voice search banner */}
+          {isSearchListening && (
+            <div style={{
+              marginTop: 6, padding: '6px 12px', borderRadius: 8,
+              background: '#FEF2F2', border: '1px solid #FCA5A5',
+              fontSize: 12, fontWeight: 700, color: '#991B1B',
+              display: 'flex', alignItems: 'center', gap: 6,
+            }}>
+              <span style={{ animation: 'pulse 1s infinite' }}>🎙️</span>
+              <span>Listening for symptoms in {language === 'mr' ? 'मराठी' : language === 'hi' ? 'हिंदी' : language === 'kn' ? 'ಕನ್ನಡ' : 'English'}...</span>
+            </div>
+          )}
 
           {/* Real-time master symptom search results dropdown */}
           {filteredMasterSymptoms.length > 0 && (
@@ -499,7 +604,7 @@ export const TriageScreen: React.FC = () => {
               style={{ width: '100%', boxSizing: 'border-box', minWidth: 0 }}
             >
               <span style={{ fontSize: 20, flexShrink: 0 }}>{s.icon}</span>
-              <span style={{ fontSize: 13, flex: 1, minWidth: 0, textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', textAlign: 'left' }}>
+              <span style={{ fontSize: 13, fontWeight: 700, flex: 1, minWidth: 0, whiteSpace: 'normal', wordBreak: 'break-word', lineHeight: 1.25, textAlign: 'left' }}>
                 {getSymptomLabel(s)}
               </span>
             </button>

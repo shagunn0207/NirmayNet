@@ -123,6 +123,8 @@ export interface TranslationDict {
   familyContact: string;
   familyContactPlaceholder: string;
   completeRegistration: string;
+  allergiesLabel: string;
+  allergiesPlaceholder: string;
 
   // Validation
   invalidNameError: string;
@@ -369,6 +371,8 @@ export const translations: Record<Language, TranslationDict> = {
     familyContact: 'कुटुंबाचा संपर्क नंबर (१० अंक)',
     familyContactPlaceholder: '१० अंकी मोबाईल नंबर (उदा. ९८२३०११२३४)',
     completeRegistration: 'रुग्ण नोंदणी पूर्ण करा',
+    allergiesLabel: 'अ‍ॅलर्जी (ऑप्शनल)',
+    allergiesPlaceholder: 'उदा. पेनिसिलिन, धूळ, अन्न अ‍ॅलर्जी (किंवा नाही)...',
 
     invalidNameError: 'कृपया वैध नाव टाका (किमान २ अक्षरे, संख्या नको)',
     invalidPhoneError: 'कृपया ६-९ ने सुरू होणारा वैध १० अंकी मोबाईल नंबर टाका',
@@ -606,6 +610,8 @@ export const translations: Record<Language, TranslationDict> = {
     familyContact: 'परिवार का संपर्क नंबर (10 अंक)',
     familyContactPlaceholder: '10 अंकों का मोबाइल नंबर (उदा. 9823011234)',
     completeRegistration: 'पंजीकरण पूरा करें',
+    allergiesLabel: 'एलर्जी (वैकल्पिक)',
+    allergiesPlaceholder: 'उदा. पेनिसिलिन, धूल, भोजन एलर्जी (या कोई नहीं)...',
 
     invalidNameError: 'कृपया सही नाम दर्ज करें (कम से कम 2 अक्षर, संख्या नहीं)',
     invalidPhoneError: 'कृपया 6-9 से शुरू होने वाला सही 10 अंकों का मोबाइल नंबर दर्ज करें',
@@ -843,6 +849,8 @@ export const translations: Record<Language, TranslationDict> = {
     familyContact: 'Family Contact Number (10 digits)',
     familyContactPlaceholder: '10-digit mobile number (e.g., 9823011234)',
     completeRegistration: 'Complete Registration',
+    allergiesLabel: 'Known Allergies (Optional)',
+    allergiesPlaceholder: 'e.g. Penicillin, Dust, Food allergies (or None)...',
 
     invalidNameError: 'Please enter a valid full name (min 2 letters, no numbers)',
     invalidPhoneError: 'Please enter a valid 10-digit mobile number starting with 6-9',
@@ -1080,6 +1088,8 @@ export const translations: Record<Language, TranslationDict> = {
     familyContact: 'ಕುಟುಂಬದ ಸಂಪರ್ಕ ಸಂಖ್ಯೆ (10 ಅಂಕೆಗಳು)',
     familyContactPlaceholder: '10-ಅಂಕಿಯ ಮೊಬೈಲ್ ಸಂಖ್ಯೆ (ಉದಾ. 9823011234)',
     completeRegistration: 'ನೋಂದಣಿ ಪೂರ್ಣಗೊಳಿಸಿ',
+    allergiesLabel: 'ಅಲರ್ಜಿಗಳು (ಐಚ್ಛಿಕ)',
+    allergiesPlaceholder: 'ಉದಾ. ಪೆನಿಸಿಲಿನ್, ಧೂಳು, ಆಹಾರ ಅಲರ್ಜಿ...',
 
     invalidNameError: 'ದಯವಿಟ್ಟು ಸಿಂಧುವಾದ ಹೆಸರನ್ನು ನಮೂದಿಸಿ (ಕನಿಷ್ಠ 2 ಅಕ್ಷರಗಳು)',
     invalidPhoneError: 'ದಯವಿಟ್ಟು 6-9 ರಿಂದ ಪ್ರಾರಂಭವಾಗುವ 10 ಅಂಕಿಯ ಮೊಬೈಲ್ ಸಂಖ್ಯೆಯನ್ನು ನಮೂದಿಸಿ',

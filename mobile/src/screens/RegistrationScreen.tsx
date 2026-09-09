@@ -52,6 +52,7 @@ export const RegistrationScreen: React.FC = () => {
   const [abhaId, setAbhaId] = useState('');
   const [village, setVillage] = useState('Chinchpada');
   const [phone, setPhone] = useState('');
+  const [allergies, setAllergies] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   const [nameTouched, setNameTouched] = useState(false);
@@ -70,6 +71,7 @@ export const RegistrationScreen: React.FC = () => {
         if (draft.abhaId) setAbhaId(draft.abhaId);
         if (draft.village) setVillage(draft.village);
         if (draft.phone) setPhone(draft.phone);
+        if (draft.allergies) setAllergies(draft.allergies);
         showSnackbar(
           language === 'en'
             ? 'Draft restored from SQLite'
@@ -168,6 +170,7 @@ export const RegistrationScreen: React.FC = () => {
       abhaId: abhaId.trim(),
       village,
       phone: phone.trim(),
+      allergies: allergies.trim() || undefined,
       lastTriage: undefined,
     });
 
@@ -232,6 +235,44 @@ export const RegistrationScreen: React.FC = () => {
             <button type="button" className="number-picker-btn" onClick={() => handleAgeChange(age - 1)}>−</button>
             <div className="number-picker-value">{age}</div>
             <button type="button" className="number-picker-btn" onClick={() => handleAgeChange(age + 1)}>+</button>
+          </div>
+        </div>
+
+        {/* Known Allergies Field */}
+        <div>
+          <label className="form-label">⚠️ {t.allergiesLabel}</label>
+          <input
+            type="text"
+            className="form-input"
+            placeholder={t.allergiesPlaceholder}
+            value={allergies}
+            onChange={e => {
+              setAllergies(e.target.value);
+              saveDraftField(DRAFT_ID, 'allergies', e.target.value);
+            }}
+          />
+          {/* Quick select allergy chips */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+            {['Penicillin', 'Dust & Pollen', 'Food & Peanuts', 'Latex', 'Sulfa Drugs', 'None'].map(chip => (
+              <button
+                key={chip}
+                type="button"
+                onClick={() => {
+                  const newVal = chip === 'None' ? 'None' : (allergies ? (allergies.includes(chip) ? allergies : `${allergies}, ${chip}`) : chip);
+                  setAllergies(newVal);
+                  saveDraftField(DRAFT_ID, 'allergies', newVal);
+                }}
+                style={{
+                  padding: '4px 10px', borderRadius: 9999, fontSize: 12, fontWeight: 700,
+                  background: allergies.includes(chip) ? '#FEF2F2' : '#F1F5F9',
+                  color: allergies.includes(chip) ? '#DC2626' : '#475569',
+                  border: allergies.includes(chip) ? '1px solid #FCA5A5' : '1px solid #E2E8F0',
+                  cursor: 'pointer',
+                }}
+              >
+                {allergies.includes(chip) ? '✓ ' : '+ '}{chip}
+              </button>
+            ))}
           </div>
         </div>
 
