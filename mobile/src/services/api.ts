@@ -2,11 +2,9 @@
 // Configured to use native fetch and existing dependencies
 
 // The API base URL from Expo environment variables (with a fallback for Vite/local dev if needed)
-// @ts-ignore (to handle potential env type issues in mixed environments)
 const BASE_URL = 
-  (typeof process !== 'undefined' && process.env?.EXPO_PUBLIC_API_URL) || 
-  // @ts-ignore
-  (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_URL) || 
+  (typeof (globalThis as any).process !== 'undefined' && (globalThis as any).process.env?.EXPO_PUBLIC_API_URL) || 
+  (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_API_URL) || 
   'http://127.0.0.1:8000/api/v1';
 
 /**

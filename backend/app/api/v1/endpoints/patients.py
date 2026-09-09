@@ -3,7 +3,7 @@ from typing import List, Optional
 from uuid import UUID, uuid4
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from app.schemas.patient import PatientCreate, PatientOut, PatientUpdate
-from app.schemas.auth import UserOut
+from app.schemas.auth import UserOut, UserRole
 from app.api.deps import get_current_user
 from app.services.supabase_client import supabase
 
@@ -118,10 +118,17 @@ def list_patients(
     """
     Get registered patients.
     Supports filtering by village and search query (name / phone / ABHA ID).
+    ASHA users see only patients created by themselves or unassigned legacy patients.
+    HOSPITAL / DHO / ADMIN users access all patients for care continuity and reporting.
     """
     if supabase is not None:
         try:
             query = supabase.table("patients").select("*")
+
+            # Scope patients for ASHA role users
+            if current_user.role == UserRole.ASHA:
+                query = query.or_(f"created_by.eq.{current_user.id},created_by.is.null")
+
             if village:
                 query = query.eq("village", village)
             if q:
@@ -151,6 +158,14 @@ def list_patients(
 
     # Fallback to local list for demo/testing
     filtered = _in_memory_patients
+
+    # Scope patients for ASHA role users in memory
+    if current_user.role == UserRole.ASHA:
+        filtered = [
+            p for p in filtered
+            if not p.get("created_by") or str(p.get("created_by")) == str(current_user.id)
+        ]
+
     if village:
         filtered = [p for p in filtered if p["village"].lower() == village.lower()]
     if q:

@@ -82,15 +82,17 @@ export const LoginScreen: React.FC = () => {
       if (username.trim().length < 4) { setError('Username must be at least 4 characters'); return; }
       if (password.length < 6) { setError('Password must be at least 6 characters'); return; }
       if (password !== confirmPassword) { setError('Passwords do not match'); return; }
+
       setLoading(true);
-      await new Promise(r => setTimeout(r, 600));
-      const ok = signup(username.trim(), password, fullName.trim());
+      const res = await signup(username.trim(), password, fullName.trim());
       setLoading(false);
-      if (!ok) {
-        setError('This username is already taken. Please choose a different one.');
+
+      if (!res.success) {
+        setError(res.error || 'Registration failed. Please try a different username.');
       } else {
+        const regUser = username.trim();
         switchMode('login');
-        setUsername(username.trim());
+        setUsername(regUser);
         setSuccessMsg('Account created successfully! Please log in.');
       }
     } else {
@@ -332,9 +334,6 @@ export const LoginScreen: React.FC = () => {
             </div>
           </form>
         </div>
-
-
-
 
         {/* Signup note — login mode */}
         {mode === 'login' && (

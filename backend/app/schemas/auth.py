@@ -16,6 +16,18 @@ class LoginRequest(BaseModel):
     password: str
 
 
+class RegisterRequest(BaseModel):
+    username: str
+    password: str
+    name: Optional[str] = None
+    fullName: Optional[str] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    role: Optional[UserRole] = UserRole.ASHA
+    village: Optional[str] = None
+    facility_name: Optional[str] = None
+
+
 class UserOut(BaseModel):
     id: UUID
     name: str

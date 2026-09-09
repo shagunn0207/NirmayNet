@@ -106,7 +106,7 @@ export const ReferralScreen: React.FC = () => {
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
           <div>
             <div style={{ fontWeight: 800, fontSize: 17, color: '#0F172A' }}>
-              {currentPatient?.name ?? 'Rekha Patil'}
+              {currentPatient?.name ?? ''}
             </div>
             <div style={{ fontSize: 13, color: '#475569', marginTop: 3, fontWeight: 500 }}>
               {t.urgentReferral}

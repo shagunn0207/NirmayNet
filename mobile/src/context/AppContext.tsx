@@ -43,7 +43,7 @@ interface AppContextType {
   currentUser: UserAccount | null;
   updateUserAccount: (updatedUser: Partial<UserAccount>) => void;
   login: (username: string, password: string) => Promise<boolean>;
-  signup: (username: string, password: string, fullName?: string) => boolean;
+  signup: (username: string, password: string, fullName?: string) => Promise<{ success: boolean; error?: string }>;
   isFirstLogin: boolean;
   setIsFirstLogin: (val: boolean) => void;
   logout: () => void;
@@ -231,46 +231,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try { return localStorage.getItem('niramaynet_session') ? 'home' : 'login'; } catch { return 'login'; }
   });
 
-  const [patients, setPatients] = useState<Patient[]>(INITIAL_PATIENTS);
-  const [currentPatient, setCurrentPatient] = useState<Patient | null>(INITIAL_PATIENTS[0]);
+  const [patients, setPatients] = useState<Patient[]>([]);
+  const [currentPatient, setCurrentPatient] = useState<Patient | null>(null);
   const [triageResult, setTriageResult] = useState<TriageResult | null>(null);
   const [lastTriageRecordId, setLastTriageRecordId] = useState<string | null>(null);
 
-  const [followups, setFollowups] = useState<FollowUpItem[]>([
-    {
-      id: 'F1',
-      patientId: 'P001',
-      patientName: 'Rekha Patil',
-      patientAge: 28,
-      patientSex: 'Female',
-      category: 'ANC Post-discharge',
-      urgency: 'EMERGENCY',
-      visited: false,
-      phone: '9823011234',
-    },
-    {
-      id: 'F2',
-      patientId: 'P002',
-      patientName: 'Sunita Kamble',
-      patientAge: 34,
-      patientSex: 'Female',
-      category: 'TB Day 14',
-      urgency: 'URGENT',
-      visited: false,
-      phone: '9421056789',
-    },
-    {
-      id: 'F3',
-      patientId: 'P003',
-      patientName: 'Baby Arjun',
-      patientAge: 1,
-      patientSex: 'Male',
-      category: 'Recurring Fever',
-      urgency: 'URGENT',
-      visited: false,
-      phone: '9123456780',
-    },
-  ]);
+  const [followups, setFollowups] = useState<FollowUpItem[]>([]);
 
   // Tasks from SQLite
   const [tasks, setTasks] = useState<TaskItem[]>([]);
@@ -318,21 +284,33 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           }));
           if (mounted) setTasks(loaded);
         } else {
-          // Populate initial demo tasks into SQLite so SQLite has tasks
-          for (const item of INITIAL_TASKS) {
-            await db.runAsync(
-              'INSERT INTO tasks (id, title, category, urgency, visited, created_at) VALUES (?, ?, ?, ?, ?, ?)',
-              [item.id, item.title, item.category || '', item.urgency || 'ROUTINE', item.visited ? 1 : 0, item.createdAt || new Date().toISOString()]
-            );
-          }
-          if (mounted) setTasks(INITIAL_TASKS);
+          if (mounted) setTasks([]);
+        }
+
+        // Load followups from SQLite for current user
+        const dbFollowups = await db.getAllAsync<any>('SELECT * FROM followups');
+        if (dbFollowups && dbFollowups.length > 0) {
+          const loaded: FollowUpItem[] = dbFollowups.map(f => ({
+            id: f.id,
+            patientId: f.patientId,
+            patientName: f.patientName,
+            patientAge: Number(f.patientAge),
+            patientSex: f.patientSex,
+            category: f.category,
+            urgency: f.urgency as UrgencyLevel,
+            visited: Boolean(f.visited),
+            phone: f.phone,
+          }));
+          if (mounted) setFollowups(loaded);
+        } else {
+          if (mounted) setFollowups([]);
         }
       } catch (err) {
         console.error('Error initializing SQLite database:', err);
       }
     })();
     return () => { mounted = false; };
-  }, []);
+  }, [currentUser?.username]);
 
   const setLanguage = (lang: Language) => {
     setLanguageState(lang);
@@ -466,17 +444,34 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return false;
   };
 
-  const signup = (username: string, password: string, fullName?: string): boolean => {
-    const accounts = getStoredAccounts();
-    if (username === DEMO_ACCOUNT.username || accounts.find(a => a.username === username)) {
-      return false; // username already taken
-    }
-    const nameToUse = fullName && fullName.trim() ? fullName.trim() : username;
-    const newAccount: StoredAccount & Partial<UserAccount> = { username, password, fullName: nameToUse, role: 'ASHA Worker', ...DEFAULT_PROFILE_FIELDS };
-    saveAccount(newAccount);
+  const signup = async (username: string, password: string, fullName?: string): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const response = await api.post<any>('/auth/register', {
+        username: username.trim(),
+        password: password,
+        fullName: fullName?.trim() || username.trim(),
+      });
 
-    setIsFirstLogin(true);
-    return true;
+      if (response.data && (response.status === 200 || response.status === 201)) {
+        const nameToUse = fullName && fullName.trim() ? fullName.trim() : username;
+        const newAccount: StoredAccount & Partial<UserAccount> = {
+          username: username.trim(),
+          password,
+          fullName: nameToUse,
+          role: 'ASHA Worker',
+          ...DEFAULT_PROFILE_FIELDS,
+        };
+        saveAccount(newAccount);
+
+        setIsFirstLogin(true);
+        return { success: true };
+      } else {
+        const errorMsg = response.error || 'Registration failed. Username may already exist.';
+        return { success: false, error: errorMsg };
+      }
+    } catch (err: any) {
+      return { success: false, error: err.message || 'Registration failed' };
+    }
   };
 
   const updateUserAccount = (updatedUser: Partial<UserAccount>) => {
@@ -496,6 +491,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const logout = () => {
     setIsLoggedIn(false);
     setCurrentUser(null);
+    setPatients([]);
+    setCurrentPatient(null);
+    setFollowups([]);
+    setTasks([]);
     try { localStorage.removeItem('niramaynet_session'); } catch {}
     setActiveScreen('login');
     setActiveTab('home');
@@ -589,10 +588,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const toggleVisited = (id: string) => {
-    setFollowups(prev => prev.map(f => f.id === id ? { ...f, visited: !f.visited } : f));
+    setFollowups(prev => {
+      const next = prev.map(f => f.id === id ? { ...f, visited: !f.visited } : f);
+      const target = next.find(f => f.id === id);
+      if (target) {
+        openDatabaseAsync('niramaynet.db').then(db => {
+          db.runAsync('UPDATE followups SET visited = ? WHERE id = ?', [target.visited ? 1 : 0, id]);
+        });
+      }
+      return next;
+    });
   };
 
-  const addFollowup = (patient: Patient, category = 'Follow-up Check') => {
+  const addFollowup = async (patient: Patient, category = 'Follow-up Check') => {
     const alreadyExists = followups.some(f => f.patientId === patient.id && !f.visited);
     if (alreadyExists) {
       showSnackbar('Patient already has a pending follow-up');
@@ -610,6 +618,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       phone: patient.phone,
     };
     setFollowups(prev => [newItem, ...prev]);
+
+    const db = await openDatabaseAsync('niramaynet.db');
+    await db.runAsync(
+      'INSERT INTO followups (id, patientId, patientName, patientAge, patientSex, category, urgency, visited, phone) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [newItem.id, newItem.patientId, newItem.patientName, newItem.patientAge, newItem.patientSex, newItem.category, newItem.urgency, 0, newItem.phone || '']
+    );
+
     showSnackbar(`${patient.name} added to follow-ups`);
   };
 

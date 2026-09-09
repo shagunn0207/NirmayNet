@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import {
   validatePatientName,
@@ -48,12 +48,15 @@ export const RegistrationScreen: React.FC = () => {
 
   const [name, setName] = useState('');
   const [age, setAge] = useState(25);
+  const [ageUnit, setAgeUnit] = useState<'Years' | 'Months' | 'Weeks'>('Years');
   const [sex, setSex] = useState<'Male' | 'Female' | 'Other'>('Female');
   const [abhaId, setAbhaId] = useState('');
   const [village, setVillage] = useState('Chinchpada');
   const [phone, setPhone] = useState('');
   const [allergies, setAllergies] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [ageUnitOpen, setAgeUnitOpen] = useState(false);
+  const ageUnitRef = useRef<HTMLDivElement>(null);
 
   const [nameTouched, setNameTouched] = useState(false);
   const [phoneTouched, setPhoneTouched] = useState(false);
@@ -66,7 +69,15 @@ export const RegistrationScreen: React.FC = () => {
       const draft = await getDraft(DRAFT_ID);
       if (active && draft && Object.keys(draft).length > 0) {
         if (draft.name) setName(draft.name);
-        if (draft.age) setAge(parseInt(draft.age, 10) || 25);
+        if (draft.age) {
+          const parsed = parseInt(draft.age, 10);
+          if (!isNaN(parsed)) {
+            setAge(Math.max(0, Math.min(120, parsed)));
+          }
+        }
+        if (draft.ageUnit && ['Years', 'Months', 'Weeks'].includes(draft.ageUnit)) {
+          setAgeUnit(draft.ageUnit as 'Years' | 'Months' | 'Weeks');
+        }
         if (draft.sex) setSex(draft.sex as any);
         if (draft.abhaId) setAbhaId(draft.abhaId);
         if (draft.village) setVillage(draft.village);
@@ -76,10 +87,10 @@ export const RegistrationScreen: React.FC = () => {
           language === 'en'
             ? 'Draft restored from SQLite'
             : language === 'hi'
-            ? 'ड्राफ्ट SQLite से पुनर्प्राप्त किया गया'
-            : language === 'kn'
-            ? 'ಖರಡು SQLite ನಿಂದ ಮರುಸ್ಥಾಪಿಸಲಾಗಿದೆ'
-            : 'ड्राफ्ट SQLite वरून पुनर्संचयित केले'
+              ? 'ड्राफ्ट SQLite से पुनर्प्राप्त किया गया'
+              : language === 'kn'
+                ? 'ಖರಡು SQLite ನಿಂದ ಮರುಸ್ಥಾಪಿಸಲಾಗಿದೆ'
+                : 'ड्राफ्ट SQLite वरून पुनर्संचयित केले'
         );
       }
     })();
@@ -92,6 +103,18 @@ export const RegistrationScreen: React.FC = () => {
     setHasUnsavedChanges(isDirty);
     return () => { setHasUnsavedChanges(false); };
   }, [name, phone, abhaId, setHasUnsavedChanges]);
+
+  // Close age-unit dropdown when clicking outside
+  useEffect(() => {
+    if (!ageUnitOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (ageUnitRef.current && !ageUnitRef.current.contains(e.target as Node)) {
+        setAgeUnitOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [ageUnitOpen]);
 
   // Validations
   const nameVal = validatePatientName(name);
@@ -106,10 +129,16 @@ export const RegistrationScreen: React.FC = () => {
     saveDraftField(DRAFT_ID, 'name', val);
   };
 
-  const handleAgeChange = (newAge: number) => {
-    const validAge = Math.max(0, Math.min(120, newAge));
+  const handleAgeChange = (val: string) => {
+    const parsed = parseInt(val, 10);
+    const validAge = isNaN(parsed) ? 0 : Math.max(0, Math.min(120, parsed));
     setAge(validAge);
     saveDraftField(DRAFT_ID, 'age', String(validAge));
+  };
+
+  const handleAgeUnitChange = (unit: 'Years' | 'Months' | 'Weeks') => {
+    setAgeUnit(unit);
+    saveDraftField(DRAFT_ID, 'ageUnit', unit);
   };
 
   const handleSexChange = (newSex: 'Male' | 'Female' | 'Other') => {
@@ -145,10 +174,10 @@ export const RegistrationScreen: React.FC = () => {
       language === 'en'
         ? '✓ ABHA ID scanned & verified via NHA'
         : language === 'hi'
-        ? '✓ ABHA ID स्कैन व सत्यापित'
-        : language === 'kn'
-        ? '✓ ABHA ID ಪರಿಶೀಲಿಸಲಾಗಿದೆ'
-        : '✓ ABHA ID स्कॅन व सत्यापित'
+          ? '✓ ABHA ID स्कैन व सत्यापित'
+          : language === 'kn'
+            ? '✓ ABHA ID ಪರಿಶೀಲಿಸಲಾಗಿದೆ'
+            : '✓ ABHA ID स्कॅन व सत्यापित'
     );
   };
 
@@ -188,10 +217,10 @@ export const RegistrationScreen: React.FC = () => {
       language === 'en'
         ? 'Patient Registration Successful.'
         : language === 'hi'
-        ? 'मरीज़ पंजीकरण सफल।'
-        : language === 'kn'
-        ? 'ರೋಗಿ ನೋಂದಣಿ ಯಶಸ್ವಿಯಾಗಿದೆ.'
-        : 'रुग्ण नोंदणी यशस्वी.'
+          ? 'मरीज़ पंजीकरण सफल।'
+          : language === 'kn'
+            ? 'ರೋಗಿ ನೋಂದಣಿ ಯಶಸ್ವಿಯಾಗಿದೆ.'
+            : 'रुग्ण नोंदणी यशस्वी.'
     );
     setSubmitting(false);
     setActiveScreen('triage');
@@ -233,13 +262,91 @@ export const RegistrationScreen: React.FC = () => {
           )}
         </div>
 
-        {/* Age picker */}
+        {/* Age input */}
         <div>
-          <label className="form-label">{t.age} ({t.yearsOld})</label>
-          <div className="number-picker">
-            <button type="button" className="number-picker-btn" onClick={() => handleAgeChange(age - 1)}>−</button>
-            <div className="number-picker-value">{age}</div>
-            <button type="button" className="number-picker-btn" onClick={() => handleAgeChange(age + 1)}>+</button>
+          <label className="form-label">{t.age}</label>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'stretch' }}>
+            <input
+              id="reg-age-input"
+              type="number"
+              className="form-input"
+              min={0}
+              max={120}
+              value={age}
+              onChange={e => handleAgeChange(e.target.value)}
+              style={{ flex: 1, minWidth: 0 }}
+            />
+            {/* Custom age-unit dropdown — replaces native <select> broken by Tailwind v4 preflight */}
+            <div
+              ref={ageUnitRef}
+              style={{ position: 'relative', flexShrink: 0 }}
+            >
+              <button
+                id="reg-age-unit"
+                type="button"
+                onClick={() => setAgeUnitOpen(o => !o)}
+                style={{
+                  minHeight: 50,
+                  padding: '0 14px',
+                  borderRadius: 14,
+                  border: '1.5px solid #E2E8F0',
+                  background: '#F8FAFC',
+                  color: '#1E293B',
+                  fontSize: 14,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  whiteSpace: 'nowrap',
+                  outline: 'none',
+                }}
+              >
+                {ageUnit}
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.5, transform: ageUnitOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }}>
+                  <polyline points="6 9 12 15 18 9" />
+                </svg>
+              </button>
+              {ageUnitOpen && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: 'calc(100% + 6px)',
+                    right: 0,
+                    background: '#FFFFFF',
+                    border: '1.5px solid #E2E8F0',
+                    borderRadius: 12,
+                    boxShadow: '0 8px 24px rgba(15,23,42,0.10)',
+                    zIndex: 999,
+                    overflow: 'hidden',
+                    minWidth: 110,
+                  }}
+                >
+                  {(['Years', 'Months', 'Weeks'] as const).map(opt => (
+                    <button
+                      key={opt}
+                      type="button"
+                      onClick={() => { handleAgeUnitChange(opt); setAgeUnitOpen(false); }}
+                      style={{
+                        display: 'block',
+                        width: '100%',
+                        padding: '12px 16px',
+                        textAlign: 'left',
+                        background: ageUnit === opt ? '#F0FDFA' : 'transparent',
+                        color: ageUnit === opt ? '#0F766E' : '#1E293B',
+                        fontWeight: ageUnit === opt ? 700 : 500,
+                        fontSize: 14,
+                        border: 'none',
+                        cursor: 'pointer',
+                        borderBottom: opt !== 'Weeks' ? '1px solid #F1F5F9' : 'none',
+                      }}
+                    >
+                      {opt}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
 

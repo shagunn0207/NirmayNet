@@ -1,0 +1,74 @@
+[
+  {
+    "id": "a6066650-a764-4a01-9ca7-b192bf9c5bd0",
+    "username": "persist_test_asha_001",
+    "name": "Persist Test Asha",
+    "email": "persist_test_asha_001@nirmay.net",
+    "phone": "9823011234",
+    "hashed_password": "secure_pass_123",
+    "role": "ASHA",
+    "village": "Chinchpada",
+    "facility_name": "Chinchpada Sub-Center",
+    "created_at": "2026-09-09T20:49:19.695235+00:00"
+  },
+  {
+    "id": "2d7dc706-16c4-4b32-8a83-a53b40c3ff01",
+    "username": "manas",
+    "name": "manas chand",
+    "email": "manas@nirmay.net",
+    "phone": "9823011234",
+    "hashed_password": "manas@123",
+    "role": "ASHA",
+    "village": "Chinchpada",
+    "facility_name": "Chinchpada Sub-Center",
+    "created_at": "2026-09-09T20:51:15.825479+00:00"
+  },
+  {
+    "id": "25485304-8c0c-42e6-88cd-db63ad9addb9",
+    "username": "rukmi",
+    "name": "rukmini",
+    "email": "rukmi@nirmay.net",
+    "phone": "9823011234",
+    "hashed_password": "rukmi@123",
+    "role": "ASHA",
+    "village": "Chinchpada",
+    "facility_name": "Chinchpada Sub-Center",
+    "created_at": "2026-09-09T20:53:54.521869+00:00"
+  },
+  {
+    "id": "2a4746ca-7b8f-4c3b-a323-d0bc2c97031c",
+    "username": "anshu",
+    "name": "anshu g",
+    "email": "anshu@nirmay.net",
+    "phone": "9823011234",
+    "hashed_password": "anshu@123",
+    "role": "ASHA",
+    "village": "Chinchpada",
+    "facility_name": "Chinchpada Sub-Center",
+    "created_at": "2026-09-09T20:57:44.773292+00:00"
+  },
+  {
+    "id": "56b92a21-ef70-4949-9b2a-5b6ddc8ce4db",
+    "username": "manasc",
+    "name": "manas c",
+    "email": "manasc@nirmay.net",
+    "phone": "9823011234",
+    "hashed_password": "manas@123",
+    "role": "ASHA",
+    "village": "Chinchpada",
+    "facility_name": "Chinchpada Sub-Center",
+    "created_at": "2026-09-09T21:03:46.841246+00:00"
+  },
+  {
+    "id": "338dee66-1dc7-4ed4-9d9e-92d0971a9bc7",
+    "username": "shyla",
+    "name": "shyla k",
+    "email": "shyla@nirmay.net",
+    "phone": "9823011234",
+    "hashed_password": "shyla@123",
+    "role": "ASHA",
+    "village": "Chinchpada",
+    "facility_name": "Chinchpada Sub-Center",
+    "created_at": "2026-09-09T21:08:08.378767+00:00"
+  }
+]
