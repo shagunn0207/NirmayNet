@@ -96,8 +96,7 @@ export const LoginScreen: React.FC = () => {
     } else {
       if (!username.trim() || !password) { setError('Please enter your username and password'); return; }
       setLoading(true);
-      await new Promise(r => setTimeout(r, 800));
-      const ok = login(username.trim(), password);
+      const ok = await login(username.trim(), password);
       setLoading(false);
       if (!ok) setError(t.loginErrorMsg);
     }

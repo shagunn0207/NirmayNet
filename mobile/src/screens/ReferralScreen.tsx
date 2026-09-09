@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
+import { api } from '../services/api';
 
 const CheckIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
@@ -22,6 +23,8 @@ export const ReferralScreen: React.FC = () => {
     language,
     currentPatient,
     triageResult,
+    lastTriageRecordId,
+    networkStatus,
     showSnackbar,
     saveDraftField,
     getDraft,
@@ -32,6 +35,7 @@ export const ReferralScreen: React.FC = () => {
   const [notes, setNotes] = useState('');
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
+  const [referralCode, setReferralCode] = useState('—');
 
   useEffect(() => {
     let active = true;
@@ -53,7 +57,35 @@ export const ReferralScreen: React.FC = () => {
 
   const handleSend = async () => {
     setSending(true);
-    await new Promise(r => setTimeout(r, 1200));
+
+    // Determine the destination hospital (fixed for demo; could be made selectable)
+    const destinationHospital = t.districtHospital || 'District Hospital Nandurbar';
+    const reason = triageResult?.reason ||
+      (notes.trim() ? notes.trim() : 'Referral initiated from ASHA triage assessment');
+
+    // Only call API if patient has a real backend UUID
+    const hasBackendId = currentPatient && !currentPatient.id.startsWith('P');
+
+    if (hasBackendId && networkStatus !== 'offline') {
+      const payload: Record<string, any> = {
+        patient_id: currentPatient!.id,
+        destination_hospital: destinationHospital,
+        reason,
+      };
+      // Attach triage_record_id only if we have a real one
+      if (lastTriageRecordId) {
+        payload.triage_record_id = lastTriageRecordId;
+      }
+
+      const response = await api.post<any>('/referrals/', payload);
+      if (response.data && response.data.referral_code) {
+        setReferralCode(response.data.referral_code);
+      } else if (response.error) {
+        showSnackbar('Referral saved locally — backend: ' + response.error);
+        // Still mark as sent so the UI progresses
+      }
+    }
+
     setSending(false);
     setSent(true);
     await clearDraft(DRAFT_ID);
@@ -146,7 +178,7 @@ export const ReferralScreen: React.FC = () => {
             <InfoRow label={t.vehicleNo} value={t.vehicle} />
             <InfoRow label={t.driverLabel} value={t.driver} />
             <InfoRow label={t.etaLabel} value={t.estimatedArrival} accent />
-            <InfoRow label={t.referralId} value="NMN-2024-007" />
+            <InfoRow label={t.referralId} value={referralCode} />
           </div>
         ) : (
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '4px 0' }}>

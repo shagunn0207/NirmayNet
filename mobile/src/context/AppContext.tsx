@@ -3,6 +3,7 @@ import type { Language, NetworkStatus, Patient, FollowUpItem, UrgencyLevel } fro
 import { translations, type TranslationDict } from '../constants/translations';
 import { openDatabaseAsync } from '../lib/sqlite';
 import { evaluateTriage } from '../utils/triageEngine';
+import { api } from '../services/api';
 
 export interface TaskItem {
   id: string;
@@ -41,7 +42,7 @@ interface AppContextType {
   isLoggedIn: boolean;
   currentUser: UserAccount | null;
   updateUserAccount: (updatedUser: Partial<UserAccount>) => void;
-  login: (username: string, password: string) => boolean;
+  login: (username: string, password: string) => Promise<boolean>;
   signup: (username: string, password: string, fullName?: string) => boolean;
   isFirstLogin: boolean;
   setIsFirstLogin: (val: boolean) => void;
@@ -53,7 +54,8 @@ interface AppContextType {
 
   // Patient data
   patients: Patient[];
-  addPatient: (p: Omit<Patient, 'id' | 'registrationDate'>) => Patient;
+  setPatients: React.Dispatch<React.SetStateAction<Patient[]>>;
+  addPatient: (p: Omit<Patient, 'id' | 'registrationDate'>) => Promise<Patient | null>;
   updatePatient: (p: Patient) => void;
   currentPatient: Patient | null;
   setCurrentPatient: (p: Patient | null) => void;
@@ -61,6 +63,8 @@ interface AppContextType {
   // Triage & Assessment
   triageResult: TriageResult | null;
   setTriageResult: (r: TriageResult | null) => void;
+  lastTriageRecordId: string | null;
+  setLastTriageRecordId: (id: string | null) => void;
 
   // Followup items
   followups: FollowUpItem[];
@@ -230,6 +234,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [patients, setPatients] = useState<Patient[]>(INITIAL_PATIENTS);
   const [currentPatient, setCurrentPatient] = useState<Patient | null>(INITIAL_PATIENTS[0]);
   const [triageResult, setTriageResult] = useState<TriageResult | null>(null);
+  const [lastTriageRecordId, setLastTriageRecordId] = useState<string | null>(null);
 
   const [followups, setFollowups] = useState<FollowUpItem[]>([
     {
@@ -416,20 +421,37 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     coveredPopulation: '1,250 citizens (240 families)',
   };
 
-  const login = (username: string, password: string): boolean => {
+  const login = async (username: string, password: string): Promise<boolean> => {
     let userObj: UserAccount | null = null;
-    // Check demo / built-in account
-    if (username === DEMO_ACCOUNT.username && password === DEMO_ACCOUNT.password) {
-      userObj = { username: DEMO_ACCOUNT.username, fullName: 'Shagun', role: 'ASHA Worker', ...DEFAULT_PROFILE_FIELDS };
+    
+    if (networkStatus !== 'offline') {
+      const response = await api.post<any>('/auth/login', { username, password });
+      
+      if (response.data && response.data.access_token) {
+        const { access_token, user } = response.data;
+        userObj = {
+          username: username,
+          fullName: user.name || username,
+          role: user.role || 'ASHA Worker',
+          subCentre: user.village || DEFAULT_PROFILE_FIELDS.subCentre,
+          phc: user.facility_name || DEFAULT_PROFILE_FIELDS.phc,
+          mobile: user.phone || DEFAULT_PROFILE_FIELDS.mobile,
+          coveredPopulation: DEFAULT_PROFILE_FIELDS.coveredPopulation,
+          access_token: access_token
+        } as UserAccount & { access_token: string };
+      } else if (username === DEMO_ACCOUNT.username && password === DEMO_ACCOUNT.password) {
+        userObj = { username: DEMO_ACCOUNT.username, fullName: 'Shagun', role: 'ASHA Worker', ...DEFAULT_PROFILE_FIELDS };
+      }
     } else {
-      // Check stored user accounts
-      const accounts = getStoredAccounts();
-      const found = accounts.find(a => a.username === username && a.password === password);
-      if (found) {
-        userObj = { ...DEFAULT_PROFILE_FIELDS, ...found, fullName: found.fullName || found.username, role: found.role || 'ASHA Worker' };
-      } else if (networkStatus === 'offline' && username === DEMO_ACCOUNT.username) {
+      if (username === DEMO_ACCOUNT.username) {
         userObj = { username: DEMO_ACCOUNT.username, fullName: 'Shagun', role: 'ASHA Worker', ...DEFAULT_PROFILE_FIELDS };
         showSnackbar('इंटरनेट कनेक्शन उपलब्ध नाही. ऑफलाइन मोड सुरू आहे.');
+      } else {
+        const accounts = getStoredAccounts();
+        const found = accounts.find(a => a.username === username && a.password === password);
+        if (found) {
+          userObj = { ...DEFAULT_PROFILE_FIELDS, ...found, fullName: found.fullName || found.username, role: found.role || 'ASHA Worker' };
+        }
       }
     }
 
@@ -480,13 +502,35 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setHasUnsavedChanges(false);
   };
 
-  const addPatient = (pData: Omit<Patient, 'id' | 'registrationDate'>): Patient => {
+  const addPatient = async (pData: Omit<Patient, 'id' | 'registrationDate'>): Promise<Patient | null> => {
     const computedTriage = pData.lastTriage || (pData.symptoms && pData.symptoms.length > 0 ? evaluateTriage(pData.symptoms).urgency : 'ROUTINE');
+    
+    let patientId = `P${Date.now()}`;
+    let registrationDate = new Date().toISOString().split('T')[0];
+
+    if (networkStatus !== 'offline') {
+      const response = await api.post<any>('/patients/', {
+        name: pData.name,
+        age: pData.age,
+        gender: pData.sex,
+        phone: pData.phone || undefined,
+        village: pData.village,
+        abha_id: pData.abhaId || undefined,
+      });
+
+      if (response.error || !response.data) {
+        showSnackbar('Error saving patient: ' + response.error);
+        return null;
+      }
+      
+      patientId = response.data.id;
+      registrationDate = response.data.created_at ? response.data.created_at.split('T')[0] : registrationDate;
+    }
+
     const newP: Patient = {
       ...pData,
-      id: `P${Date.now()}`,
-      // Store as ISO so we can re-format it in the active language at display time
-      registrationDate: new Date().toISOString().split('T')[0],
+      id: patientId,
+      registrationDate,
       lastTriage: computedTriage,
       symptoms: pData.symptoms || [],
     };
@@ -600,8 +644,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       isLoggedIn, currentUser, updateUserAccount, login, logout,
       activeTab, setActiveTab,
       activeScreen, setActiveScreen,
-      patients, addPatient, updatePatient, currentPatient, setCurrentPatient,
-      triageResult, setTriageResult,
+      patients, setPatients, addPatient, updatePatient, currentPatient, setCurrentPatient,
+      triageResult, setTriageResult, lastTriageRecordId, setLastTriageRecordId,
       followups, toggleVisited, addFollowup, isFollowup,
       tasks, addNewTask, updateTaskItem, deleteTaskItem,
       saveDraftField, getDraft, clearDraft,

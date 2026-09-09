@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import { MASTER_SYMPTOMS, SYMPTOM_CATEGORIES, getCommonQuickSymptoms, type MasterSymptom } from '../constants/masterSymptoms';
 import { evaluateTriage, type TriageAssessment } from '../utils/triageEngine';
+import { api } from '../services/api';
 
 const DRAFT_ID = 'triage';
 
@@ -35,6 +36,7 @@ export const TriageScreen: React.FC = () => {
     currentPatient,
     updatePatient,
     setTriageResult,
+    setLastTriageRecordId,
     setActiveScreen,
     saveDraftField,
     getDraft,
@@ -56,6 +58,8 @@ export const TriageScreen: React.FC = () => {
 
   // Triage assessment result state (CHANGE 7)
   const [assessment, setAssessment] = useState<TriageAssessment | null>(null);
+  // Loading state for async backend call
+  const [isEvaluating, setIsEvaluating] = useState(false);
 
   // Restore draft from SQLite on mount (CHANGE 2)
   useEffect(() => {
@@ -238,10 +242,43 @@ export const TriageScreen: React.FC = () => {
     handleStartVoice();
   };
 
-  // Evaluate Triage (CHANGE 7)
-  const handleEvaluate = () => {
-    const result = evaluateTriage(selectedKeys);
-    setAssessment(result);
+  // Evaluate Triage — calls FastAPI backend and falls back to local engine
+  const handleEvaluate = async () => {
+    // 1. Always run local engine first for rich UI content (guidance, first aid)
+    const localResult = evaluateTriage(selectedKeys);
+
+    // 2. Determine final urgency: use backend if patient has a real UUID, otherwise local
+    let finalUrgency = localResult.urgency;
+    let finalReason = localResult.guidanceText[language] || localResult.guidanceText.en;
+
+    // Only call backend when current patient has a real UUID (not a local mock ID)
+    const hasBackendId = currentPatient && !currentPatient.id.startsWith('P');
+
+    if (hasBackendId && selectedKeys.length > 0) {
+      setIsEvaluating(true);
+      const response = await api.post<any>('/triage/assess', {
+        patient_id: currentPatient!.id,
+        symptoms: selectedKeys,
+      });
+      setIsEvaluating(false);
+
+      if (response.data && response.data.triage_category) {
+        // Backend is the source of truth for the category
+        finalUrgency = response.data.triage_category;
+        finalReason = response.data.reason || finalReason;
+        // Share the triage record ID globally so ReferralScreen can use it
+        setLastTriageRecordId(response.data.id || null);
+      } else if (response.error) {
+        showSnackbar('Triage saved locally — backend: ' + response.error);
+      }
+    }
+
+    // 3. Build the merged assessment for UI display
+    const mergedAssessment: TriageAssessment = {
+      ...localResult,
+      urgency: finalUrgency,
+    };
+    setAssessment(mergedAssessment);
 
     const symptomLabels = selectedKeys.map(k => {
       const item = MASTER_SYMPTOMS.find(ms => ms.key === k || ms.id === k);
@@ -250,23 +287,22 @@ export const TriageScreen: React.FC = () => {
       return `${icon} ${label}`;
     });
 
-    const guidanceLang = result.guidanceText[language] || result.guidanceText.en;
-    const instructionsLang = result.firstAidInstructions[language] || result.firstAidInstructions.en;
+    const instructionsLang = localResult.firstAidInstructions[language] || localResult.firstAidInstructions.en;
 
     setTriageResult({
-      urgency: result.urgency,
-      reason: guidanceLang,
+      urgency: finalUrgency,
+      reason: finalReason,
       symptoms: symptomLabels,
       instructions: instructionsLang,
       selectedSymptomKeys: selectedKeys,
-      dominantIcon: result.urgency === 'EMERGENCY' ? '🔴' : result.urgency === 'URGENT' ? '🟡' : '🟢',
+      dominantIcon: finalUrgency === 'EMERGENCY' ? '🔴' : finalUrgency === 'URGENT' ? '🟡' : '🟢',
     });
 
     if (currentPatient) {
       updatePatient({
         ...currentPatient,
         symptoms: selectedKeys,
-        lastTriage: result.urgency,
+        lastTriage: finalUrgency,
       });
     }
 
@@ -618,10 +654,10 @@ export const TriageScreen: React.FC = () => {
           type="button"
           className="btn-primary"
           onClick={handleEvaluate}
-          disabled={selectedKeys.length === 0}
-          style={{ minHeight: 54, fontSize: 16, fontWeight: 700, marginBottom: 20, opacity: selectedKeys.length === 0 ? 0.5 : 1 }}
+          disabled={selectedKeys.length === 0 || isEvaluating}
+          style={{ minHeight: 54, fontSize: 16, fontWeight: 700, marginBottom: 20, opacity: (selectedKeys.length === 0 || isEvaluating) ? 0.5 : 1 }}
         >
-          {t.urgencyResult}
+          {isEvaluating ? '⏳ Assessing…' : t.urgencyResult}
         </button>
       )}
 

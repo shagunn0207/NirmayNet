@@ -618,11 +618,55 @@ const InfoRow = ({ label, value }: { label: string; value: string }) => (
   </div>
 );
 
+import { api } from '../services/api';
+
 export const PatientsScreen: React.FC = () => {
-  const { t, language, patients, setCurrentPatient } = useApp();
+  const { t, language, patients, setPatients, setCurrentPatient, networkStatus, showSnackbar } = useApp();
   const [query, setQuery] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [isListening, setIsListening] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  React.useEffect(() => {
+    let active = true;
+    const fetchPatients = async () => {
+      if (networkStatus === 'offline') return;
+      setLoading(true);
+      const res = await api.get<any[]>('/patients/');
+      if (active) {
+        setLoading(false);
+        if (res.error) {
+          showSnackbar('Error fetching patients: ' + res.error);
+        } else if (res.data) {
+          // Map backend patients to frontend Patient type
+          const backendPatients: Patient[] = res.data.map(p => ({
+            id: p.id,
+            name: p.name,
+            age: p.age,
+            sex: p.gender as any,
+            abhaId: p.abha_id || undefined,
+            village: p.village,
+            phone: p.phone || '',
+            registrationDate: p.created_at ? p.created_at.split('T')[0] : '',
+            lastVisit: p.updated_at ? p.updated_at.split('T')[0] : 'Today',
+            lastTriage: 'ROUTINE', // Backend doesn't return triage category in basic patient listing yet
+            symptoms: [],
+            consultations: [],
+            referrals: [],
+            notes: '',
+          }));
+
+          // Merge: keep local offline patients (IDs starting with 'P') and append backend patients
+          setPatients(prev => {
+            const localOnly = prev.filter(p => p.id.startsWith('P') && !['P001', 'P002', 'P003'].includes(p.id));
+            return [...backendPatients, ...localOnly];
+          });
+        }
+      }
+    };
+    fetchPatients();
+    return () => { active = false; };
+  }, [networkStatus]);
 
   const handleMicClick = () => {
     setIsListening(true);

@@ -3,10 +3,10 @@
 import React, { useState } from "react";
 import { useHealthcare } from "@/context/HealthcareContext";
 import { UrgencyBadge, ReferralStatusBadge } from "@/components/common/Badge";
-import { Search, Filter, Clock, MapPin, Building2, User } from "lucide-react";
+import { Search, Filter, Clock, MapPin, Building2, User, Check, CheckCircle } from "lucide-react";
 
 export const HospitalQueueView: React.FC = () => {
-  const { hospitalReferrals, specialists } = useHealthcare();
+  const { hospitalReferrals, specialists, updateHospitalReferralStatus } = useHealthcare();
   const [search, setSearch] = useState("");
   const [selectedDept, setSelectedDept] = useState<string>("ALL");
 
@@ -91,12 +91,13 @@ export const HospitalQueueView: React.FC = () => {
               <th className="py-3 px-4">Referring PHC</th>
               <th className="py-3 px-4">Status</th>
               <th className="py-3 px-4">Ambulance Transit</th>
+              <th className="py-3 px-4">Queue Action</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {filteredQueue.length === 0 ? (
               <tr>
-                <td colSpan={8} className="py-8 text-center text-slate-400">
+                <td colSpan={9} className="py-8 text-center text-slate-400">
                   No hospital queue records found under the selected filters.
                 </td>
               </tr>
@@ -144,6 +145,38 @@ export const HospitalQueueView: React.FC = () => {
                         </span>
                       ) : (
                         <span className="text-slate-400">Self Transport</span>
+                      )}
+                    </td>
+                    <td className="py-3.5 px-4 whitespace-nowrap">
+                      {item.status === "SENT" || item.status === "IN_TRANSIT" ? (
+                        <button
+                          type="button"
+                          onClick={() => updateHospitalReferralStatus(item.id, "PATIENT ARRIVED")}
+                          className="px-2.5 py-1.5 rounded-lg bg-purple-700 hover:bg-purple-800 text-white font-bold text-xs transition-colors shadow-xs flex items-center gap-1 cursor-pointer"
+                        >
+                          <Clock className="w-3.5 h-3.5" />
+                          <span>Confirm Arrival</span>
+                        </button>
+                      ) : item.status === "PATIENT ARRIVED" || item.status === "ACCEPTED" || item.status === "ASSIGNED" ? (
+                        <button
+                          type="button"
+                          onClick={() => updateHospitalReferralStatus(item.id, "CONSULTED")}
+                          className="px-2.5 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs transition-colors shadow-xs flex items-center gap-1 cursor-pointer"
+                        >
+                          <User className="w-3.5 h-3.5" />
+                          <span>Start Consult</span>
+                        </button>
+                      ) : item.status === "CONSULTED" ? (
+                        <button
+                          type="button"
+                          onClick={() => updateHospitalReferralStatus(item.id, "COMPLETED")}
+                          className="px-2.5 py-1.5 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs transition-colors shadow-xs flex items-center gap-1 cursor-pointer"
+                        >
+                          <CheckCircle className="w-3.5 h-3.5" />
+                          <span>Complete</span>
+                        </button>
+                      ) : (
+                        <span className="text-slate-400 font-semibold text-xs">Completed</span>
                       )}
                     </td>
                   </tr>

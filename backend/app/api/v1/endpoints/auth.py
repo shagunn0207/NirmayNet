@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from app.schemas.auth import LoginRequest, Token, UserOut, UserRole
 from app.core.security import create_access_token, verify_password
 from app.services.supabase_client import supabase
-from app.api.deps import get_current_user, DEMO_USER
+from app.api.deps import get_current_user, DEMO_USER, DEMO_HOSPITAL_USER
 
 router = APIRouter()
 
@@ -19,9 +19,11 @@ def login(request: LoginRequest):
 
     user_out: UserOut = None
 
-    # 1. Check for Demo ASHA Account
-    if username == "ASHA_NAND_023" and password == "asha2024":
+    # 1. Check for Demo Accounts
+    if username == "ASHA_NAND_023" and password in ("asha2024", "password"):
         user_out = DEMO_USER
+    elif username in ("HOSPITAL_NAND_001", "HOSPITAL_DEMO") and password in ("hospital2024", "asha2024", "password"):
+        user_out = DEMO_HOSPITAL_USER
 
     # 2. Check Supabase database if not demo user
     elif supabase is not None:

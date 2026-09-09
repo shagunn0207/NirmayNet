@@ -19,6 +19,16 @@ DEMO_USER = UserOut(
     facility_name="Chinchpada Sub-Center",
 )
 
+DEMO_HOSPITAL_USER = UserOut(
+    id=UUID("00000000-0000-0000-0000-000000000002"),
+    name="District Hospital Nandurbar",
+    email="hospital.nandurbar@nirmay.net",
+    phone="9823099999",
+    role=UserRole.HOSPITAL,
+    village="Nandurbar",
+    facility_name="District Hospital Nandurbar",
+)
+
 
 def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security_scheme),
@@ -41,6 +51,8 @@ def get_current_user(
     # Check for demo user
     if user_id_str == str(DEMO_USER.id) or payload.get("username") == "ASHA_NAND_023":
         return DEMO_USER
+    if user_id_str == str(DEMO_HOSPITAL_USER.id) or payload.get("username") in ("HOSPITAL_NAND_001", "HOSPITAL_DEMO"):
+        return DEMO_HOSPITAL_USER
 
     # Query database for user profile
     if supabase is not None:

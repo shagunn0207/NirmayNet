@@ -216,6 +216,102 @@ export const HealthcareProvider: React.FC<{ children: React.ReactNode }> = ({
     setToasts((prev) => prev.filter((t) => t.id !== id));
   };
 
+  // ── FastAPI Integration: fetch real hospital queue & status actions ─────────
+  const fetchHospitalQueue = async () => {
+    const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000/api/v1";
+
+    try {
+      // 1. Authenticate with Hospital credentials to get a token with HOSPITAL role
+      const loginRes = await fetch(`${API_BASE}/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: "HOSPITAL_NAND_001", password: "hospital2024" }),
+      });
+
+      if (!loginRes.ok) return;
+      const loginData = await loginRes.json();
+      const token = loginData?.access_token;
+      if (!token) return;
+
+      // 2. Fetch queue items from GET /api/v1/queue/hospital
+      const queueRes = await fetch(`${API_BASE}/queue/hospital`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!queueRes.ok) return;
+      const queueItems: any[] = await queueRes.json();
+
+      if (!Array.isArray(queueItems) || queueItems.length === 0) return;
+
+      const statusMap: Record<string, ReferralStatus> = {
+        PENDING: "SENT",
+        DISPATCHED: "IN_TRANSIT",
+        CONFIRMED_ARRIVAL: "PATIENT ARRIVED",
+        IN_CONSULTATION: "CONSULTED",
+        COMPLETED: "COMPLETED",
+        CANCELLED: "COMPLETED",
+      };
+
+      const mapped: HospitalReferral[] = queueItems.map((q) => {
+        const priority =
+          q.triage_category === "EMERGENCY"
+            ? "EMERGENCY"
+            : q.triage_category === "URGENT"
+            ? "URGENT"
+            : q.referral_reason?.includes("EMERGENCY")
+            ? "EMERGENCY"
+            : q.referral_reason?.includes("URGENT")
+            ? "URGENT"
+            : "ROUTINE";
+
+        return {
+          id: q.referral_code || q.referral_id,
+          realReferralId: q.referral_id,
+          patientId: q.patient_id,
+          patientName: q.patient_name || `Patient (${q.patient_id.slice(0, 8)}…)`,
+          age: q.patient_age || 30,
+          sex: (q.patient_gender || "Female") as any,
+          priority: priority as any,
+          status: statusMap[q.referral_status] || "SENT",
+          reason: q.referral_reason || "Hospital Queue Referral",
+          referringFacility: q.patient_village ? `${q.patient_village} Sub-Center` : "Chinchpada Sub-Center",
+          referringDoctor: "ASHA Anandi Patil",
+          destinationFacility: q.destination_hospital || "District Hospital Nandurbar",
+          department: "General Medicine",
+          timestamp: q.referral_created_at
+            ? new Date(q.referral_created_at).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })
+            : "Just now",
+          ambulanceRequested: q.has_dispatch || false,
+          ambulanceStatus: q.has_dispatch ? "In Transit" : undefined,
+          vitals: { bp: "120/80", pulse: "88", spo2: "96%", temp: "98.6°F" },
+          clinicalSummary: q.referral_reason || "No clinical summary provided.",
+          hospitalNotes: `Referral Code: ${q.referral_code || q.referral_id}`,
+          assignedDoctor: undefined,
+        };
+      });
+
+      setHospitalReferrals((prev) => {
+        const realIds = new Set(mapped.map((m) => m.id));
+        const uniqueMocks = prev.filter((p) => !realIds.has(p.id));
+        return [...mapped, ...uniqueMocks];
+      });
+    } catch (_err) {
+      // Silently fall back to mock data
+    }
+  };
+
+  useEffect(() => {
+    let active = true;
+
+    if (active) {
+      fetchHospitalQueue();
+    }
+
+    return () => { active = false; };
+  }, []);
+  // ────────────────────────────────────────────────────────────────────────────
+  // ────────────────────────────────────────────────────────────────────────────
+
   // 1. Accept ASHA Referral
   const acceptAshaReferral = (id: string) => {
     setAshaReferrals((prev) =>
@@ -345,15 +441,16 @@ export const HealthcareProvider: React.FC<{ children: React.ReactNode }> = ({
   };
 
   // 4. Update Hospital Referral Status (District Hospital Workflow Action)
-  const updateHospitalReferralStatus = (
+  const updateHospitalReferralStatus = async (
     id: string,
     status: ReferralStatus,
     hospitalNotes?: string,
     assignedDoctor?: string
   ) => {
+    // Optimistic UI update
     setHospitalReferrals((prev) =>
       prev.map((ref) => {
-        if (ref.id === id) {
+        if (ref.id === id || ref.realReferralId === id) {
           return {
             ...ref,
             status,
@@ -365,11 +462,60 @@ export const HealthcareProvider: React.FC<{ children: React.ReactNode }> = ({
       })
     );
 
-    showToast(
-      "Referral Status Updated",
-      `Referral #${id} updated to [${status}]. Synchronized across PHC and District records.`,
-      "info"
-    );
+    const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000/api/v1";
+
+    try {
+      const targetRef = hospitalReferrals.find((r) => r.id === id || r.realReferralId === id);
+      const uuidToUse = targetRef?.realReferralId || id;
+
+      // 1. Authenticate with Hospital credentials
+      const loginRes = await fetch(`${API_BASE}/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: "HOSPITAL_NAND_001", password: "hospital2024" }),
+      });
+
+      if (!loginRes.ok) {
+        showToast("Action Failed", "Authentication failed with backend", "error");
+        return;
+      }
+
+      const loginData = await loginRes.json();
+      const token = loginData?.access_token;
+
+      let endpointAction = "";
+      if (status === "PATIENT ARRIVED") endpointAction = "arrive";
+      else if (status === "CONSULTED") endpointAction = "consult";
+      else if (status === "COMPLETED") endpointAction = "complete";
+
+      if (endpointAction) {
+        const actionRes = await fetch(`${API_BASE}/queue/${uuidToUse}/${endpointAction}`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        if (!actionRes.ok) {
+          const errData = await actionRes.json().catch(() => ({}));
+          const errMsg = errData.detail || `Failed to update status to ${status}`;
+          showToast("Action Failed", errMsg, "error");
+          await fetchHospitalQueue();
+          return;
+        }
+      }
+
+      showToast(
+        "Referral Status Updated",
+        `Referral #${id} updated to [${status}]. Synchronized across PHC and District records.`,
+        "info"
+      );
+
+      await fetchHospitalQueue();
+    } catch (_err) {
+      showToast("Error", "Network or server error updating referral status", "error");
+    }
   };
 
   // 5. Request More Information on Referral

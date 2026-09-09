@@ -163,7 +163,7 @@ export const RegistrationScreen: React.FC = () => {
     setSubmitting(true);
     await new Promise(r => setTimeout(r, 600));
 
-    const p = addPatient({
+    const p = await addPatient({
       name: name.trim(),
       age,
       sex,
@@ -173,6 +173,11 @@ export const RegistrationScreen: React.FC = () => {
       allergies: allergies.trim() || undefined,
       lastTriage: undefined,
     });
+
+    if (!p) {
+      setSubmitting(false);
+      return; // Error already shown via snackbar in AppContext
+    }
 
     // Clear draft on successful submit (CHANGE 2)
     await clearDraft(DRAFT_ID);
