@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, Modal, FlatList, Platform } from 'react-native';
-import { supabase } from '../../lib/supabase';
+import { loginWithBackend } from '../../lib/apiClient';
 import { useAuth } from '../../store/AuthContext';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -23,7 +23,7 @@ export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
   const [showLangPicker, setShowLangPicker] = useState(false);
   
-  const { language, setLanguage, setRoleOverride, bypassLogin, t } = useAuth();
+  const { language, setLanguage, setRoleOverride, bypassLogin, setBackendAuth, t } = useAuth();
 
   const handleSendOtp = async () => {
     if (!selectedRole) {
@@ -41,57 +41,26 @@ export default function LoginScreen() {
       return;
     }
 
-    setLoading(true);
-    const { error } = await supabase.auth.signInWithOtp({
-      phone: '+91' + phone,
-    });
-    setLoading(false);
-
-    if (error) {
-      Alert.alert('Error', error.message);
-    } else {
-      setIsOtpSent(true);
-    }
+    setIsOtpSent(true);
   };
 
   const handleVerifyOtp = async () => {
-    setLoading(true);
-    const { data, error } = await supabase.auth.verifyOtp({
-      phone: '+91' + phone,
-      token: otp,
-      type: 'sms',
-    });
-
-    if (error) {
-      setLoading(false);
-      Alert.alert('Error', error.message);
+    if (!otp) {
+      Alert.alert('Error', 'Please enter password / OTP.');
       return;
     }
 
-    if (data.user && selectedRole) {
-      // Check if profile exists
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', data.user.id)
-        .single();
-
-      if (!profile) {
-        // Create profile
-        const { error: insertError } = await supabase.from('profiles').insert({
-          id: data.user.id,
-          role: selectedRole,
-          phone: '+91' + phone,
-          language: language,
-        });
-        if (insertError) {
-          console.error(insertError);
-        }
+    setLoading(true);
+    try {
+      const data = await loginWithBackend(phone, otp);
+      if (data && data.access_token) {
+        await setBackendAuth(data.access_token, data.user);
       }
-      // Force role update to trigger routing in _layout
-      setRoleOverride(profile ? profile.role : selectedRole);
+    } catch (err: any) {
+      Alert.alert('Login Failed', err.message || 'Invalid credentials');
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const currentLangLabel = LANGUAGES.find(l => l.code === language)?.label || 'English';
@@ -137,18 +106,16 @@ export default function LoginScreen() {
           <>
             <Text style={styles.sectionTitle}>Select Your Role</Text>
             
-            {Platform.OS !== 'web' && (
-              <TouchableOpacity
-                style={[styles.roleCard, selectedRole === 'asha' && styles.roleCardSelected]}
-                onPress={() => setSelectedRole('asha')}
-              >
-                <FontAwesome5 name="user-nurse" size={24} color={selectedRole === 'asha' ? '#00796B' : '#666'} />
-                <View style={styles.roleTextContainer}>
-                  <Text style={[styles.roleTitle, selectedRole === 'asha' && styles.roleTitleSelected]}>ASHA Worker</Text>
-                  <Text style={styles.roleDesc}>Field visits and patient care.</Text>
-                </View>
-              </TouchableOpacity>
-            )}
+            <TouchableOpacity
+              style={[styles.roleCard, selectedRole === 'asha' && styles.roleCardSelected]}
+              onPress={() => setSelectedRole('asha')}
+            >
+              <FontAwesome5 name="user-nurse" size={24} color={selectedRole === 'asha' ? '#00796B' : '#666'} />
+              <View style={styles.roleTextContainer}>
+                <Text style={[styles.roleTitle, selectedRole === 'asha' && styles.roleTitleSelected]}>ASHA Worker</Text>
+                <Text style={styles.roleDesc}>Field visits and patient care.</Text>
+              </View>
+            </TouchableOpacity>
 
             <TouchableOpacity
               style={[styles.roleCard, selectedRole === 'phc_doctor' && styles.roleCardSelected]}

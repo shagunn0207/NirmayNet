@@ -156,7 +156,7 @@ def login(request: LoginRequest):
     user_out: UserOut = None
 
     # 1. Check for Demo Accounts
-    if username == "ASHA_NAND_023" and password in ("asha2024", "password"):
+    if (username == "ASHA_NAND_023" and password in ("asha2024", "password")) or (username == "9823011234" and password == "123456"):
         user_out = DEMO_USER
     elif username in ("HOSPITAL_NAND_001", "HOSPITAL_DEMO") and password in ("hospital2024", "asha2024", "password"):
         user_out = DEMO_HOSPITAL_USER

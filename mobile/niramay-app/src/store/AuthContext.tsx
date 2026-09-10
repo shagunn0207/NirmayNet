@@ -1,15 +1,26 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { supabase } from '../lib/supabase';
 import { Session, User } from '@supabase/supabase-js';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import { TRANSLATIONS, Language } from '../lib/translations';
+import { BackendUser, mapBackendRole } from '../lib/apiClient';
 
 type Role = 'asha' | 'phc_doctor' | 'district' | null;
 
+export interface AuthUser {
+  id: string;
+  name?: string;
+  email?: string | null;
+  phone?: string | null;
+  role?: Role;
+  village?: string | null;
+  facility_name?: string | null;
+  [key: string]: any;
+}
+
 interface AuthContextType {
-  user: User | null;
-  session: Session | null;
+  user: AuthUser | null;
+  session: Session | any | null;
   role: Role;
   language: string;
   isLoading: boolean;
@@ -18,6 +29,7 @@ interface AuthContextType {
   signOut: () => Promise<void>;
   setRoleOverride: (role: Role) => void;
   bypassLogin: (role: Role) => void;
+  setBackendAuth: (token: string, user: BackendUser) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -31,11 +43,12 @@ const AuthContext = createContext<AuthContextType>({
   signOut: async () => {},
   setRoleOverride: () => {},
   bypassLogin: () => {},
+  setBackendAuth: async () => {},
 });
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
-  const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [session, setSession] = useState<Session | any | null>(null);
   const [role, setRole] = useState<Role>(null);
   const [language, setLanguageState] = useState<string>('english');
   const [isLoading, setIsLoading] = useState(true);
@@ -61,72 +74,96 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
-  const fetchProfile = async (userId: string) => {
+  const setBackendAuth = async (token: string, backendUser: BackendUser) => {
     try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('role, language')
-        .eq('id', userId)
-        .single();
-        
-      if (error && error.code !== 'PGRST116') {
-        console.error('Error fetching profile:', error);
-      }
-      
-      if (data) {
-        setRole(data.role as Role);
-        if (data.language) {
-          setLanguageState(data.language);
-          await AsyncStorage.setItem('app_language', data.language);
-        }
-      }
+      await AsyncStorage.setItem('auth_token', token);
+      await AsyncStorage.setItem('backend_user', JSON.stringify(backendUser));
     } catch (e) {
-      console.error(e);
+      console.error('Failed to save auth token', e);
     }
+    const mappedRole = mapBackendRole(backendUser.role);
+    setSession({
+      access_token: token,
+      token_type: 'bearer',
+      user: {
+        id: backendUser.id,
+        email: backendUser.email,
+        phone: backendUser.phone,
+      },
+    } as any);
+    setUser({
+      id: backendUser.id,
+      name: backendUser.name,
+      email: backendUser.email,
+      phone: backendUser.phone,
+      role: mappedRole,
+      village: backendUser.village,
+      facility_name: backendUser.facility_name,
+    });
+    setRole(mappedRole);
   };
 
   useEffect(() => {
     let mounted = true;
-    
+
     const initAuth = async () => {
       await loadLanguage();
-      
-      const { data: { session }, error } = await supabase.auth.getSession();
-      
-      if (mounted) {
-        setSession(session);
-        setUser(session?.user || null);
-        
-        if (session?.user) {
-          await fetchProfile(session.user.id);
+
+      try {
+        const storedToken = await AsyncStorage.getItem('auth_token');
+        const storedUser = await AsyncStorage.getItem('backend_user');
+        if (storedToken && storedUser) {
+          const parsedUser: BackendUser = JSON.parse(storedUser);
+          const mappedRole = mapBackendRole(parsedUser.role);
+          if (mounted) {
+            setSession({
+              access_token: storedToken,
+              token_type: 'bearer',
+              user: {
+                id: parsedUser.id,
+                email: parsedUser.email,
+                phone: parsedUser.phone,
+              },
+            } as any);
+            setUser({
+              id: parsedUser.id,
+              name: parsedUser.name,
+              email: parsedUser.email,
+              phone: parsedUser.phone,
+              role: mappedRole,
+              village: parsedUser.village,
+              facility_name: parsedUser.facility_name,
+            });
+            setRole(mappedRole);
+            setIsLoading(false);
+          }
+          return;
         }
+      } catch (err) {
+        console.error('Failed to restore auth session', err);
+      }
+
+      if (mounted) {
         setIsLoading(false);
       }
     };
-    
-    initAuth();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, newSession) => {
-        setSession(newSession);
-        setUser(newSession?.user || null);
-        
-        if (newSession?.user) {
-          await fetchProfile(newSession.user.id);
-        } else {
-          setRole(null);
-        }
-      }
-    );
+    initAuth();
 
     return () => {
       mounted = false;
-      subscription.unsubscribe();
     };
   }, []);
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    try {
+      await AsyncStorage.removeItem('auth_token');
+      await AsyncStorage.removeItem('backend_user');
+    } catch (e) {
+      console.error('Failed to remove auth session', e);
+    }
+    setSession(null);
+    setUser(null);
     setRole(null);
     router.replace('/(auth)/login');
   };
@@ -139,6 +176,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       token_type: 'bearer',
       user: { id: 'dummy_user_id' }
     } as any);
+    setUser({
+      id: 'dummy_user_id',
+      name: 'Demo User',
+      phone: '0000000000',
+      role: selectedRole,
+    });
     setRole(selectedRole);
   };
 
@@ -160,6 +203,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         signOut,
         setRoleOverride: setRole,
         bypassLogin,
+        setBackendAuth,
       }}
     >
       {children}
