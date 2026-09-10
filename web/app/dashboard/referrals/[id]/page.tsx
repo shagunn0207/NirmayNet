@@ -2,10 +2,23 @@
 
 import React from "react";
 import Link from "next/link";
-import { referralQueue } from "@/lib/mockData";
+const referralQueue: any[] = [];
 
 export default function ReferralDetailPage({ params }: { params: { id: string } }) {
   const refItem = referralQueue.find((r) => r.id === params.id) || referralQueue[0];
+  if (!refItem) {
+    return (
+      <div className="p-8 max-w-4xl mx-auto">
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="text-2xl font-black text-slate-900">Referral Details</h1>
+          <Link href="/dashboard/referrals" className="text-xs font-bold text-teal-700 hover:underline">
+            ← Back to Referrals
+          </Link>
+        </div>
+        <p className="text-xs text-slate-500">No referral details available.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="p-8 max-w-4xl mx-auto space-y-6 text-xs">

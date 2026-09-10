@@ -44,7 +44,7 @@ export const PHCPatientsView: React.FC<PHCPatientsViewProps> = ({
       p.name.toLowerCase().includes(search.toLowerCase()) ||
       p.village.toLowerCase().includes(search.toLowerCase()) ||
       p.abhaId.includes(search) ||
-      p.token.toLowerCase().includes(search.toLowerCase());
+      (p.token && p.token.toLowerCase().includes(search.toLowerCase()));
 
     const matchesRisk =
       riskFilter === "ALL" ||

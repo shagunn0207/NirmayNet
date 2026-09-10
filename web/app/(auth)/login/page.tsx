@@ -3,31 +3,70 @@
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Activity, Stethoscope, Building2, BarChart3, ArrowRight } from "lucide-react";
+import { Activity, ArrowRight } from "lucide-react";
+import { api } from "@/lib/api";
 
 export default function LoginPage() {
   const router = useRouter();
   const [role, setRole] = useState<"phc-doctor" | "district-hospital" | "dho">("phc-doctor");
-  const [username, setUsername] = useState("dr_sanjay_phc");
-  const [password, setPassword] = useState("phc@2026");
+  const [username, setUsername] = useState("ASHA_NAND_023");
+  const [password, setPassword] = useState("asha2024");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleRoleSelect = (newRole: "phc-doctor" | "district-hospital" | "dho") => {
     setRole(newRole);
+    setError(null);
     if (newRole === "phc-doctor") {
-      setUsername("dr_sanjay_phc");
-      setPassword("phc@2026");
+      setUsername("ASHA_NAND_023");
+      setPassword("asha2024");
     } else if (newRole === "district-hospital") {
-      setUsername("dr_deshmukh_dh");
-      setPassword("dh@2026");
+      setUsername("HOSPITAL_NAND_001");
+      setPassword("hospital2024");
     } else {
       setUsername("dho_nandurbar");
       setPassword("dho@2026");
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    router.push(`/${role}`);
+    setError(null);
+    setLoading(true);
+
+    try {
+      const response = await api.post<any>("/auth/login", {
+        username: username.trim(),
+        password: password.trim(),
+      });
+
+      if (response.data && response.data.access_token) {
+        // Store session under niramaynet_session in localStorage
+        try {
+          localStorage.setItem("niramaynet_session", JSON.stringify(response.data));
+        } catch (e) {
+          console.error("Failed to save session to localStorage:", e);
+        }
+
+        // Navigate based on user role returned or selected portal role
+        const userRole = response.data.user?.role?.toUpperCase();
+        if (userRole === "HOSPITAL") {
+          router.push("/district-hospital");
+        } else if (userRole === "DHO") {
+          router.push("/dho");
+        } else {
+          router.push(`/${role}`);
+        }
+      } else {
+        const errorMsg = response.error || "Invalid username or password";
+        setError(errorMsg);
+      }
+    } catch (err: any) {
+      console.error("Login request error:", err);
+      setError(err?.message || "Unable to connect to authentication server");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -82,6 +121,12 @@ export default function LoginPage() {
         </div>
       </div>
 
+      {error && (
+        <div className="p-3 mb-4 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-semibold text-center">
+          {error}
+        </div>
+      )}
+
       <form onSubmit={handleSubmit} className="flex flex-col gap-4 text-xs">
         <div>
           <label className="font-bold text-slate-700 block mb-1">Username / ID</label>
@@ -107,9 +152,10 @@ export default function LoginPage() {
 
         <button
           type="submit"
-          className="mt-2 w-full py-3 bg-teal-700 hover:bg-teal-800 text-white rounded-xl font-black text-sm shadow-xs transition-colors flex items-center justify-center gap-2"
+          disabled={loading}
+          className="mt-2 w-full py-3 bg-teal-700 hover:bg-teal-800 text-white rounded-xl font-black text-sm shadow-xs transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
         >
-          <span>Sign In to Portal</span>
+          <span>{loading ? "Authenticating..." : "Sign In to Portal"}</span>
           <ArrowRight className="w-4 h-4" />
         </button>
       </form>

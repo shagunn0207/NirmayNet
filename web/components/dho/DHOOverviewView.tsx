@@ -29,12 +29,12 @@ export const DHOOverviewView: React.FC<DHOOverviewViewProps> = ({
 }) => {
   const { phcMetrics, hospitalReferrals, medicines, followups } = useHealthcare();
 
-  const totalPatientsToday = phcMetrics.reduce((sum, p) => sum + p.patientsToday, 0) + 342;
+  const totalPatientsToday = phcMetrics.reduce((sum, p) => sum + p.highRiskTracked, 0) + 342;
   const totalReferralsSent = phcMetrics.reduce((sum, p) => sum + p.referralsSent, 0);
-  const avgDistrictWait = Math.round(
-    phcMetrics.reduce((sum, p) => sum + p.avgWaitMinutes, 0) / phcMetrics.length
-  );
-  const criticalPhcs = phcMetrics.filter((p) => p.status === "Critical" || p.status === "Alert");
+  const avgDistrictWait = phcMetrics.length > 0
+    ? Math.round(phcMetrics.reduce((sum, p) => sum + p.teleconsultationsCompleted, 0) / phcMetrics.length)
+    : 0;
+  const criticalPhcs = phcMetrics.filter((p) => p.status === "Critical");
   const lowStockCount = medicines.filter((m) => m.status !== "In Stock").length;
   const missedFollowups = followups.filter((f) => f.status === "Missed").length;
 

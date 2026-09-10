@@ -43,8 +43,8 @@ export const PHCDiagnosticsView: React.FC = () => {
     }
   };
 
-  const availableTests = diagnostics.filter((d) => d.isAvailable);
-  const unavailableTests = diagnostics.filter((d) => !d.isAvailable);
+  const availableTests = diagnostics.filter((d) => d.availability === "Available");
+  const unavailableTests = diagnostics.filter((d) => d.availability !== "Available");
 
   return (
     <div className="flex flex-col gap-6">
@@ -72,7 +72,7 @@ export const PHCDiagnosticsView: React.FC = () => {
               >
                 <div>
                   <span className="font-bold text-slate-800 block">{t.name}</span>
-                  <span className="text-[10px] text-slate-500">{t.category} · Turnaround: {t.turnaroundTime}</span>
+                  <span className="text-[10px] text-slate-500">{t.category} · Turnaround: {t.averageTurnaroundHours} hrs</span>
                 </div>
                 <span className="text-emerald-700 font-bold flex items-center gap-1 text-[11px]">
                   <CheckCircle className="w-3.5 h-3.5" />
@@ -105,7 +105,7 @@ export const PHCDiagnosticsView: React.FC = () => {
               >
                 <div>
                   <span className="font-bold text-slate-800 block">{t.name}</span>
-                  <span className="text-[10px] text-red-700 font-medium">Status: {t.equipmentStatus}</span>
+                  <span className="text-[10px] text-red-700 font-medium">Status: {t.availability}</span>
                 </div>
                 <span className="text-red-700 font-bold flex items-center gap-1 text-[11px]">
                   <XCircle className="w-3.5 h-3.5" />
@@ -188,7 +188,7 @@ export const PHCDiagnosticsView: React.FC = () => {
                     <td className="py-3.5 px-4 font-bold text-slate-900">{order.patientName}</td>
                     <td className="py-3.5 px-4 font-semibold text-slate-800">{order.testName}</td>
                     <td className="py-3.5 px-4 text-slate-500">
-                      {order.orderedBy} · {order.orderDate}
+                      {order.orderedBy ? `${order.orderedBy} · ` : ""}{order.orderDate}
                     </td>
                     <td className="py-3.5 px-4">
                       <span

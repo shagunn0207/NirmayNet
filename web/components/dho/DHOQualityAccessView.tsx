@@ -20,10 +20,10 @@ import {
 export const DHOQualityAccessView: React.FC = () => {
   const { phcMetrics, hospitalReferrals, followups } = useHealthcare();
 
-  const totalPatients = phcMetrics.reduce((acc, p) => acc + p.patientsToday, 0);
-  const avgWait = Math.round(
-    phcMetrics.reduce((acc, p) => acc + p.avgWaitMinutes, 0) / phcMetrics.length
-  );
+  const totalPatients = phcMetrics.reduce((acc, p) => acc + (p.patientsToday ?? 0), 0);
+  const avgWait = phcMetrics.length > 0
+    ? Math.round(phcMetrics.reduce((acc, p) => acc + (p.avgWaitMinutes ?? 0), 0) / phcMetrics.length)
+    : 0;
   const completedFollowups = followups.filter((f) => f.status === "Completed").length;
   const followUpRate = Math.round((completedFollowups / followups.length) * 100) || 82;
 
@@ -128,15 +128,16 @@ export const DHOQualityAccessView: React.FC = () => {
           <div className="flex flex-col gap-3 py-1">
             {phcMetrics.map((phc) => {
               const maxWait = 45;
-              const barPercent = Math.min(100, Math.round((phc.avgWaitMinutes / maxWait) * 100));
-              const isOver = phc.avgWaitMinutes > 30;
+              const wait = phc.avgWaitMinutes ?? 0;
+              const barPercent = Math.min(100, Math.round((wait / maxWait) * 100));
+              const isOver = wait > 30;
 
               return (
                 <div key={phc.id} className="text-xs flex flex-col gap-1">
                   <div className="flex items-center justify-between font-bold">
                     <span className="text-slate-800">{phc.name} ({phc.block})</span>
                     <span className={isOver ? "text-red-700 font-black" : "text-emerald-700"}>
-                      {phc.avgWaitMinutes} mins {isOver ? "· Above Target" : "· Optimal"}
+                      {wait} mins {isOver ? "· Above Target" : "· Optimal"}
                     </span>
                   </div>
                   <div className="w-full bg-slate-100 h-3 rounded-full overflow-hidden flex">

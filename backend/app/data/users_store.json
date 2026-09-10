@@ -70,5 +70,113 @@
     "village": "Chinchpada",
     "facility_name": "Chinchpada Sub-Center",
     "created_at": "2026-09-09T21:08:08.378767+00:00"
+  },
+  {
+    "id": "25b9aa59-a585-4f5c-8c7b-cf276c008d5a",
+    "username": "asha_test_6af74262",
+    "name": "Test ASHA 2",
+    "email": "asha_test_6af74262@nirmay.net",
+    "phone": "9823011234",
+    "hashed_password": "testpass123",
+    "role": "ASHA",
+    "village": "Chinchpada",
+    "facility_name": "Chinchpada Sub-Center",
+    "created_at": "2026-09-10T05:12:37.298536+00:00"
+  },
+  {
+    "id": "0c65003c-3a7d-4a4d-8650-0935f5605092",
+    "username": "suma",
+    "name": "summa s",
+    "email": "suma@nirmay.net",
+    "phone": "9823011234",
+    "hashed_password": "suma@123",
+    "role": "ASHA",
+    "village": "Chinchpada",
+    "facility_name": "Chinchpada Sub-Center",
+    "created_at": "2026-09-10T05:58:53.267459+00:00"
+  },
+  {
+    "id": "a042a93b-092c-4865-ae0b-0159509cc07b",
+    "username": "reshma",
+    "name": "reshma h",
+    "email": "reshma@nirmay.net",
+    "phone": "9823011234",
+    "hashed_password": "123456",
+    "role": "ASHA",
+    "village": "Chinchpada",
+    "facility_name": "Chinchpada Sub-Center",
+    "created_at": "2026-09-10T08:16:02.182084+00:00"
+  },
+  {
+    "id": "d28f54b5-fc82-480b-916e-71d22c540bf1",
+    "username": "diag_test_user_5174",
+    "name": "Diagnostic Test User",
+    "email": "diag5174@example.com",
+    "phone": "9823011234",
+    "hashed_password": "TestPassword123!",
+    "role": "ASHA",
+    "village": "Chinchpada",
+    "facility_name": "Chinchpada Sub-Center",
+    "created_at": "2026-09-10T08:25:16.812124+00:00"
+  },
+  {
+    "id": "baf55b20-7295-416b-a8b3-2646124590e9",
+    "username": "riya",
+    "name": "riya r",
+    "email": "riya@nirmay.net",
+    "phone": "9823011234",
+    "hashed_password": "123456",
+    "role": "ASHA",
+    "village": "Chinchpada",
+    "facility_name": "Chinchpada Sub-Center",
+    "created_at": "2026-09-10T08:33:58.621120+00:00"
+  },
+  {
+    "id": "24872d0d-e418-48b8-a324-37132ddf44c8",
+    "username": "diag_supabase_register_5174_02",
+    "name": "Diag Test User 5174 02",
+    "email": "diag_supabase_register_5174_02@nirmay.net",
+    "phone": "9823011234",
+    "hashed_password": "TestPassword123!",
+    "role": "ASHA",
+    "village": "Chinchpada",
+    "facility_name": "Chinchpada Sub-Center",
+    "created_at": "2026-09-10T08:38:26.846563+00:00"
+  },
+  {
+    "id": "f59c2ba6-494c-48c4-a06e-7da8754a6e68",
+    "username": "nirmay_worker_5174_test",
+    "name": "Nirmay Worker 5174",
+    "email": "nirmay_worker_5174_test@nirmay.net",
+    "phone": null,
+    "hashed_password": "SecureWorkerPass123!",
+    "role": "ASHA",
+    "village": "Chinchpada",
+    "facility_name": "Chinchpada Sub-Center",
+    "created_at": "2026-09-10T08:39:58.141770+00:00"
+  },
+  {
+    "id": "a8e08e4a-16ea-45c7-8439-eab8c3e7b0e3",
+    "username": "nirmay_worker_5174_test2",
+    "name": "Nirmay Worker 5174 Test 2",
+    "email": "nirmay_worker_5174_test2@nirmay.net",
+    "phone": null,
+    "hashed_password": "SecureWorkerPass123!",
+    "role": "ASHA",
+    "village": "Chinchpada",
+    "facility_name": "Chinchpada Sub-Center",
+    "created_at": "2026-09-10T08:40:34.004976+00:00"
+  },
+  {
+    "id": "20bbe8cb-344c-448e-aa74-bf49cd22a98d",
+    "username": "royw",
+    "name": "roy w",
+    "email": "royw@nirmay.net",
+    "phone": null,
+    "hashed_password": "123456",
+    "role": "ASHA",
+    "village": "Chinchpada",
+    "facility_name": "Chinchpada Sub-Center",
+    "created_at": "2026-09-10T08:42:05.508484+00:00"
   }
 ]

@@ -121,7 +121,7 @@ export const PHCInventoryView: React.FC = () => {
                     <td className="py-3.5 px-4 text-slate-600">{m.category}</td>
                     <td className="py-3.5 px-4">
                       <span className={`font-black text-sm ${isOut ? "text-red-700" : isLow ? "text-amber-700" : "text-slate-800"}`}>
-                        {m.stock} {m.unit}
+                        {m.currentStock} {m.unit}
                       </span>
                     </td>
                     <td className="py-3.5 px-4 text-slate-500 font-medium">
@@ -187,7 +187,7 @@ export const PHCInventoryView: React.FC = () => {
               >
                 {medicines.map((m) => (
                   <option key={m.id} value={m.id}>
-                    {m.name} (Current: {m.stock} {m.unit})
+                    {m.name} (Current: {m.currentStock} {m.unit})
                   </option>
                 ))}
               </select>

@@ -1,4 +1,4 @@
-import { patientTimeline } from "@/lib/mockData";
+const patientTimeline: any[] = [];
 
 const typeColors: Record<string, string> = {
   consultation: "#0ea5e9",

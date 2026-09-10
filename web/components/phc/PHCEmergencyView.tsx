@@ -203,7 +203,7 @@ export const PHCEmergencyView: React.FC<PHCEmergencyViewProps> = ({
                     <span className="text-[10px] uppercase font-bold text-slate-500 block">
                       Oxygen SpO2
                     </span>
-                    <span className={`text-base font-black ${patient.vitals.spo2 < 94 ? "text-red-700" : "text-slate-800"}`}>
+                    <span className={`text-base font-black ${Number(patient.vitals.spo2) < 94 ? "text-red-700" : "text-slate-800"}`}>
                       {patient.vitals.spo2}%
                     </span>
                   </div>
@@ -226,7 +226,7 @@ export const PHCEmergencyView: React.FC<PHCEmergencyViewProps> = ({
                     {patient.visitReason}
                   </p>
                   <div className="flex flex-wrap gap-1.5 mt-2">
-                    {patient.symptoms.map((s, idx) => (
+                    {patient.symptoms?.map((s, idx) => (
                       <span
                         key={idx}
                         className="px-2 py-0.5 rounded-md bg-red-50 border border-red-200 text-red-800 text-[11px] font-bold"

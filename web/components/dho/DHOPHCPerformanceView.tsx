@@ -11,8 +11,8 @@ export const DHOPHCPerformanceView: React.FC = () => {
 
   const filteredPHCs = phcMetrics.filter((p) => {
     const matchesSearch =
-      p.name.toLowerCase().includes(search.toLowerCase()) ||
-      p.block.toLowerCase().includes(search.toLowerCase());
+      (p.name ?? "").toLowerCase().includes(search.toLowerCase()) ||
+      (p.block ?? "").toLowerCase().includes(search.toLowerCase());
 
     const matchesStatus = statusFilter === "ALL" || p.status === statusFilter;
 
@@ -124,25 +124,25 @@ export const DHOPHCPerformanceView: React.FC = () => {
                   <td className="py-3.5 px-4">
                     <span
                       className={`font-extrabold ${
-                        phc.medicineStockPercent < 70
+                        (phc.medicineStockPercent ?? 0) < 70
                           ? "text-red-700 font-black"
-                          : phc.medicineStockPercent < 80
+                          : (phc.medicineStockPercent ?? 0) < 80
                           ? "text-amber-700"
                           : "text-emerald-700"
                       }`}
                     >
-                      {phc.medicineStockPercent}%
+                      {phc.medicineStockPercent ?? "—"}%
                     </span>
                   </td>
                   <td className="py-3.5 px-4">
                     <span
                       className={`font-extrabold ${
-                        phc.diagnosticAvailabilityPercent < 60
+                        (phc.diagnosticAvailabilityPercent ?? 0) < 60
                           ? "text-red-700 font-black"
                           : "text-slate-800"
                       }`}
                     >
-                      {phc.diagnosticAvailabilityPercent}%
+                      {phc.diagnosticAvailabilityPercent ?? "—"}%
                     </span>
                   </td>
                   <td className="py-3.5 px-4 whitespace-nowrap">

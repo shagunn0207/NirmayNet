@@ -1,4 +1,5 @@
-import { referralQueue, ReferralItem } from "@/lib/mockData";
+export type ReferralItem = any;
+const referralQueue: any[] = [];
 import { useState } from "react";
 
 export function useReferrals() {

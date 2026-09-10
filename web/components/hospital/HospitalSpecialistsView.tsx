@@ -80,7 +80,7 @@ export const HospitalSpecialistsView: React.FC = () => {
                 </div>
 
                 <div className="text-xs text-slate-600 space-y-1 mt-3 pt-2 border-t border-slate-100">
-                  <p>Facility: <strong className="text-slate-800">{spec.facility}</strong></p>
+                  <p>Facility: <strong className="text-slate-800">{spec.hospital}</strong></p>
                   <p>Current Active Cases: <strong className="text-slate-800">{spec.activePatients} patients</strong></p>
                   <p className="flex items-center gap-1 text-slate-500">
                     <Phone className="w-3 h-3 text-slate-400" />

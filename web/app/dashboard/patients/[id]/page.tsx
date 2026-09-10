@@ -2,10 +2,23 @@
 
 import React from "react";
 import Link from "next/link";
-import { queuePatients } from "@/lib/mockData";
+const queuePatients: any[] = [];
 
 export default function PatientDetailPage({ params }: { params: { id: string } }) {
   const patient = queuePatients.find((p) => p.id === params.id) || queuePatients[0];
+  if (!patient) {
+    return (
+      <div className="p-8 max-w-4xl mx-auto">
+        <div className="mb-6 flex items-center justify-between">
+          <h1 className="text-2xl font-black text-slate-900">Patient Detail</h1>
+          <Link href="/dashboard/patients" className="text-xs font-bold text-teal-700 hover:underline">
+            ← Back to Patients
+          </Link>
+        </div>
+        <p className="text-xs text-slate-500">No patient details available.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="p-8 max-w-4xl mx-auto">

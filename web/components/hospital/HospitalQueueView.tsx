@@ -157,7 +157,7 @@ export const HospitalQueueView: React.FC = () => {
                           <Clock className="w-3.5 h-3.5" />
                           <span>Confirm Arrival</span>
                         </button>
-                      ) : item.status === "PATIENT ARRIVED" || item.status === "ACCEPTED" || item.status === "ASSIGNED" ? (
+                      ) : item.status === "PATIENT ARRIVED" || item.status === "Accepted" ? (
                         <button
                           type="button"
                           onClick={() => updateHospitalReferralStatus(item.id, "CONSULTED")}

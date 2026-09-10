@@ -7,7 +7,7 @@ import { Pill, AlertOctagon, AlertTriangle, CheckCircle2, Clock, Send } from "lu
 export const DHOMedicineMonitoringView: React.FC = () => {
   const { medicines, supplyRequests, showToast } = useHealthcare();
 
-  const outOfStockMeds = medicines.filter((m) => m.status === "Out of Stock");
+  const outOfStockMeds = medicines.filter((m) => m.status === "Critical");
   const lowStockMeds = medicines.filter((m) => m.status === "Low Stock");
 
   const handleApproveAllIndents = () => {

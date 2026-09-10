@@ -13,7 +13,7 @@ export const DHOReferralAnalyticsView: React.FC = () => {
   const routineCount = hospitalReferrals.filter((r) => r.priority === "ROUTINE").length;
 
   const completedCount = hospitalReferrals.filter((r) => r.status === "COMPLETED").length;
-  const acceptedCount = hospitalReferrals.filter((r) => r.status === "ACCEPTED").length;
+  const acceptedCount = hospitalReferrals.filter((r) => r.status === "Accepted").length;
   const inTransitCount = hospitalReferrals.filter(
     (r) => r.status === "SENT" || r.status === "RECEIVED" || r.status === "PATIENT ARRIVED"
   ).length;

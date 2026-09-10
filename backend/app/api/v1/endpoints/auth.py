@@ -93,22 +93,20 @@ def register(request: RegisterRequest):
     hashed_password = get_password_hash(password)
     user_id = uuid4()
     role_enum = request.role or UserRole.ASHA
+    user_phone = request.phone if request.phone and request.phone.strip() else None
 
     user_dict = {
         "id": str(user_id),
         "username": username,
         "name": name,
         "email": user_email,
-        "phone": request.phone or "9823011234",
+        "phone": user_phone,
         "hashed_password": hashed_password,
         "role": role_enum.value,
         "village": request.village or "Chinchpada",
         "facility_name": request.facility_name or "Chinchpada Sub-Center",
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
-
-    _in_memory_users.append(user_dict)
-    _save_in_memory_users()
 
     # 5. Insert into Supabase if connected
     if supabase is not None:
@@ -117,14 +115,23 @@ def register(request: RegisterRequest):
                 "id": str(user_id),
                 "name": name,
                 "email": user_dict["email"],
-                "phone": user_dict["phone"],
+                "phone": user_phone,
                 "hashed_password": hashed_password,
                 "role": role_enum.value,
                 "village": user_dict["village"],
                 "facility_name": user_dict["facility_name"],
             }).execute()
-        except Exception:
-            pass
+        except HTTPException:
+            raise
+        except Exception as e:
+            detail_msg = getattr(e, "message", None) or str(e)
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Registration failed: {detail_msg}",
+            )
+
+    _in_memory_users.append(user_dict)
+    _save_in_memory_users()
 
     return UserOut(
         id=user_id,
@@ -157,10 +164,10 @@ def login(request: LoginRequest):
     # 2. Check in-memory / persistent registered users
     if not user_out:
         for u in _in_memory_users:
-            u_username = u.get("username", "")
-            u_name = u.get("name", "")
-            u_email = u.get("email", "")
-            u_phone = u.get("phone", "")
+            u_username = u.get("username") or ""
+            u_name = u.get("name") or ""
+            u_email = u.get("email") or ""
+            u_phone = u.get("phone") or ""
             if username.lower() in (u_username.lower(), u_name.lower(), u_email.lower(), u_phone.lower()):
                 if verify_password(password, u.get("hashed_password", "")):
                     user_out = UserOut(

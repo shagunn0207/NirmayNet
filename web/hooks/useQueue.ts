@@ -1,4 +1,5 @@
-import { queuePatients, QueuePatient } from "@/lib/mockData";
+export type QueuePatient = any;
+const queuePatients: any[] = [];
 import { useState } from "react";
 
 export function useQueue() {

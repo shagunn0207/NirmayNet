@@ -148,7 +148,7 @@ export const PHCDashboardView: React.FC<PHCDashboardViewProps> = ({
                 </span>
               </div>
               <p className="text-xs text-red-900 mt-1 font-medium leading-relaxed">
-                <strong>Symptoms:</strong> {criticalCase.symptoms.join(", ")} |{" "}
+                <strong>Symptoms:</strong> {criticalCase.symptoms?.join(", ")} |{" "}
                 <strong>Vitals:</strong> BP {criticalCase.vitals.bp} mmHg · Pulse {criticalCase.vitals.pulse} bpm · SpO2 {criticalCase.vitals.spo2}% · Hb {criticalCase.vitals.hb || "N/A"}
               </p>
             </div>
@@ -291,13 +291,13 @@ export const PHCDashboardView: React.FC<PHCDashboardViewProps> = ({
                       <span className="text-xs font-bold text-slate-900">
                         {ref.patientName} ({ref.age}y, {ref.sex})
                       </span>
-                      <UrgencyBadge priority={ref.priority} size="sm" />
+                      <UrgencyBadge priority={ref.urgency} size="sm" />
                     </div>
                     <p className="text-xs text-slate-600 line-clamp-2">
                       <strong>ASHA:</strong> {ref.ashaName} ({ref.subCentre}) — {ref.referralReason}
                     </p>
                     <div className="flex items-center justify-between pt-1 border-t border-amber-100 text-[11px] text-slate-500">
-                      <span>BP: {ref.vitals.bp} · SpO2: {ref.vitals.spo2}%</span>
+                      <span>BP: {ref.vitals?.bp} · SpO2: {ref.vitals?.spo2}%</span>
                       <button
                         type="button"
                         onClick={() => onNavigateTab("asha-inbox")}

@@ -1,4 +1,4 @@
-import { referralQueue } from "@/lib/mockData";
+const referralQueue: any[] = [];
 
 const urgencyColors: Record<string, string> = {
   Critical: "#dc2626",

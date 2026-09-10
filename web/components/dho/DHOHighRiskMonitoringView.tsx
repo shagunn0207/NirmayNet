@@ -7,14 +7,14 @@ import { ShieldAlert, Heart, Baby, Activity, AlertCircle, CheckCircle2, MapPin }
 export const DHOHighRiskMonitoringView: React.FC = () => {
   const { followups, patients } = useHealthcare();
 
-  const maternalHighRisk = patients.filter((p) => p.riskCategory === "Maternal");
-  const pediatricHighRisk = patients.filter((p) => p.riskCategory === "Child");
+  const maternalHighRisk = patients.filter((p) => p.riskCategory === "Maternal Health");
+  const pediatricHighRisk = patients.filter((p) => p.riskCategory === "Pediatric");
   const ncdHighRisk = patients.filter(
-    (p) => p.riskCategory === "Diabetes" || p.riskCategory === "Hypertension"
+    (p) => p.riskCategory === "Diabetes / Metabolic" || p.riskCategory === "Cardiovascular"
   );
 
   const missedFollowups = followups.filter((f) => f.status === "Missed");
-  const upcomingFollowups = followups.filter((f) => f.status === "Upcoming");
+  const upcomingFollowups = followups.filter((f) => f.status === "Pending");
 
   return (
     <div className="flex flex-col gap-6">
@@ -101,16 +101,17 @@ export const DHOHighRiskMonitoringView: React.FC = () => {
                       OVERDUE ({item.dueDate})
                     </span>
                   </div>
-                  <p className="text-slate-700 font-medium mt-1">{item.reason}</p>
+                  {item.notes && (
+                    <p className="text-slate-700 font-medium mt-1">{item.notes}</p>
+                  )}
                   <p className="text-slate-500 text-[11px] mt-0.5">
-                    Assigned Field ASHA: <strong>{item.ashaAssigned}</strong> · Contact: {item.phone}
-                    {item.notes ? ` · Note: ${item.notes}` : ""}
+                    Category: <strong>{item.category}</strong> · Age: {item.patientAge} · {item.patientSex}
                   </p>
                 </div>
 
                 <div className="flex items-center gap-2 shrink-0">
                   <a
-                    href={`tel:${item.phone}`}
+                    href="#"
                     className="px-3 py-1.5 bg-white border border-red-300 text-red-800 hover:bg-red-50 font-bold rounded-lg transition-colors"
                   >
                     Contact Patient

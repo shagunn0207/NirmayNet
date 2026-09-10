@@ -1,4 +1,4 @@
-import { alerts } from "@/lib/mockData";
+const alerts: any[] = [];
 import { useState } from "react";
 
 export function useAlerts() {

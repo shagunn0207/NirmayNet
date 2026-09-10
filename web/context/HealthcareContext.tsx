@@ -1,6 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect } from "react";
+import { api } from "../lib/api";
 import {
   PatientRecord,
   AshaReferral,
@@ -296,7 +297,41 @@ export const HealthcareProvider: React.FC<{ children: React.ReactNode }> = ({
         return [...mapped, ...uniqueMocks];
       });
     } catch (_err) {
-      // Silently fall back to mock data
+      // Silently fall back
+    }
+  };
+
+  // ── FastAPI Integration: fetch real patient list from GET /patients/ ────────
+  const fetchBackendPatients = async () => {
+    try {
+      const response = await api.get<any[]>("/patients/");
+      if (response.data && Array.isArray(response.data)) {
+        const mappedPatients: PatientRecord[] = response.data.map((p) => ({
+          id: p.id,
+          name: p.name,
+          age: p.age,
+          sex: (p.gender || p.sex || "Female") as any,
+          phone: p.phone || "",
+          village: p.village || "",
+          abhaId: p.abha_id || p.abhaId || "",
+          allergies: p.allergies || "",
+          triagePriority: p.triagePriority || "ROUTINE",
+          riskCategory: p.riskCategory || undefined,
+          bloodGroup: p.bloodGroup || "O+",
+          registrationDate: p.created_at ? p.created_at.split("T")[0] : "Today",
+          vitals: p.vitals || { bp: "120/80", pulse: "78", spo2: "98%", temp: "98.6°F", weight: 55 },
+          medicalHistory: p.medicalHistory || [],
+          consultationHistory: p.consultationHistory || [],
+        }));
+
+        if (mappedPatients.length > 0) {
+          setPatients(mappedPatients);
+          setSelectedPatient((prev) => prev ? mappedPatients.find((mp) => mp.id === prev.id) || mappedPatients[0] : mappedPatients[0]);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to fetch backend patients:", err);
+      // Safely retain existing patient list if API call fails
     }
   };
 
@@ -304,6 +339,7 @@ export const HealthcareProvider: React.FC<{ children: React.ReactNode }> = ({
     let active = true;
 
     if (active) {
+      fetchBackendPatients();
       fetchHospitalQueue();
     }
 
@@ -334,7 +370,7 @@ export const HealthcareProvider: React.FC<{ children: React.ReactNode }> = ({
       }
       showToast(
         "ASHA Referral Accepted",
-        `Patient ${referral.patientName} loaded into consultation queue with priority ${referral.priority}`,
+        `Patient ${referral.patientName} loaded into consultation queue with priority ${referral.urgency}`,
         "success"
       );
     }
@@ -548,7 +584,7 @@ export const HealthcareProvider: React.FC<{ children: React.ReactNode }> = ({
 
     const newReq: SupplyRequest = {
       id: `REQ-${Math.floor(100 + Math.random() * 900)}`,
-      facility: med.facility,
+      facility: med.facility || "Dhadgaon PHC",
       medicineName: med.name,
       quantityRequested: quantity,
       unit: med.unit,

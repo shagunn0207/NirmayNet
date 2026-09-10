@@ -85,7 +85,7 @@ export const CreateReferralModal: React.FC<CreateReferralModalProps> = ({
               const p = patients.find((pt) => pt.id === e.target.value);
               if (p) {
                 setPriority(p.triagePriority);
-                setReason(p.visitReason);
+                setReason(p.visitReason || "");
               }
             }}
             className="w-full p-2.5 rounded-xl border border-slate-200 bg-slate-50 font-bold"

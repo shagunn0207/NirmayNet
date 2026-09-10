@@ -78,23 +78,17 @@ export const ReferralStatusBadge: React.FC<ReferralStatusBadgeProps> = ({
       border: "border-sky-300",
       label: "RECEIVED at DH",
     },
-    ACCEPTED: {
-      bg: "bg-teal-50",
-      text: "text-teal-800",
-      border: "border-teal-300",
-      label: "ACCEPTED by Specialist",
+    IN_TRANSIT: {
+      bg: "bg-violet-50",
+      text: "text-violet-800",
+      border: "border-violet-300",
+      label: "IN TRANSIT",
     },
     "PATIENT ARRIVED": {
       bg: "bg-purple-50",
       text: "text-purple-800",
       border: "border-purple-300",
       label: "PATIENT ARRIVED",
-    },
-    ASSIGNED: {
-      bg: "bg-indigo-50",
-      text: "text-indigo-800",
-      border: "border-indigo-300",
-      label: "ASSIGNED to Ward/Doctor",
     },
     CONSULTED: {
       bg: "bg-amber-50",
@@ -108,11 +102,23 @@ export const ReferralStatusBadge: React.FC<ReferralStatusBadgeProps> = ({
       border: "border-emerald-300",
       label: "COMPLETED / Discharge",
     },
-    "REFERRED FURTHER": {
-      bg: "bg-rose-50",
-      text: "text-rose-800",
-      border: "border-rose-300",
-      label: "REFERRED to Tertiary / GMC",
+    CANCELLED: {
+      bg: "bg-slate-50",
+      text: "text-slate-700",
+      border: "border-slate-300",
+      label: "CANCELLED",
+    },
+    Accepted: {
+      bg: "bg-teal-50",
+      text: "text-teal-800",
+      border: "border-teal-300",
+      label: "Accepted",
+    },
+    Pending: {
+      bg: "bg-orange-50",
+      text: "text-orange-800",
+      border: "border-orange-300",
+      label: "Pending",
     },
   };
 

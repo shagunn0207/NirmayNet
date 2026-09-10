@@ -77,7 +77,7 @@ export const PHCAshaInboxView: React.FC<PHCAshaInboxViewProps> = ({
         ) : (
           filteredReferrals.map((ref) => {
             const isPending = ref.status === "Pending Review";
-            const isEmergency = ref.priority === "EMERGENCY";
+            const isEmergency = ref.urgency === "EMERGENCY";
 
             return (
               <div
@@ -101,12 +101,12 @@ export const PHCAshaInboxView: React.FC<PHCAshaInboxViewProps> = ({
                         <span className="text-xs text-slate-500 font-semibold">
                           ({ref.age}y, {ref.sex})
                         </span>
-                        <UrgencyBadge priority={ref.priority} size="sm" />
+                        <UrgencyBadge priority={ref.urgency} size="sm" />
                       </div>
                       <div className="flex items-center gap-3 text-xs text-slate-500 mt-1">
                         <span className="flex items-center gap-1">
                           <MapPin className="w-3.5 h-3.5 text-slate-400" />
-                          {ref.village}
+                          {ref.ashaVillage}
                         </span>
                         <span>·</span>
                         <span className="flex items-center gap-1">
@@ -175,17 +175,17 @@ export const PHCAshaInboxView: React.FC<PHCAshaInboxViewProps> = ({
                       <div>
                         <span className="text-[10px] text-slate-400 block font-bold uppercase">Blood Pressure</span>
                         <span className={`font-black text-xs ${isEmergency ? "text-red-700" : "text-slate-800"}`}>
-                          {ref.vitals.bp} mmHg
+                          {ref.vitals?.bp} mmHg
                         </span>
                       </div>
                       <div>
                         <span className="text-[10px] text-slate-400 block font-bold uppercase">SpO2</span>
-                        <span className="font-black text-xs text-slate-800">{ref.vitals.spo2}%</span>
+                        <span className="font-black text-xs text-slate-800">{ref.vitals?.spo2}%</span>
                       </div>
                       <div>
                         <span className="text-[10px] text-slate-400 block font-bold uppercase">Pulse / Hb</span>
                         <span className="font-black text-xs text-slate-800">
-                          {ref.vitals.pulse} bpm {ref.vitals.hb ? `/ ${ref.vitals.hb}` : ""}
+                          {ref.vitals?.pulse} bpm {ref.vitals?.hb ? `/ ${ref.vitals.hb}` : ""}
                         </span>
                       </div>
                     </div>
@@ -209,7 +209,7 @@ export const PHCAshaInboxView: React.FC<PHCAshaInboxViewProps> = ({
                         type="button"
                         onClick={() => {
                           acceptAshaReferral(ref.id);
-                          onOpenConsultation(ref.patientId);
+                          onOpenConsultation(ref.patientId || "");
                         }}
                         className="flex-1 py-2 bg-teal-700 hover:bg-teal-800 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs transition-colors"
                       >
@@ -218,7 +218,7 @@ export const PHCAshaInboxView: React.FC<PHCAshaInboxViewProps> = ({
                       </button>
                       <button
                         type="button"
-                        onClick={() => onOpenReferralModal(ref.patientId)}
+                        onClick={() => onOpenReferralModal(ref.patientId || "")}
                         className="py-2 px-3 bg-red-50 hover:bg-red-100 border border-red-200 text-red-700 rounded-xl text-xs font-bold flex items-center justify-center gap-1 transition-colors"
                         title="Escalate directly to District Hospital"
                       >
@@ -229,7 +229,7 @@ export const PHCAshaInboxView: React.FC<PHCAshaInboxViewProps> = ({
                   ) : (
                     <button
                       type="button"
-                      onClick={() => onOpenConsultation(ref.patientId)}
+                      onClick={() => onOpenConsultation(ref.patientId || "")}
                       className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-colors"
                     >
                       <Stethoscope className="w-4 h-4 text-teal-700" />

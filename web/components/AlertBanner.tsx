@@ -1,4 +1,4 @@
-import { alerts } from "@/lib/mockData";
+const alerts: any[] = [];
 
 export function AlertBanner() {
   return (

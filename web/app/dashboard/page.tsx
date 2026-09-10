@@ -4,7 +4,8 @@ import { ReferralCard } from "@/components/ReferralCard";
 import { StatsCard } from "@/components/StatsCard";
 import { PatientTimeline } from "@/components/PatientTimeline";
 import { DispatchStatus } from "@/components/DispatchStatus";
-import { metrics } from "@/lib/mockData";
+
+const metrics: any[] = [];
 
 export default function DashboardPage() {
   return (
@@ -23,38 +24,11 @@ export default function DashboardPage() {
               fontSize: 13,
               fontWeight: 800,
               letterSpacing: "0.12em",
-              color: "#0f766e",
               textTransform: "uppercase",
+              color: "#0f766e",
             }}
           >
-            NirmayNet
-          </div>
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              gap: 12,
-              flexWrap: "wrap",
-              marginTop: 8,
-            }}
-          >
-            <h1 style={{ margin: 0, fontSize: 38, lineHeight: 1.1 }}>
-              Rural health operations dashboard
-            </h1>
-            <button
-              style={{
-                background: "#0f766e",
-                color: "#fff",
-                border: "none",
-                borderRadius: 10,
-                padding: "12px 18px",
-                fontWeight: 700,
-                cursor: "pointer",
-              }}
-            >
-              Dispatch queue
-            </button>
+            NirmayNet Operations Dashboard
           </div>
         </header>
 
@@ -66,7 +40,7 @@ export default function DashboardPage() {
             marginBottom: 24,
           }}
         >
-          {metrics.map((metric) => (
+          {metrics.map((metric: any) => (
             <StatsCard
               key={metric.title}
               title={metric.title}
@@ -79,28 +53,23 @@ export default function DashboardPage() {
 
         <AlertBanner />
 
-        <section
+        <div
           style={{
             display: "grid",
-            gridTemplateColumns: "1.5fr 1fr",
-            gap: 20,
-            marginBottom: 20,
+            gridTemplateColumns: "2fr 1fr",
+            gap: 24,
+            marginBottom: 24,
           }}
         >
-          <QueueBoard />
-          <DispatchStatus />
-        </section>
-
-        <section
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1.1fr 0.9fr",
-            gap: 20,
-          }}
-        >
-          <ReferralCard />
-          <PatientTimeline />
-        </section>
+          <div style={{ display: "grid", gap: 24 }}>
+            <QueueBoard />
+            <PatientTimeline />
+          </div>
+          <div style={{ display: "grid", gap: 24 }}>
+            <ReferralCard />
+            <DispatchStatus />
+          </div>
+        </div>
       </div>
     </main>
   );

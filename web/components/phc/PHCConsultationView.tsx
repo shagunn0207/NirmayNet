@@ -242,7 +242,7 @@ export const PHCConsultationView: React.FC<PHCConsultationViewProps> = ({
             <div>
               <label className="font-bold text-slate-700 block mb-1">Active Symptoms / Complaints</label>
               <div className="flex flex-wrap gap-1.5 mb-1.5">
-                {patient.symptoms.map((s, idx) => (
+                {patient.symptoms?.map((s, idx) => (
                   <span
                     key={idx}
                     className="px-2.5 py-1 rounded-lg bg-teal-50 border border-teal-200 text-teal-900 font-bold"

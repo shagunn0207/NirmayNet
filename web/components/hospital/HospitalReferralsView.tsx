@@ -274,9 +274,9 @@ export const HospitalReferralsView: React.FC<HospitalReferralsViewProps> = ({
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                 <button
                   type="button"
-                  onClick={() => handleStatusTransition("ACCEPTED")}
+                  onClick={() => handleStatusTransition("Accepted")}
                   className={`py-2 px-2.5 rounded-xl font-bold text-xs transition-colors flex items-center justify-center gap-1.5 ${
-                    activeReferral.status === "ACCEPTED"
+                    activeReferral.status === "Accepted"
                       ? "bg-teal-800 text-white"
                       : "bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-200"
                   }`}
@@ -300,9 +300,9 @@ export const HospitalReferralsView: React.FC<HospitalReferralsViewProps> = ({
 
                 <button
                   type="button"
-                  onClick={() => handleStatusTransition("ASSIGNED")}
+                  onClick={() => handleStatusTransition("IN_TRANSIT")}
                   className={`py-2 px-2.5 rounded-xl font-bold text-xs transition-colors flex items-center justify-center gap-1.5 ${
-                    activeReferral.status === "ASSIGNED"
+                    activeReferral.status === "IN_TRANSIT"
                       ? "bg-indigo-800 text-white"
                       : "bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-200"
                   }`}
@@ -339,9 +339,9 @@ export const HospitalReferralsView: React.FC<HospitalReferralsViewProps> = ({
 
                 <button
                   type="button"
-                  onClick={() => handleStatusTransition("REFERRED FURTHER")}
+                  onClick={() => handleStatusTransition("CANCELLED")}
                   className={`py-2 px-2.5 rounded-xl font-bold text-xs transition-colors flex items-center justify-center gap-1.5 ${
-                    activeReferral.status === "REFERRED FURTHER"
+                    activeReferral.status === "CANCELLED"
                       ? "bg-rose-800 text-white"
                       : "bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-200"
                   }`}

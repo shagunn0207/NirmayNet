@@ -1,4 +1,4 @@
-import { queuePatients } from "@/lib/mockData";
+const queuePatients: any[] = [];
 
 const triageColors: Record<string, string> = {
   Emergency: "#ef4444",

@@ -58,7 +58,7 @@ export const HospitalEmergencyView: React.FC = () => {
   const handleAdmitHDU = (id: string) => {
     updateHospitalReferralStatus(
       id,
-      "ASSIGNED",
+      "IN_TRANSIT",
       "Admitted directly into Emergency HDU/ICU. Protocol active.",
       selectedSpecialist
     );
@@ -162,7 +162,7 @@ export const HospitalEmergencyView: React.FC = () => {
               <div className="flex items-center justify-between gap-2 pt-1">
                 <ReferralStatusBadge status={ref.status} size="sm" />
 
-                {ref.status !== "PATIENT ARRIVED" && ref.status !== "ASSIGNED" && (
+                {ref.status !== "PATIENT ARRIVED" && ref.status !== "IN_TRANSIT" && (
                   <button
                     type="button"
                     onClick={() => handleConfirmArrival(ref.id)}
@@ -210,7 +210,7 @@ export const HospitalEmergencyView: React.FC = () => {
             >
               {specialists.map((s) => (
                 <option key={s.id} value={s.name}>
-                  {s.name} ({s.department}) - {s.status}
+                  {s.name} ({s.specialty}) - {s.status}
                 </option>
               ))}
             </select>

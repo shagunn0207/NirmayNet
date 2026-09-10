@@ -35,7 +35,7 @@ export const HospitalDashboardView: React.FC<HospitalDashboardViewProps> = ({
   const incomingPhcReferrals = hospitalReferrals.filter(
     (r) => r.status === "SENT" || r.status === "RECEIVED"
   );
-  const acceptedReferrals = hospitalReferrals.filter((r) => r.status === "ACCEPTED");
+  const acceptedReferrals = hospitalReferrals.filter((r) => r.status === "Accepted");
   const inTransitAmbulances = hospitalReferrals.filter(
     (r) => r.ambulanceRequested && (r.ambulanceStatus === "In Transit" || r.ambulanceStatus === "Dispatched")
   );
