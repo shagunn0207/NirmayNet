@@ -251,7 +251,7 @@ const PatientDetail: React.FC<{ patient: Patient; onClose: () => void }> = ({ pa
               <div className="divider" />
               <InfoRow label={t.mobileLabel} value={patient.phone} />
               <div className="divider" />
-              <InfoRow label={t.allergiesLabel} value={patient.allergies ? `⚠️ ${patient.allergies}` : 'None'} />
+              <InfoRow label={t.allergiesLabel} value={patient.allergies && patient.allergies !== 'None' ? `⚠️ ${patient.allergies}` : 'None'} />
               <div className="divider" />
               <InfoRow label={t.registrationDate} value={patient.registrationDate} />
               <div className="divider" />
@@ -654,6 +654,7 @@ export const PatientsScreen: React.FC = () => {
             consultations: [],
             referrals: [],
             notes: '',
+            allergies: p.allergies || undefined,
           }));
 
           // Merge: keep local offline patients (IDs starting with 'P') and append backend patients

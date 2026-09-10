@@ -130,7 +130,7 @@ export const TriageScreen: React.FC = () => {
         const recognition = new SpeechRecognition();
         recognition.continuous = false;
         recognition.interimResults = true;
-        recognition.lang = language === 'mr' ? 'mr-IN' : language === 'hi' ? 'hi-IN' : 'en-US';
+        recognition.lang = language === 'mr' ? 'mr-IN' : language === 'hi' ? 'hi-IN' : language === 'kn' ? 'kn-IN' : 'en-US';
 
         recognition.onresult = (event: any) => {
           let currentTranscript = '';

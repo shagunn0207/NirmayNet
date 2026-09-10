@@ -28,9 +28,9 @@ export const BhashiniMic: React.FC<BhashiniMicProps> = ({
     // Speak audio prompt simulation
     if ('speechSynthesis' in window) {
       const utterance = new SpeechSynthesisUtterance(
-        language === 'mr' ? 'बोलणे सुरू करा' : language === 'hi' ? 'बोलना शुरू करें' : 'Start speaking'
+        language === 'mr' ? 'बोलणे सुरू करा' : language === 'hi' ? 'बोलना शुरू करें' : language === 'kn' ? 'ಮಾತನಾಡಲು ಪ್ರಾರಂಭಿಸಿ' : 'Start speaking'
       );
-      utterance.lang = language === 'mr' ? 'mr-IN' : language === 'hi' ? 'hi-IN' : 'en-US';
+      utterance.lang = language === 'mr' ? 'mr-IN' : language === 'hi' ? 'hi-IN' : language === 'kn' ? 'kn-IN' : 'en-US';
       window.speechSynthesis.speak(utterance);
     }
 

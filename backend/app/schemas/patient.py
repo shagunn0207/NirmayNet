@@ -11,6 +11,7 @@ class PatientBase(BaseModel):
     phone: Optional[str] = Field(None, example="9823011234")
     village: str = Field(..., min_length=1, max_length=100, example="Chinchpada")
     abha_id: Optional[str] = Field(None, example="91-8823-4410-12")
+    allergies: Optional[str] = Field(None, example="Penicillin")
 
 
 class PatientCreate(PatientBase):
@@ -24,6 +25,7 @@ class PatientUpdate(BaseModel):
     phone: Optional[str] = None
     village: Optional[str] = Field(None, min_length=1, max_length=100)
     abha_id: Optional[str] = None
+    allergies: Optional[str] = None
 
 
 class PatientOut(PatientBase):

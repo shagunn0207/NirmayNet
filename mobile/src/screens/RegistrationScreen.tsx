@@ -279,7 +279,11 @@ export const RegistrationScreen: React.FC = () => {
             {/* Custom age-unit dropdown — replaces native <select> broken by Tailwind v4 preflight */}
             <div
               ref={ageUnitRef}
-              style={{ position: 'relative', flexShrink: 0 }}
+              style={{
+                position: 'relative',
+                flexShrink: 0,
+                zIndex: 1000,
+              }}
             >
               <button
                 id="reg-age-unit"
