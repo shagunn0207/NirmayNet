@@ -203,7 +203,13 @@ const INITIAL_TASKS: TaskItem[] = [
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [language, setLanguageState] = useState<Language>('mr');
+  const [language, setLanguageState] = useState<Language>(() => {
+    try {
+      const saved = localStorage.getItem('niramaynet_language');
+      if (saved && ['mr', 'hi', 'en', 'kn'].includes(saved)) return saved as Language;
+    } catch {}
+    return 'mr';
+  });
 
   // Maps app language to the correct date locale
   const getLangLocale = (lang: Language): string => {
@@ -268,7 +274,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         // Load language setting
         const langSetting = await db.getFirstAsync<{ value: string }>('SELECT value FROM settings WHERE key = ?', ['language']);
         if (langSetting && ['mr', 'hi', 'en', 'kn'].includes(langSetting.value)) {
-          if (mounted) setLanguageState(langSetting.value as Language);
+          if (mounted) {
+            setLanguageState(langSetting.value as Language);
+            try { localStorage.setItem('niramaynet_language', langSetting.value); } catch {}
+          }
         }
 
         // Load tasks from SQLite FIRST
@@ -287,23 +296,106 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           if (mounted) setTasks([]);
         }
 
+        // Fetch backend tasks and merge (online only)
+        try {
+          const sessStr = localStorage.getItem('niramaynet_session');
+          const hasToken = sessStr && JSON.parse(sessStr).access_token;
+          if (hasToken) {
+            const res = await api.get<any[]>('/tasks/');
+            if (res.data && Array.isArray(res.data) && res.data.length > 0) {
+              const backendItems: TaskItem[] = res.data.map(t => ({
+                id: t.id,
+                title: t.title,
+                category: t.category || 'General',
+                urgency: (t.urgency as UrgencyLevel) || 'ROUTINE',
+                visited: Boolean(t.visited),
+                createdAt: t.created_at,
+              }));
+              if (mounted) {
+                setTasks(prev => {
+                  const localOnly = prev.filter(t => t.id.startsWith('T'));
+                  const backendIds = new Set(backendItems.map(b => b.id));
+                  const trueLocalOnly = localOnly.filter(t => !backendIds.has(t.id));
+                  return [...backendItems, ...trueLocalOnly];
+                });
+              }
+            }
+          }
+        } catch {
+          // Backend unreachable — local SQLite tasks already loaded above
+        }
+
         // Load followups from SQLite for current user
         const dbFollowups = await db.getAllAsync<any>('SELECT * FROM followups');
-        if (dbFollowups && dbFollowups.length > 0) {
-          const loaded: FollowUpItem[] = dbFollowups.map(f => ({
-            id: f.id,
-            patientId: f.patientId,
-            patientName: f.patientName,
-            patientAge: Number(f.patientAge),
-            patientSex: f.patientSex,
-            category: f.category,
-            urgency: f.urgency as UrgencyLevel,
-            visited: Boolean(f.visited),
-            phone: f.phone,
-          }));
-          if (mounted) setFollowups(loaded);
-        } else {
-          if (mounted) setFollowups([]);
+        const localItems: FollowUpItem[] = dbFollowups && dbFollowups.length > 0
+          ? dbFollowups.map(f => ({
+              id: f.id,
+              patientId: f.patientId,
+              patientName: f.patientName,
+              patientAge: Number(f.patientAge),
+              patientSex: f.patientSex,
+              category: f.category,
+              urgency: f.urgency as UrgencyLevel,
+              visited: Boolean(f.visited),
+              phone: f.phone,
+            }))
+          : [];
+        if (mounted) setFollowups(localItems);
+
+        // Fetch backend follow-ups and merge (online only)
+        try {
+          const sessStr = localStorage.getItem('niramaynet_session');
+          const hasToken = sessStr && JSON.parse(sessStr).access_token;
+          if (hasToken) {
+            const [res, patientsRes] = await Promise.all([
+              api.get<any[]>('/followups/'),
+              api.get<any[]>('/patients/'),
+            ]);
+            if (res.data && Array.isArray(res.data) && res.data.length > 0) {
+              // We need patient metadata for enrichment; build lookup from static and backend patients
+              const patientsSnapshot: Record<string, { name: string; age: number; sex: string; phone: string }> = {};
+              for (const p of INITIAL_PATIENTS) {
+                patientsSnapshot[p.id] = { name: p.name, age: p.age, sex: p.sex, phone: p.phone };
+              }
+              if (patientsRes.data && Array.isArray(patientsRes.data)) {
+                for (const p of patientsRes.data) {
+                  patientsSnapshot[p.id] = { name: p.name, age: p.age, sex: p.gender || 'Other', phone: p.phone || '' };
+                }
+              }
+              const backendItems: FollowUpItem[] = res.data.map(f => {
+                const meta = patientsSnapshot[f.patient_id];
+                // Map backend urgency to local UrgencyLevel
+                const urgency: UrgencyLevel =
+                  f.urgency === 'EMERGENCY' ? 'EMERGENCY'
+                  : f.urgency === 'URGENT' ? 'URGENT'
+                  : 'ROUTINE';
+                return {
+                  id: f.id,
+                  patientId: f.patient_id,
+                  patientName: meta?.name || `Patient ${f.patient_id.slice(0, 6)}`,
+                  patientAge: meta?.age || 0,
+                  patientSex: meta?.sex || 'Other',
+                  category: f.category,
+                  urgency,
+                  // Backend `visited` is a boolean, status COMPLETED also counts as visited
+                  visited: Boolean(f.visited) || f.status === 'COMPLETED',
+                  phone: meta?.phone || '',
+                };
+              });
+              if (mounted) {
+                setFollowups(prev => {
+                  // Keep local-only records (IDs starting with 'F', i.e. offline-created)
+                  const localOnly = prev.filter(f => f.id.startsWith('F'));
+                  // Merge: backend records first, then local-only offline additions
+                  const backendIds = new Set(backendItems.map(b => b.id));
+                  const trueLocalOnly = localOnly.filter(f => !backendIds.has(f.id));
+                  return [...backendItems, ...trueLocalOnly];
+                });
+              }
+            }
+          }
+        } catch {
+          // Backend unreachable — local SQLite records already loaded above
         }
       } catch (err) {
         console.error('Error initializing SQLite database:', err);
@@ -314,19 +406,41 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const setLanguage = (lang: Language) => {
     setLanguageState(lang);
+    try { localStorage.setItem('niramaynet_language', lang); } catch {}
     openDatabaseAsync('niramaynet.db').then(db => {
       db.runAsync('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', ['language', lang]);
     });
   };
 
   const addNewTask = async (title: string, category: string = 'General', urgency: UrgencyLevel = 'ROUTINE') => {
+    const trimmedTitle = title.trim();
+    let itemId = `T_${Date.now()}`;
+    let createdAt = new Date().toISOString();
+
+    // POST to backend when online
+    if (networkStatus !== 'offline') {
+      try {
+        const res = await api.post<any>('/tasks/', {
+          title: trimmedTitle,
+          category,
+          urgency,
+        });
+        if (res.data && res.data.id) {
+          itemId = res.data.id;
+          if (res.data.created_at) createdAt = res.data.created_at;
+        }
+      } catch {
+        // Fallback to local creation if backend fails
+      }
+    }
+
     const newTask: TaskItem = {
-      id: `T_${Date.now()}`,
-      title: title.trim(),
+      id: itemId,
+      title: trimmedTitle,
       category,
       urgency,
       visited: false,
-      createdAt: new Date().toISOString(),
+      createdAt,
     };
     setTasks(prev => [newTask, ...prev]);
 
@@ -357,12 +471,32 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const updatedUrgency = urgency !== undefined ? urgency : (existing?.urgency || 'ROUTINE');
 
     await db.runAsync('UPDATE tasks SET title = ?, visited = ?, urgency = ? WHERE id = ?', [updatedTitle, updatedVisited, updatedUrgency, id]);
+
+    // PATCH to backend when online and this is a backend record (not starting with 'T')
+    if (networkStatus !== 'offline' && !id.startsWith('T')) {
+      const payload: any = {};
+      if (newTitle !== undefined) payload.title = newTitle.trim();
+      if (visited !== undefined) payload.visited = visited;
+      if (urgency !== undefined) payload.urgency = urgency;
+
+      api.patch(`/tasks/${id}`, payload).catch(() => {
+        // Ignore backend sync error — local state already updated
+      });
+    }
   };
 
   const deleteTaskItem = async (id: string) => {
     setTasks(prev => prev.filter(t => t.id !== id));
+
     const db = await openDatabaseAsync('niramaynet.db');
     await db.runAsync('DELETE FROM tasks WHERE id = ?', [id]);
+
+    // DELETE on backend when online and this is a backend record (not starting with 'T')
+    if (networkStatus !== 'offline' && !id.startsWith('T')) {
+      api.delete(`/tasks/${id}`).catch(() => {
+        // Ignore backend sync error — local state already updated
+      });
+    }
   };
 
   // Draft persistence (CHANGE 2)
@@ -515,6 +649,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         phone: pData.phone || undefined,
         village: pData.village,
         abha_id: pData.abhaId || undefined,
+        allergies: pData.allergies || undefined,
       });
 
       if (response.error || !response.data) {
@@ -532,6 +667,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       registrationDate,
       lastTriage: computedTriage,
       symptoms: pData.symptoms || [],
+      allergies: pData.allergies || undefined,
     };
     setPatients(prev => [newP, ...prev]);
     setCurrentPatient(newP);
@@ -592,9 +728,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const next = prev.map(f => f.id === id ? { ...f, visited: !f.visited } : f);
       const target = next.find(f => f.id === id);
       if (target) {
+        // Persist to local SQLite (always, for offline support)
         openDatabaseAsync('niramaynet.db').then(db => {
           db.runAsync('UPDATE followups SET visited = ? WHERE id = ?', [target.visited ? 1 : 0, id]);
         });
+        // Sync to backend when online and this is a backend record (UUID, not local 'F...' ID)
+        if (networkStatus !== 'offline' && !id.startsWith('F')) {
+          const newStatus = target.visited ? 'COMPLETED' : 'PENDING';
+          api.patch(`/followups/${id}`, {
+            status: newStatus,
+            visited: target.visited,
+          }).catch(() => {
+            // Ignore backend errors — local state already updated
+          });
+        }
       }
       return next;
     });
@@ -606,19 +753,44 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       showSnackbar('Patient already has a pending follow-up');
       return;
     }
+
+    const urgency: UrgencyLevel = patient.lastTriage || 'ROUTINE';
+    // Default scheduled date = today
+    const today = new Date().toISOString().split('T')[0];
+
+    let itemId = `F${Date.now()}`; // local fallback ID
+
+    // POST to backend when online and patient has a real backend UUID
+    if (networkStatus !== 'offline' && !patient.id.startsWith('P')) {
+      try {
+        const res = await api.post<any>('/followups/', {
+          patient_id: patient.id,
+          category,
+          urgency,
+          followup_date: today,
+        });
+        if (res.data && res.data.id) {
+          itemId = res.data.id; // use backend UUID as the canonical ID
+        }
+      } catch {
+        // Fall through to local-only creation
+      }
+    }
+
     const newItem: FollowUpItem = {
-      id: `F${Date.now()}`,
+      id: itemId,
       patientId: patient.id,
       patientName: patient.name,
       patientAge: patient.age,
       patientSex: patient.sex,
       category,
-      urgency: patient.lastTriage || 'ROUTINE',
+      urgency,
       visited: false,
       phone: patient.phone,
     };
     setFollowups(prev => [newItem, ...prev]);
 
+    // Always persist to local SQLite for offline display
     const db = await openDatabaseAsync('niramaynet.db');
     await db.runAsync(
       'INSERT INTO followups (id, patientId, patientName, patientAge, patientSex, category, urgency, visited, phone) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',

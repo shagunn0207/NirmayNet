@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.api.v1.endpoints import auth, patients, triage, sync, referrals, dispatch, teleconsult, queue, metrics, followups
+from app.api.v1.endpoints import auth, patients, triage, sync, referrals, dispatch, teleconsult, queue, metrics, followups, tasks
 
 api_router = APIRouter()
 
@@ -13,3 +13,5 @@ api_router.include_router(teleconsult.router, prefix="/teleconsult", tags=["Tele
 api_router.include_router(queue.router, prefix="/queue", tags=["Hospital Queue"])
 api_router.include_router(metrics.router, prefix="/metrics", tags=["DHO Metrics"])
 api_router.include_router(followups.router, prefix="/followups", tags=["Follow-ups"])
+api_router.include_router(tasks.router, prefix="/tasks", tags=["Reminders / Tasks"])
+

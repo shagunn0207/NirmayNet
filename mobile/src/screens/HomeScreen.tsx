@@ -121,7 +121,7 @@ export const HomeScreen: React.FC = () => {
 
   const filteredReminders = tasks.filter(task => {
     if (reminderFilter === 'completed') return task.visited;
-    if (reminderFilter === 'today') return !task.visited && (task.urgency === 'EMERGENCY' || task.id === 'T1' || task.title.toLowerCase().includes('anc') || !task.category);
+    if (reminderFilter === 'today') return !task.visited;
     if (reminderFilter === 'scheduled') return !task.visited && (task.urgency === 'URGENT' || task.id !== 'T1');
     return true; // 'all'
   });
@@ -220,7 +220,7 @@ export const HomeScreen: React.FC = () => {
           scrollbarWidth: 'none',
         }}>
           {[
-            { key: 'today', icon: '📅', label: t.filterToday, count: tasks.filter(t => !t.visited && (t.urgency === 'EMERGENCY' || t.id === 'T1' || t.title.toLowerCase().includes('anc') || !t.category)).length },
+            { key: 'today', icon: '📅', label: t.filterToday, count: tasks.filter(t => !t.visited).length },
             { key: 'scheduled', icon: '🗓️', label: t.filterScheduled, count: tasks.filter(t => !t.visited && t.id !== 'T1').length },
             { key: 'all', icon: '📋', label: t.filterAll, count: tasks.length },
             { key: 'completed', icon: '✅', label: t.filterCompleted, count: tasks.filter(t => t.visited).length },

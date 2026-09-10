@@ -83,6 +83,7 @@ CREATE TABLE IF NOT EXISTS patients (
     phone VARCHAR(20),
     village TEXT NOT NULL,
     abha_id VARCHAR(50),
+    allergies TEXT,
     created_by UUID REFERENCES users(id) ON DELETE SET NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -188,6 +189,24 @@ BEFORE UPDATE ON teleconsultations
 FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- ========================================================
+-- 8. TASKS TABLE
+-- ========================================================
+CREATE TABLE IF NOT EXISTS tasks (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    created_by UUID REFERENCES users(id) ON DELETE CASCADE,
+    title TEXT NOT NULL,
+    category TEXT NOT NULL DEFAULT 'General',
+    urgency triage_category NOT NULL DEFAULT 'ROUTINE',
+    visited BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TRIGGER update_tasks_updated_at
+BEFORE UPDATE ON tasks
+FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- ========================================================
 -- INDEXES
 -- ========================================================
 CREATE INDEX IF NOT EXISTS idx_patients_village ON patients(village);
@@ -212,6 +231,9 @@ CREATE INDEX IF NOT EXISTS idx_followups_date ON followups(followup_date);
 CREATE INDEX IF NOT EXISTS idx_teleconsult_patient_id ON teleconsultations(patient_id);
 CREATE INDEX IF NOT EXISTS idx_teleconsult_referral_id ON teleconsultations(referral_id);
 
+CREATE INDEX IF NOT EXISTS idx_tasks_created_by ON tasks(created_by);
+CREATE INDEX IF NOT EXISTS idx_tasks_visited ON tasks(visited);
+
 -- ========================================================
 -- ROW LEVEL SECURITY (RLS) POLICIES FOR SUPABASE
 -- ========================================================
@@ -222,6 +244,7 @@ ALTER TABLE referrals ENABLE ROW LEVEL SECURITY;
 ALTER TABLE dispatch_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE followups ENABLE ROW LEVEL SECURITY;
 ALTER TABLE teleconsultations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE tasks ENABLE ROW LEVEL SECURITY;
 
 -- Allow public read/write access policies for prototype development
 CREATE POLICY "Allow read/write on users" ON users FOR ALL USING (true) WITH CHECK (true);
@@ -231,3 +254,4 @@ CREATE POLICY "Allow read/write on referrals" ON referrals FOR ALL USING (true) 
 CREATE POLICY "Allow read/write on dispatch_logs" ON dispatch_logs FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Allow read/write on followups" ON followups FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Allow read/write on teleconsultations" ON teleconsultations FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow read/write on tasks" ON tasks FOR ALL USING (true) WITH CHECK (true);
