@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, TextInput, Modal } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, TextInput, Modal, KeyboardAvoidingView, Platform } from 'react-native';
 import { useAuth } from '../../store/AuthContext';
 import { FontAwesome5, Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { useRouter, useFocusEffect } from 'expo-router';
@@ -117,8 +117,12 @@ export default function HomeScreen() {
   const urgentReminders = tasks.filter(t => !t.visited && (t.urgency === 'URGENT' || t.urgency === 'EMERGENCY'));
 
   return (
-    <ScrollView style={styles.container}>
-      {/* Welcome Banner */}
+    <KeyboardAvoidingView 
+      style={{ flex: 1 }} 
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
+      <ScrollView style={styles.container}>
+        {/* Welcome Banner */}
       <View style={styles.banner}>
         <View>
           <Text style={styles.greetingPrefix}>{t('greeting') || 'Welcome,'}</Text>
@@ -330,7 +334,8 @@ export default function HomeScreen() {
           )}
         </View>
       </View>
-    </ScrollView>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -357,14 +362,16 @@ const styles = StyleSheet.create({
   greetingPrefix: {
     color: '#CCFBF1',
     fontSize: 12,
-    fontWeight: '700',
+    fontFamily: 'OpenSans_400Regular',
+    fontFamily: 'Inter_700Bold',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
   greetingName: {
     color: '#FFFFFF',
     fontSize: 20,
-    fontWeight: '800',
+    fontFamily: 'OpenSans_400Regular',
+    fontFamily: 'Inter_800ExtraBold',
     marginTop: 2,
   },
   avatar: {
@@ -379,13 +386,15 @@ const styles = StyleSheet.create({
   },
   avatarText: {
     fontSize: 22,
+    fontFamily: 'OpenSans_400Regular',
   },
   section: {
     marginBottom: 24,
   },
   sectionTitle: {
     fontSize: 18,
-    fontWeight: '800',
+    fontFamily: 'OpenSans_400Regular',
+    fontFamily: 'Inter_800ExtraBold',
     color: '#0F172A',
     marginBottom: 12,
   },
@@ -410,7 +419,8 @@ const styles = StyleSheet.create({
   },
   badgeText: {
     fontSize: 12,
-    fontWeight: '800',
+    fontFamily: 'OpenSans_400Regular',
+    fontFamily: 'Inter_800ExtraBold',
     color: '#0F766E',
   },
   syncBtn: {
@@ -423,7 +433,8 @@ const styles = StyleSheet.create({
   },
   syncBtnText: {
     fontSize: 11,
-    fontWeight: '800',
+    fontFamily: 'OpenSans_400Regular',
+    fontFamily: 'Inter_800ExtraBold',
     color: '#0369A1',
   },
   offlineBtn: {
@@ -447,7 +458,8 @@ const styles = StyleSheet.create({
   },
   dropdownButtonText: {
     fontSize: 15,
-    fontWeight: '600',
+    fontFamily: 'OpenSans_400Regular',
+    fontFamily: 'Inter_600SemiBold',
     color: '#0F172A',
   },
   modalOverlay: {
@@ -479,12 +491,13 @@ const styles = StyleSheet.create({
   },
   dropdownItemText: {
     fontSize: 15,
-    fontWeight: '500',
+    fontFamily: 'OpenSans_400Regular',
+    fontFamily: 'Inter_500Medium',
     color: '#475569',
   },
   dropdownItemTextActive: {
     color: '#0F766E',
-    fontWeight: 'bold',
+    fontFamily: 'Inter_700Bold',
   },
   dropdownBadge: {
     backgroundColor: '#F1F5F9',
@@ -494,7 +507,8 @@ const styles = StyleSheet.create({
   },
   dropdownBadgeText: {
     fontSize: 12,
-    fontWeight: 'bold',
+    fontFamily: 'OpenSans_400Regular',
+    fontFamily: 'Inter_700Bold',
     color: '#64748B',
   },
   card: {
@@ -513,11 +527,13 @@ const styles = StyleSheet.create({
   },
   emptyIcon: {
     fontSize: 32,
+    fontFamily: 'OpenSans_400Regular',
     marginBottom: 8,
   },
   emptyText: {
     fontSize: 14,
-    fontWeight: '600',
+    fontFamily: 'OpenSans_400Regular',
+    fontFamily: 'Inter_600SemiBold',
     color: '#94A3B8',
   },
   taskItem: {
@@ -552,7 +568,8 @@ const styles = StyleSheet.create({
   },
   taskTitle: {
     fontSize: 14,
-    fontWeight: '700',
+    fontFamily: 'OpenSans_400Regular',
+    fontFamily: 'Inter_700Bold',
     color: '#0F172A',
   },
   taskTitleCompleted: {
@@ -575,7 +592,8 @@ const styles = StyleSheet.create({
   },
   taskCategoryText: {
     fontSize: 11,
-    fontWeight: '700',
+    fontFamily: 'OpenSans_400Regular',
+    fontFamily: 'Inter_700Bold',
     color: '#0F766E',
   },
   taskCategoryTextUrgent: {
@@ -600,7 +618,8 @@ const styles = StyleSheet.create({
   },
   urgentToggleText: {
     fontSize: 11,
-    fontWeight: '800',
+    fontFamily: 'OpenSans_400Regular',
+    fontFamily: 'Inter_800ExtraBold',
     color: '#64748B',
   },
   urgentToggleTextActive: {
@@ -621,6 +640,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     padding: 10,
     fontSize: 14,
+    fontFamily: 'OpenSans_400Regular',
     marginBottom: 12,
   },
   addTaskActions: {
@@ -641,7 +661,8 @@ const styles = StyleSheet.create({
   },
   btnOutlineText: {
     fontSize: 13,
-    fontWeight: '600',
+    fontFamily: 'OpenSans_400Regular',
+    fontFamily: 'Inter_600SemiBold',
     color: '#475569',
   },
   btnPrimary: {
@@ -652,7 +673,8 @@ const styles = StyleSheet.create({
   },
   btnPrimaryText: {
     fontSize: 13,
-    fontWeight: '600',
+    fontFamily: 'OpenSans_400Regular',
+    fontFamily: 'Inter_600SemiBold',
     color: '#FFFFFF',
   },
   addReminderBtn: {
@@ -668,7 +690,8 @@ const styles = StyleSheet.create({
   addReminderText: {
     marginLeft: 8,
     fontSize: 14,
-    fontWeight: '700',
+    fontFamily: 'OpenSans_400Regular',
+    fontFamily: 'Inter_700Bold',
     color: '#0F766E',
   },
   actionCard: {
@@ -713,11 +736,13 @@ const styles = StyleSheet.create({
   },
   actionLabel: {
     fontSize: 15,
-    fontWeight: '700',
+    fontFamily: 'OpenSans_400Regular',
+    fontFamily: 'Inter_700Bold',
     color: '#0F172A',
   },
   actionSubLabel: {
     fontSize: 13,
+    fontFamily: 'OpenSans_400Regular',
     color: '#64748B',
     marginTop: 2,
   },

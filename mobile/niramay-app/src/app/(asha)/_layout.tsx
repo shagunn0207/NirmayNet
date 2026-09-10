@@ -1,17 +1,67 @@
-import { Tabs } from 'expo-router';
+import { Tabs, useRouter } from 'expo-router';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useAuth } from '../../store/AuthContext';
-import { TouchableOpacity } from 'react-native';
+import { TouchableOpacity, View, Modal, Text, StyleSheet } from 'react-native';
+import { useState } from 'react';
+
+const LANGUAGES = [
+  { code: 'english', label: 'English' },
+  { code: 'marathi', label: 'मराठी' },
+  { code: 'hindi', label: 'हिंदी' },
+  { code: 'kannada', label: 'ಕನ್ನಡ' }
+];
 
 export default function AshaLayout() {
-  const { t, signOut } = useAuth();
+  const router = useRouter();
+  const { t, signOut, language, setLanguage } = useAuth();
+  const [showLangPicker, setShowLangPicker] = useState(false);
+
+  const LanguageSwitcher = () => (
+    <>
+      <TouchableOpacity onPress={() => setShowLangPicker(true)} style={{ marginRight: 16, flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 }}>
+        <FontAwesome5 name="language" size={16} color="#fff" />
+        <Text style={{ color: '#fff', marginLeft: 6, fontWeight: 'bold', fontSize: 12, fontFamily: 'Inter_600SemiBold' }}>
+          {LANGUAGES.find(l => l.code === language)?.label}
+        </Text>
+      </TouchableOpacity>
+      
+      {showLangPicker && (
+        <Modal transparent visible={showLangPicker} animationType="fade">
+          <View style={styles.modalBg}>
+            <View style={styles.modalContent}>
+              <Text style={styles.modalTitle}>{t('selectLanguage') || 'Select Language'}</Text>
+              {LANGUAGES.map(lang => (
+                <TouchableOpacity
+                  key={lang.code}
+                  style={styles.langOption}
+                  onPress={() => {
+                    setLanguage(lang.code as any);
+                    setShowLangPicker(false);
+                  }}
+                >
+                  <Text style={[styles.langOptionText, language === lang.code && { color: '#0F766E', fontWeight: 'bold' }]}>{lang.label}</Text>
+                </TouchableOpacity>
+              ))}
+              <TouchableOpacity style={styles.closeModal} onPress={() => setShowLangPicker(false)}>
+                <Text style={styles.closeModalText}>{t('cancel') || 'Cancel'}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+      )}
+    </>
+  );
 
   return (
     <Tabs
       screenOptions={{
-        headerShown: false,
+        headerShown: true,
+        headerRight: () => <LanguageSwitcher />,
         headerStyle: {
-          backgroundColor: '#00796B',
+          backgroundColor: '#0F766E',
+          elevation: 0,
+          shadowOpacity: 0,
+          borderBottomWidth: 0,
         },
         headerTintColor: '#fff',
         headerTitleStyle: {
@@ -67,6 +117,11 @@ export default function AshaLayout() {
         options={{
           href: null,
           title: t('triageTitle') || 'Triage',
+          headerLeft: () => (
+            <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 16, padding: 4 }}>
+              <FontAwesome5 name="arrow-left" size={20} color="#fff" />
+            </TouchableOpacity>
+          ),
         }}
       />
       <Tabs.Screen
@@ -74,6 +129,11 @@ export default function AshaLayout() {
         options={{
           href: null,
           title: t('regTitle') || 'Register',
+          headerLeft: () => (
+            <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 16, padding: 4 }}>
+              <FontAwesome5 name="arrow-left" size={20} color="#fff" />
+            </TouchableOpacity>
+          ),
         }}
       />
       <Tabs.Screen
@@ -81,6 +141,11 @@ export default function AshaLayout() {
         options={{
           href: null,
           title: t('consultTitle') || 'Consultation',
+          headerLeft: () => (
+            <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 16, padding: 4 }}>
+              <FontAwesome5 name="arrow-left" size={20} color="#fff" />
+            </TouchableOpacity>
+          ),
         }}
       />
       <Tabs.Screen
@@ -88,8 +153,55 @@ export default function AshaLayout() {
         options={{
           href: null,
           title: t('referralTitle') || 'Referral',
+          headerLeft: () => (
+            <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 16, padding: 4 }}>
+              <FontAwesome5 name="arrow-left" size={20} color="#fff" />
+            </TouchableOpacity>
+          ),
         }}
       />
     </Tabs>
   );
 }
+
+const styles = StyleSheet.create({
+  modalBg: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 999,
+  },
+  modalContent: {
+    backgroundColor: '#fff',
+    width: 300,
+    borderRadius: 12,
+    padding: 20,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontFamily: 'Inter_700Bold',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  langOption: {
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+  },
+  langOptionText: {
+    fontSize: 16,
+    fontFamily: 'OpenSans_400Regular',
+    textAlign: 'center',
+  },
+  closeModal: {
+    marginTop: 16,
+    paddingVertical: 12,
+  },
+  closeModalText: {
+    color: '#d32f2f',
+    textAlign: 'center',
+    fontSize: 16,
+    fontFamily: 'Inter_600SemiBold',
+  }
+});

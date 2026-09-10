@@ -1,13 +1,16 @@
 import { Slot, useRouter, useSegments } from 'expo-router';
 import { AuthProvider, useAuth } from '../store/AuthContext';
 import { useEffect } from 'react';
-import { View, StyleSheet, Platform, useWindowDimensions } from 'react-native';
+import { useFonts, Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold, Inter_800ExtraBold } from '@expo-google-fonts/inter';
+import { OpenSans_400Regular, OpenSans_500Medium, OpenSans_600SemiBold, OpenSans_700Bold } from '@expo-google-fonts/open-sans';
+import * as SplashScreen from 'expo-splash-screen';
+
+SplashScreen.preventAutoHideAsync();
 
 const RootLayoutNav = () => {
   const { session, role, isLoading } = useAuth();
   const segments = useSegments();
   const router = useRouter();
-  const { width, height } = useWindowDimensions();
 
   useEffect(() => {
     if (isLoading) return;
@@ -42,63 +45,30 @@ const RootLayoutNav = () => {
     }
   }, [session, role, isLoading, segments]);
 
-  if (Platform.OS === 'web') {
-    const isSmallScreen = width <= 480;
-    return (
-      <View style={styles.webPageBackground}>
-        <View
-          style={[
-            styles.phoneContainer,
-            isSmallScreen
-              ? styles.phoneSmallScreen
-              : {
-                  maxHeight: Math.min(height - 32, 900),
-                },
-          ]}
-        >
-          <Slot />
-        </View>
-      </View>
-    );
-  }
-
   return <Slot />;
 };
 
-const styles = StyleSheet.create({
-  webPageBackground: {
-    flex: 1,
-    backgroundColor: '#0f172a',
-    justifyContent: 'center',
-    alignItems: 'center',
-    width: '100%',
-    height: '100%',
-    overflow: 'hidden',
-  },
-  phoneContainer: {
-    width: '100%',
-    maxWidth: 420,
-    height: '100%',
-    backgroundColor: '#ffffff',
-    borderRadius: 36,
-    borderWidth: 8,
-    borderColor: '#1e293b',
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 16 },
-    shadowOpacity: 0.45,
-    shadowRadius: 30,
-    elevation: 12,
-  },
-  phoneSmallScreen: {
-    maxWidth: '100%',
-    height: '100%',
-    borderRadius: 0,
-    borderWidth: 0,
-  },
-});
-
 export default function RootLayout() {
+  const [fontsLoaded] = useFonts({
+    Inter_400Regular,
+    Inter_500Medium,
+    Inter_600SemiBold,
+    Inter_700Bold,
+    Inter_800ExtraBold,
+    OpenSans_400Regular,
+    OpenSans_500Medium,
+    OpenSans_600SemiBold,
+    OpenSans_700Bold
+  });
+
+  useEffect(() => {
+    if (fontsLoaded) {
+      SplashScreen.hideAsync();
+    }
+  }, [fontsLoaded]);
+
+  if (!fontsLoaded) return null;
+
   return (
     <AuthProvider>
       <RootLayoutNav />

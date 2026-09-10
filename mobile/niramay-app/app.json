@@ -34,7 +34,8 @@
           "imageWidth": 76
         }
       ],
-      "@react-native-voice/voice"
+      "@react-native-voice/voice",
+      "expo-font"
     ],
     "experiments": {
       "typedRoutes": true,
