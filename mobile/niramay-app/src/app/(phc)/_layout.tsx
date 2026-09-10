@@ -124,7 +124,8 @@ const styles = StyleSheet.create({
   logoText: {
     color: '#fff',
     fontSize: 20,
-    fontWeight: 'bold',
+    fontFamily: 'OpenSans_400Regular',
+    fontFamily: 'Inter_700Bold',
     marginLeft: 12,
   },
   navMenu: {
@@ -145,12 +146,13 @@ const styles = StyleSheet.create({
   navText: {
     color: '#B2DFDB',
     fontSize: 16,
+    fontFamily: 'OpenSans_400Regular',
     marginLeft: 16,
-    fontWeight: '500',
+    fontFamily: 'Inter_500Medium',
   },
   navTextActive: {
     color: '#fff',
-    fontWeight: 'bold',
+    fontFamily: 'Inter_700Bold',
   },
   bottomActions: {
     paddingHorizontal: 20,
@@ -163,8 +165,9 @@ const styles = StyleSheet.create({
   langText: {
     color: '#B2DFDB',
     fontSize: 16,
+    fontFamily: 'OpenSans_400Regular',
     marginLeft: 16,
-    fontWeight: '500',
+    fontFamily: 'Inter_500Medium',
   },
   logoutButton: {
     flexDirection: 'row',
@@ -173,8 +176,9 @@ const styles = StyleSheet.create({
   logoutText: {
     color: '#ff5252',
     fontSize: 16,
+    fontFamily: 'OpenSans_400Regular',
     marginLeft: 16,
-    fontWeight: '500',
+    fontFamily: 'Inter_500Medium',
   },
   mainContent: {
     flex: 1,
@@ -195,7 +199,8 @@ const styles = StyleSheet.create({
   },
   modalTitle: {
     fontSize: 18,
-    fontWeight: 'bold',
+    fontFamily: 'OpenSans_400Regular',
+    fontFamily: 'Inter_700Bold',
     marginBottom: 16,
     textAlign: 'center',
   },
@@ -206,6 +211,7 @@ const styles = StyleSheet.create({
   },
   langOptionText: {
     fontSize: 16,
+    fontFamily: 'OpenSans_400Regular',
     textAlign: 'center',
   },
   closeModal: {
@@ -216,6 +222,7 @@ const styles = StyleSheet.create({
     color: '#d32f2f',
     textAlign: 'center',
     fontSize: 16,
-    fontWeight: '600',
+    fontFamily: 'OpenSans_400Regular',
+    fontFamily: 'Inter_600SemiBold',
   }
 });

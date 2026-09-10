@@ -5,7 +5,7 @@ import { FontAwesome5 } from '@expo/vector-icons';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { supabase } from '../../lib/supabase';
 import Voice, { SpeechResultsEvent, SpeechErrorEvent } from '@react-native-voice/voice';
-
+import { SafeAreaView } from 'react-native-safe-area-context';
 export default function RegistrationScreen() {
   const { t, user } = useAuth();
   const router = useRouter();
@@ -77,11 +77,32 @@ export default function RegistrationScreen() {
   };
 
   // Strict validations
-  const isNameValid = /^[a-zA-Z\s]{2,}$/.test(name.trim());
+  const isNameValid = name.trim().length >= 2;
   const isPhoneValid = phone.replace(/\D/g, '').length === 10;
-  const isAbhaValid = abhaVerified || /^\d{2}-\d{4}-\d{4}-\d{2}$/.test(abhaId.trim());
+  const isAbhaValid = abhaVerified || /^\\d{2}-\\d{4}-\\d{4}-\\d{2}$/.test(abhaId.trim());
 
   const isFormValid = isNameValid && isPhoneValid && isAbhaValid;
+
+  const handleAbhaChange = (val: string) => {
+    // If user hit backspace on a dash, also delete the number before it
+    if (abhaId.length > val.length && abhaId.endsWith('-') && val.length === abhaId.length - 1) {
+      val = val.slice(0, -1);
+    }
+    
+    // Remove non-digits
+    const cleaned = val.replace(/\\D/g, '');
+    
+    // Auto-format XX-XXXX-XXXX-XX
+    let formatted = '';
+    for (let i = 0; i < cleaned.length; i++) {
+      if (i === 2 || i === 6 || i === 10) {
+        formatted += '-';
+      }
+      formatted += cleaned[i];
+    }
+    setAbhaId(formatted);
+    setAbhaVerified(false);
+  };
 
   const handleAgeChange = (delta: number) => {
     setAge(prev => Math.max(0, Math.min(120, prev + delta)));
@@ -99,7 +120,7 @@ export default function RegistrationScreen() {
     setPhoneTouched(true);
     setAbhaTouched(true);
 
-    if (!isFormValid || !user) return;
+    if (!isFormValid) return;
     setIsSubmitting(true);
     
     try {
@@ -110,7 +131,7 @@ export default function RegistrationScreen() {
         abha_id: abhaId || null,
         village,
         phone,
-        asha_id: user.id
+        asha_id: user?.id || 'demo-asha-id'
       }).select().single();
 
       if (error) throw error;
@@ -123,26 +144,33 @@ export default function RegistrationScreen() {
   };
 
   return (
-    <KeyboardAvoidingView 
-      style={{ flex: 1 }} 
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 80 : 0}
-    >
-      <ScrollView style={styles.container}>
+    <SafeAreaView style={{ flex: 1 }}>
+      <KeyboardAvoidingView 
+        style={{ flex: 1 }} 
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 80 : 0}
+      >
+      <ScrollView 
+        style={styles.container} 
+        contentContainerStyle={{ paddingBottom: 100 }}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
         <View style={styles.langSelectorRow}>
           <Text style={styles.subtitle}>{t('regSubtitle') || 'Register a new patient'}</Text>
           <View style={styles.langSelector}>
             <FontAwesome5 name="language" size={14} color="#64748B" />
-            <select 
-              value={voiceLang}
-              onChange={(e) => setVoiceLang(e.target.value)}
-              style={styles.langSelectNative as any}
+            <TouchableOpacity 
+              onPress={() => {
+                const langs = ['hi-IN', 'mr-IN', 'kn-IN', 'en-IN'];
+                const nextIdx = (langs.indexOf(voiceLang) + 1) % langs.length;
+                setVoiceLang(langs[nextIdx]);
+              }}
             >
-              <option value="hi-IN">हिंदी</option>
-              <option value="mr-IN">मराठी</option>
-              <option value="kn-IN">ಕನ್ನಡ</option>
-              <option value="en-IN">English</option>
-            </select>
+              <Text style={{ marginLeft: 6, color: '#0F172A', fontWeight: '600', fontSize: 14 }}>
+                {voiceLang === 'hi-IN' ? 'हिंदी' : voiceLang === 'mr-IN' ? 'मराठी' : voiceLang === 'kn-IN' ? 'ಕನ್ನಡ' : 'English'}
+              </Text>
+            </TouchableOpacity>
           </View>
         </View>
 
@@ -250,7 +278,7 @@ export default function RegistrationScreen() {
               style={[styles.inputSingle, styles.abhaInput, abhaTouched && !isAbhaValid && styles.inputError]}
               placeholder={t('abhaPlaceholder') || 'XX-XXXX-XXXX-XX'}
               value={abhaId}
-              onChangeText={setAbhaId}
+              onChangeText={handleAbhaChange}
               onBlur={() => setAbhaTouched(true)}
               maxLength={17}
             />
@@ -314,20 +342,23 @@ export default function RegistrationScreen() {
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
+
+import { moderateScale } from '../../theme/responsive';
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F8FAFC',
-    padding: 16,
+    padding: moderateScale(16),
   },
   subtitle: {
-    fontSize: 14,
+    fontSize: moderateScale(14),
     color: '#475569',
     fontWeight: '500',
-    marginBottom: 18,
+    marginBottom: moderateScale(18),
   },
   formContainer: {
     display: 'flex',
@@ -337,10 +368,10 @@ const styles = StyleSheet.create({
     marginBottom: 18,
   },
   label: {
-    fontSize: 14,
+    fontSize: moderateScale(14),
     fontWeight: 'bold',
     color: '#0F172A',
-    marginBottom: 8,
+    marginBottom: moderateScale(8),
   },
   labelRow: {
     flexDirection: 'row',
@@ -368,10 +399,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
     borderColor: '#CBD5E1',
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    height: 50,
-    fontSize: 15,
+    borderRadius: moderateScale(12),
+    paddingHorizontal: moderateScale(14),
+    height: moderateScale(50),
+    fontSize: moderateScale(15),
     color: '#0F172A',
   },
   inputWrapper: {
@@ -380,17 +411,17 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
     borderColor: '#CBD5E1',
-    borderRadius: 12,
-    height: 50,
+    borderRadius: moderateScale(12),
+    height: moderateScale(50),
   },
   inputError: {
     borderColor: '#DC2626',
   },
   input: {
     flex: 1,
-    paddingHorizontal: 14,
+    paddingHorizontal: moderateScale(14),
     height: '100%',
-    fontSize: 15,
+    fontSize: moderateScale(15),
     color: '#0F172A',
   },
   iconBtn: {
@@ -422,14 +453,14 @@ const styles = StyleSheet.create({
     height: 50,
   },
   numberBtn: {
-    width: 50,
+    width: moderateScale(50),
     height: '100%',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#F1F5F9',
   },
   numberBtnText: {
-    fontSize: 20,
+    fontSize: moderateScale(20),
     fontWeight: 'bold',
     color: '#475569',
   },
@@ -439,7 +470,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   numberValue: {
-    fontSize: 18,
+    fontSize: moderateScale(18),
     fontWeight: 'bold',
     color: '#0F172A',
   },
@@ -449,14 +480,14 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   chip: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 16,
+    paddingHorizontal: moderateScale(10),
+    paddingVertical: moderateScale(6),
+    borderRadius: moderateScale(16),
     backgroundColor: '#F1F5F9',
     borderWidth: 1,
     borderColor: '#E2E8F0',
-    marginRight: 6,
-    marginBottom: 6,
+    marginRight: moderateScale(6),
+    marginBottom: moderateScale(6),
   },
   chipSelected: {
     backgroundColor: '#FEF2F2',
@@ -478,17 +509,17 @@ const styles = StyleSheet.create({
   },
   sexBtn: {
     flex: 1,
-    paddingVertical: 12,
+    paddingVertical: moderateScale(12),
     alignItems: 'center',
-    borderRadius: 8,
+    borderRadius: moderateScale(8),
   },
   sexBtnActive: {
     backgroundColor: '#FFFFFF',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
+    shadowOffset: { width: 0, height: moderateScale(1) },
     shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
+    shadowRadius: moderateScale(2),
+    elevation: moderateScale(2),
   },
   sexBtnText: {
     fontSize: 14,
@@ -505,32 +536,32 @@ const styles = StyleSheet.create({
   },
   abhaInput: {
     flex: 1,
-    marginRight: 10,
+    marginRight: moderateScale(10),
   },
   scanBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#F0FDFA',
-    borderWidth: 1.5,
+    borderWidth: moderateScale(1.5),
     borderColor: '#CCFBF1',
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    height: 50,
+    borderRadius: moderateScale(12),
+    paddingHorizontal: moderateScale(14),
+    height: moderateScale(50),
   },
   scanBtnText: {
     color: '#0F766E',
     fontWeight: 'bold',
-    fontSize: 13,
-    marginLeft: 6,
+    fontSize: moderateScale(13),
+    marginLeft: moderateScale(6),
   },
   submitBtn: {
     backgroundColor: '#0F766E',
-    borderRadius: 14,
-    paddingVertical: 16,
+    borderRadius: moderateScale(14),
+    paddingVertical: moderateScale(16),
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 10,
+    marginTop: moderateScale(10),
   },
   submitBtnDisabled: {
     opacity: 0.5,
@@ -550,9 +581,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#F1F5F9',
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    height: 36,
+    borderRadius: moderateScale(8),
+    paddingHorizontal: moderateScale(10),
+    height: moderateScale(36),
   },
   langSelectNative: {
     backgroundColor: 'transparent',

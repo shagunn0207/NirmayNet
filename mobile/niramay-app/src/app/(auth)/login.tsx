@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, Modal, FlatList, Platform } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, Modal, FlatList, Platform, KeyboardAvoidingView, ScrollView } from 'react-native';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../store/AuthContext';
 import { FontAwesome5 } from '@expo/vector-icons';
@@ -15,74 +15,94 @@ const LANGUAGES = [
 type Role = 'asha' | 'phc_doctor' | 'district';
 
 export default function LoginScreen() {
+  const [email, setEmail] = useState('asha@gmail.com');
+  const [password, setPassword] = useState('123456');
+  const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
-  const [otp, setOtp] = useState('');
   const [step, setStep] = useState<'role' | 'login'>('role');
+  const [isLoginMode, setIsLoginMode] = useState(true);
   const [selectedRole, setSelectedRole] = useState<Role | null>(null);
-  const [isOtpSent, setIsOtpSent] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showLangPicker, setShowLangPicker] = useState(false);
   
   const { language, setLanguage, setRoleOverride, bypassLogin, t } = useAuth();
 
-  const handleSendOtp = async () => {
+  const handleAuth = async () => {
     if (!selectedRole) {
       Alert.alert('Error', 'Please select a role first.');
       return;
     }
-    if (phone.length < 10) {
-      Alert.alert('Error', 'Please enter a valid 10-digit phone number.');
+    if (!email || !password) {
+      Alert.alert('Error', 'Please enter email and password.');
       return;
     }
 
-    // Developer bypass
-    if (phone === '0000000000') {
+    // Developer bypass for dummy account
+    if (email === 'dev@niramay.net' || email === 'asha@gmail.com') {
       bypassLogin(selectedRole);
       return;
     }
 
-    setLoading(true);
-    const { error } = await supabase.auth.signInWithOtp({
-      phone: '+91' + phone,
-    });
-    setLoading(false);
-
-    if (error) {
-      Alert.alert('Error', error.message);
-    } else {
-      setIsOtpSent(true);
+    if (!isLoginMode) {
+      if (!name || !phone) {
+        Alert.alert('Error', 'Please enter your Name and Phone Number.');
+        return;
+      }
+      if (phone.length < 10) {
+        Alert.alert('Error', 'Please enter a valid 10-digit phone number.');
+        return;
+      }
     }
-  };
 
-  const handleVerifyOtp = async () => {
     setLoading(true);
-    const { data, error } = await supabase.auth.verifyOtp({
-      phone: '+91' + phone,
-      token: otp,
-      type: 'sms',
-    });
+    let authData;
+    let authError;
 
-    if (error) {
+    if (isLoginMode) {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password,
+      });
+      authData = data;
+      authError = error;
+    } else {
+      const { data, error } = await supabase.auth.signUp({
+        email: email.trim(),
+        password,
+        options: {
+          data: {
+            full_name: name,
+            phone: phone,
+          }
+        }
+      });
+      authData = data;
+      authError = error;
+    }
+
+    if (authError) {
       setLoading(false);
-      Alert.alert('Error', error.message);
+      Alert.alert('Error', authError.message);
       return;
     }
 
-    if (data.user && selectedRole) {
+    if (authData.user && selectedRole) {
       // Check if profile exists
       const { data: profile } = await supabase
         .from('profiles')
         .select('role')
-        .eq('id', data.user.id)
+        .eq('id', authData.user.id)
         .single();
 
       if (!profile) {
         // Create profile
         const { error: insertError } = await supabase.from('profiles').insert({
-          id: data.user.id,
+          id: authData.user.id,
           role: selectedRole,
-          phone: '+91' + phone,
+          email: email.trim(),
           language: language,
+          name: authData.user.user_metadata?.full_name || name || '',
+          phone: authData.user.user_metadata?.phone || phone || '',
         });
         if (insertError) {
           console.error(insertError);
@@ -132,8 +152,12 @@ export default function LoginScreen() {
         </View>
       )}
 
-      <View style={styles.content}>
-        {step === 'role' ? (
+      <KeyboardAvoidingView 
+        style={{ flex: 1 }} 
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <ScrollView contentContainerStyle={styles.content} bounces={false}>
+          {step === 'role' ? (
           <>
             <Text style={styles.sectionTitle}>Select Your Role</Text>
             
@@ -171,61 +195,120 @@ export default function LoginScreen() {
           </>
         ) : (
           <>
-            <TouchableOpacity style={styles.backButton} onPress={() => { setStep('role'); setIsOtpSent(false); setOtp(''); setPhone(''); }}>
+            <TouchableOpacity style={styles.backButton} onPress={() => { 
+              setStep('role'); 
+              setEmail(''); 
+              setPassword(''); 
+              setName('');
+              setPhone('');
+            }}>
               <FontAwesome5 name="arrow-left" size={16} color="#00796B" />
               <Text style={styles.backButtonText}>Back</Text>
             </TouchableOpacity>
 
             <Text style={styles.sectionTitle}>
-              {selectedRole === 'asha' ? 'ASHA Worker' : 'PHC Doctor'} Login / Sign Up
+              {selectedRole === 'asha' ? 'ASHA Worker' : 'PHC Doctor'} {isLoginMode ? 'Login' : 'Sign Up'}
             </Text>
 
+            <View style={styles.toggleContainer}>
+              <TouchableOpacity 
+                style={[styles.toggleBtn, isLoginMode && styles.toggleBtnActive]} 
+                onPress={() => {
+                  setIsLoginMode(true);
+                  if (email === '') setEmail('asha@gmail.com');
+                  if (password === '') setPassword('123456');
+                }}
+              >
+                <Text style={[styles.toggleBtnText, isLoginMode && styles.toggleBtnTextActive]}>Log In</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[styles.toggleBtn, !isLoginMode && styles.toggleBtnActive]} 
+                onPress={() => {
+                  setIsLoginMode(false);
+                  if (email === 'asha@gmail.com') setEmail('');
+                  if (password === '123456') setPassword('');
+                }}
+              >
+                <Text style={[styles.toggleBtnText, !isLoginMode && styles.toggleBtnTextActive]}>Sign Up</Text>
+              </TouchableOpacity>
+            </View>
+
+        {!isLoginMode && (
+          <>
+            <View style={styles.inputContainer}>
+              <Text style={styles.inputLabel}>Full Name</Text>
+              <View style={styles.textInputRow}>
+                <TextInput
+                  style={styles.input}
+                  value={name}
+                  onChangeText={setName}
+                  autoCapitalize="words"
+                  placeholder="Enter your full name"
+                />
+              </View>
+            </View>
+
+            <View style={styles.inputContainer}>
+              <Text style={styles.inputLabel}>Phone Number</Text>
+              <View style={styles.textInputRow}>
+                <Text style={styles.prefix}>+91 </Text>
+                <TextInput
+                  style={styles.input}
+                  value={phone}
+                  onChangeText={setPhone}
+                  keyboardType="number-pad"
+                  maxLength={10}
+                  placeholder="10-digit number"
+                />
+              </View>
+            </View>
+          </>
+        )}
+
         <View style={styles.inputContainer}>
-          <Text style={styles.inputLabel}>Phone Number</Text>
-          <View style={styles.phoneInputRow}>
-            <Text style={styles.prefix}>+91</Text>
+          <Text style={styles.inputLabel}>Email ID</Text>
+          <View style={styles.textInputRow}>
             <TextInput
               style={styles.input}
-              value={phone}
-              onChangeText={setPhone}
-              keyboardType="number-pad"
-              maxLength={10}
-              placeholder="10-digit number"
-              editable={!isOtpSent}
+              value={email}
+              onChangeText={setEmail}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              placeholder="Enter your email ID"
             />
           </View>
         </View>
 
-        {isOtpSent && (
-          <View style={styles.inputContainer}>
-            <Text style={styles.inputLabel}>Enter OTP</Text>
+        <View style={styles.inputContainer}>
+          <Text style={styles.inputLabel}>Password</Text>
+          <View style={styles.textInputRow}>
             <TextInput
-              style={styles.otpInput}
-              value={otp}
-              onChangeText={setOtp}
-              keyboardType="number-pad"
-              maxLength={6}
-              placeholder="000000"
+              style={styles.input}
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry
+              placeholder="Enter password"
             />
           </View>
-        )}
+        </View>
 
         <TouchableOpacity 
           style={[styles.primaryButton, loading && styles.buttonDisabled]}
-          onPress={isOtpSent ? handleVerifyOtp : handleSendOtp}
+          onPress={handleAuth}
           disabled={loading}
         >
           {loading ? (
             <ActivityIndicator color="#fff" />
           ) : (
             <Text style={styles.primaryButtonText}>
-              {isOtpSent ? 'Verify OTP' : 'Send OTP'}
+              {isLoginMode ? 'Log In' : 'Sign Up'}
             </Text>
           )}
         </TouchableOpacity>
         </>
         )}
-      </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
@@ -245,11 +328,13 @@ const styles = StyleSheet.create({
   },
   logo: {
     fontSize: 24,
-    fontWeight: 'bold',
+    fontFamily: 'OpenSans_400Regular',
+    fontFamily: 'Inter_700Bold',
     color: '#00796B',
   },
   tagline: {
     fontSize: 12,
+    fontFamily: 'OpenSans_400Regular',
     color: '#666',
     marginTop: 4,
   },
@@ -263,14 +348,15 @@ const styles = StyleSheet.create({
   },
   langText: {
     color: '#00796B',
-    fontWeight: '600',
+    fontFamily: 'Inter_600SemiBold',
   },
   content: {
     padding: 20,
   },
   sectionTitle: {
     fontSize: 18,
-    fontWeight: '600',
+    fontFamily: 'OpenSans_400Regular',
+    fontFamily: 'Inter_600SemiBold',
     marginBottom: 16,
     color: '#333',
   },
@@ -282,8 +368,9 @@ const styles = StyleSheet.create({
   backButtonText: {
     marginLeft: 8,
     color: '#00796B',
-    fontWeight: '600',
+    fontFamily: 'Inter_600SemiBold',
     fontSize: 16,
+    fontFamily: 'OpenSans_400Regular',
   },
   roleCard: {
     flexDirection: 'row',
@@ -305,7 +392,8 @@ const styles = StyleSheet.create({
   },
   roleTitle: {
     fontSize: 16,
-    fontWeight: '600',
+    fontFamily: 'OpenSans_400Regular',
+    fontFamily: 'Inter_600SemiBold',
     color: '#333',
   },
   roleTitleSelected: {
@@ -313,6 +401,7 @@ const styles = StyleSheet.create({
   },
   roleDesc: {
     fontSize: 12,
+    fontFamily: 'OpenSans_400Regular',
     color: '#666',
     marginTop: 4,
   },
@@ -322,11 +411,12 @@ const styles = StyleSheet.create({
   },
   inputLabel: {
     fontSize: 14,
+    fontFamily: 'OpenSans_400Regular',
     color: '#333',
     marginBottom: 8,
-    fontWeight: '500',
+    fontFamily: 'Inter_500Medium',
   },
-  phoneInputRow: {
+  textInputRow: {
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
@@ -335,27 +425,48 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     height: 48,
   },
-  prefix: {
-    fontSize: 16,
-    color: '#333',
-    fontWeight: '600',
-    marginRight: 8,
+  toggleContainer: {
+    flexDirection: 'row',
+    backgroundColor: '#F1F5F9',
+    borderRadius: 8,
+    padding: 4,
+    marginBottom: 8,
+  },
+  toggleBtn: {
+    flex: 1,
+    paddingVertical: 10,
+    alignItems: 'center',
+    borderRadius: 6,
+  },
+  toggleBtnActive: {
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 1,
+    elevation: 2,
+  },
+  toggleBtnText: {
+    fontFamily: 'Inter_600SemiBold',
+    color: '#64748B',
+  },
+  toggleBtnTextActive: {
+    color: '#0F766E',
   },
   input: {
     flex: 1,
     fontSize: 16,
+    fontFamily: 'OpenSans_400Regular',
     height: '100%',
   },
-  otpInput: {
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    height: 48,
-    fontSize: 18,
-    letterSpacing: 4,
-    textAlign: 'center',
+  prefix: {
+    fontSize: 16,
+    fontFamily: 'OpenSans_400Regular',
+    color: '#333',
+    fontFamily: 'Inter_600SemiBold',
+    marginRight: 4,
   },
+
   primaryButton: {
     backgroundColor: '#00796B',
     height: 48,
@@ -370,7 +481,8 @@ const styles = StyleSheet.create({
   primaryButtonText: {
     color: '#fff',
     fontSize: 16,
-    fontWeight: '600',
+    fontFamily: 'OpenSans_400Regular',
+    fontFamily: 'Inter_600SemiBold',
   },
   modalBg: {
     backgroundColor: 'rgba(0,0,0,0.5)',
@@ -386,7 +498,8 @@ const styles = StyleSheet.create({
   },
   modalTitle: {
     fontSize: 18,
-    fontWeight: 'bold',
+    fontFamily: 'OpenSans_400Regular',
+    fontFamily: 'Inter_700Bold',
     marginBottom: 16,
     textAlign: 'center',
   },
@@ -397,6 +510,7 @@ const styles = StyleSheet.create({
   },
   langOptionText: {
     fontSize: 16,
+    fontFamily: 'OpenSans_400Regular',
     textAlign: 'center',
   },
   closeModal: {
@@ -407,6 +521,7 @@ const styles = StyleSheet.create({
     color: '#d32f2f',
     textAlign: 'center',
     fontSize: 16,
-    fontWeight: '600',
+    fontFamily: 'OpenSans_400Regular',
+    fontFamily: 'Inter_600SemiBold',
   }
 });

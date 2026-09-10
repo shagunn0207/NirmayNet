@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useCallback } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, TextInput, Modal, ActivityIndicator } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, TextInput, Modal, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
 import { useAuth } from '../../store/AuthContext';
 import { FontAwesome5, Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from 'expo-router';
@@ -63,7 +63,10 @@ export default function PatientsScreen() {
   const selectedPatient = patients.find(p => p.id === selectedId);
 
   return (
-    <View style={styles.container}>
+    <KeyboardAvoidingView 
+      style={styles.container} 
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
       <View style={styles.searchContainer}>
         <View style={styles.searchInputWrapper}>
           <FontAwesome5 name="search" size={16} color="#94A3B8" style={styles.searchIcon} />
@@ -193,7 +196,7 @@ export default function PatientsScreen() {
           </View>
         )}
       </Modal>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -223,6 +226,7 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 44,
     fontSize: 16,
+    fontFamily: 'OpenSans_400Regular',
   },
   micBtn: {
     padding: 8,
@@ -244,7 +248,8 @@ const styles = StyleSheet.create({
   },
   dropdownButtonText: {
     fontSize: 15,
-    fontWeight: '600',
+    fontFamily: 'OpenSans_400Regular',
+    fontFamily: 'Inter_600SemiBold',
     color: '#0F172A',
   },
   modalOverlay: {
@@ -276,12 +281,13 @@ const styles = StyleSheet.create({
   },
   dropdownItemText: {
     fontSize: 15,
-    fontWeight: '500',
+    fontFamily: 'OpenSans_400Regular',
+    fontFamily: 'Inter_500Medium',
     color: '#475569',
   },
   dropdownItemTextActive: {
     color: '#0F766E',
-    fontWeight: 'bold',
+    fontFamily: 'Inter_700Bold',
   },
   listContainer: {
     padding: 16,
@@ -293,6 +299,7 @@ const styles = StyleSheet.create({
   emptyText: {
     color: '#94A3B8',
     fontSize: 16,
+    fontFamily: 'OpenSans_400Regular',
   },
   patientCard: {
     flexDirection: 'row',
@@ -324,15 +331,18 @@ const styles = StyleSheet.create({
   avatarText: {
     color: '#FFFFFF',
     fontSize: 18,
-    fontWeight: 'bold',
+    fontFamily: 'OpenSans_400Regular',
+    fontFamily: 'Inter_700Bold',
   },
   patientName: {
     fontSize: 16,
-    fontWeight: '700',
+    fontFamily: 'OpenSans_400Regular',
+    fontFamily: 'Inter_700Bold',
     color: '#0F172A',
   },
   patientSub: {
     fontSize: 13,
+    fontFamily: 'OpenSans_400Regular',
     color: '#64748B',
     marginTop: 2,
   },
@@ -362,11 +372,13 @@ const styles = StyleSheet.create({
   modalTitle: {
     color: '#FFFFFF',
     fontSize: 18,
-    fontWeight: 'bold',
+    fontFamily: 'OpenSans_400Regular',
+    fontFamily: 'Inter_700Bold',
   },
   modalSubtitle: {
     color: 'rgba(255,255,255,0.8)',
     fontSize: 13,
+    fontFamily: 'OpenSans_400Regular',
   },
   editBtn: {
     flexDirection: 'row',
@@ -379,7 +391,7 @@ const styles = StyleSheet.create({
   editBtnText: {
     color: '#FFFFFF',
     marginLeft: 6,
-    fontWeight: '600',
+    fontFamily: 'Inter_600SemiBold',
   },
   modalBody: {
     padding: 16,
@@ -397,7 +409,8 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 16,
-    fontWeight: 'bold',
+    fontFamily: 'OpenSans_400Regular',
+    fontFamily: 'Inter_700Bold',
     color: '#0F172A',
     marginBottom: 12,
   },
@@ -413,11 +426,13 @@ const styles = StyleSheet.create({
   infoLabel: {
     color: '#64748B',
     fontSize: 14,
+    fontFamily: 'OpenSans_400Regular',
   },
   infoValue: {
     color: '#0F172A',
     fontSize: 14,
-    fontWeight: '600',
+    fontFamily: 'OpenSans_400Regular',
+    fontFamily: 'Inter_600SemiBold',
   },
   divider: {
     height: 1,
