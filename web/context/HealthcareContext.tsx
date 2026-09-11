@@ -1,7 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect } from "react";
-import { api, getApiBaseUrl } from "../lib/api";
+import { api } from "../lib/api";
 import {
   PatientRecord,
   AshaReferral,
@@ -171,7 +171,7 @@ export const HealthcareProvider: React.FC<{ children: React.ReactNode }> = ({
         else if (parsed.user.role === 'DHO') setCurrentRole('dho');
         else setCurrentRole('phc-doctor');
       }
-    } catch {}
+    } catch { }
   }, []);
 
   const login = (userData: any, token: string) => {
@@ -196,8 +196,7 @@ export const HealthcareProvider: React.FC<{ children: React.ReactNode }> = ({
     if (!authToken || !currentUser) throw new Error("Not authenticated");
 
     try {
-      const API_BASE = getApiBaseUrl();
-      const res = await fetch(`${API_BASE}/auth/profile`, {
+      const res = await fetch("http://127.0.0.1:8000/api/v1/auth/profile", {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -309,7 +308,7 @@ export const HealthcareProvider: React.FC<{ children: React.ReactNode }> = ({
 
   // ── FastAPI Integration: fetch real hospital queue & status actions ─────────
   const fetchHospitalQueue = async () => {
-    const API_BASE = getApiBaseUrl();
+    const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000/api/v1";
 
     try {
       let tokenToUse = authToken;
@@ -343,12 +342,12 @@ export const HealthcareProvider: React.FC<{ children: React.ReactNode }> = ({
           q.triage_category === "EMERGENCY"
             ? "EMERGENCY"
             : q.triage_category === "URGENT"
-            ? "URGENT"
-            : q.referral_reason?.includes("EMERGENCY")
-            ? "EMERGENCY"
-            : q.referral_reason?.includes("URGENT")
-            ? "URGENT"
-            : "ROUTINE";
+              ? "URGENT"
+              : q.referral_reason?.includes("EMERGENCY")
+                ? "EMERGENCY"
+                : q.referral_reason?.includes("URGENT")
+                  ? "URGENT"
+                  : "ROUTINE";
 
         return {
           id: q.referral_code || q.referral_id,
@@ -583,7 +582,7 @@ export const HealthcareProvider: React.FC<{ children: React.ReactNode }> = ({
       })
     );
 
-    const API_BASE = getApiBaseUrl();
+    const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000/api/v1";
 
     try {
       const targetRef = hospitalReferrals.find((r) => r.id === id || r.realReferralId === id);
@@ -640,9 +639,9 @@ export const HealthcareProvider: React.FC<{ children: React.ReactNode }> = ({
       prev.map((ref) =>
         ref.id === id
           ? {
-              ...ref,
-              hospitalNotes: `[INFO REQUESTED by DH]: ${note}\n${ref.hospitalNotes || ""}`,
-            }
+            ...ref,
+            hospitalNotes: `[INFO REQUESTED by DH]: ${note}\n${ref.hospitalNotes || ""}`,
+          }
           : ref
       )
     );
@@ -722,9 +721,9 @@ export const HealthcareProvider: React.FC<{ children: React.ReactNode }> = ({
       prev.map((fu) =>
         fu.id === id
           ? {
-              ...fu,
-              status: fu.status === "Completed" ? "Upcoming" : "Completed",
-            }
+            ...fu,
+            status: fu.status === "Completed" ? "Upcoming" : "Completed",
+          }
           : fu
       )
     );
@@ -845,15 +844,14 @@ export const HealthcareProvider: React.FC<{ children: React.ReactNode }> = ({
         {toasts.map((toast) => (
           <div
             key={toast.id}
-            className={`pointer-events-auto shadow-xl rounded-xl border p-4 transition-all duration-300 transform translate-y-0 flex items-start justify-between gap-3 ${
-              toast.type === "success"
+            className={`pointer-events-auto shadow-xl rounded-xl border p-4 transition-all duration-300 transform translate-y-0 flex items-start justify-between gap-3 ${toast.type === "success"
                 ? "bg-emerald-900/95 text-white border-emerald-700"
                 : toast.type === "error"
-                ? "bg-rose-900/95 text-white border-rose-700"
-                : toast.type === "warning"
-                ? "bg-amber-900/95 text-white border-amber-700"
-                : "bg-slate-900/95 text-white border-slate-700"
-            }`}
+                  ? "bg-rose-900/95 text-white border-rose-700"
+                  : toast.type === "warning"
+                    ? "bg-amber-900/95 text-white border-amber-700"
+                    : "bg-slate-900/95 text-white border-slate-700"
+              }`}
           >
             <div>
               <p className="font-bold text-sm tracking-wide">{toast.title}</p>

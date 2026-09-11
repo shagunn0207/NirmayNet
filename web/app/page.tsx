@@ -5,24 +5,23 @@ import { useRouter } from "next/navigation";
 import { Navbar } from "@/components/layout/Navbar";
 import { useHealthcare } from "@/context/HealthcareContext";
 import { Stethoscope, Building2, BarChart3, Activity, ArrowLeft, ChevronRight } from "lucide-react";
-import { getApiBaseUrl } from "@/lib/api";
 
 type RoleType = "HOSPITAL" | "DHO" | "ADMIN" | "ASHA" | null;
 
 export default function RootHomePage() {
   const router = useRouter();
   const { isLoggedIn, currentRole, login } = useHealthcare();
-  
+
   const [step, setStep] = useState<"role-selection" | "auth">("role-selection");
   const [selectedRole, setSelectedRole] = useState<RoleType>(null);
-  
+
   const [isLogin, setIsLogin] = useState(true);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  
+
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
@@ -46,7 +45,7 @@ export default function RootHomePage() {
     setError("");
     setIsLoading(true);
 
-    const API_BASE = getApiBaseUrl();
+    const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000/api/v1";
 
     try {
       if (isLogin) {
@@ -58,7 +57,7 @@ export default function RootHomePage() {
         }).catch(() => {
           throw new Error("Backend is unreachable. Please ensure the server is running on " + API_BASE);
         });
-        
+
         if (!res.ok) {
           const data = await res.json().catch(() => ({}));
           throw new Error(data.detail || "Invalid credentials. Please try again.");
@@ -70,7 +69,7 @@ export default function RootHomePage() {
         if (password !== confirmPassword) {
           throw new Error("Passwords do not match");
         }
-        
+
         // Strict Input Validation
         const nameRegex = /^[A-Za-z\s.\-]+$/;
         if (!nameRegex.test(name)) {
@@ -81,7 +80,7 @@ export default function RootHomePage() {
         if (phone && !phoneRegex.test(phone)) {
           throw new Error("Phone number must be exactly 10 digits.");
         }
-        
+
         const res = await fetch(`${API_BASE}/auth/register`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -96,19 +95,19 @@ export default function RootHomePage() {
         }).catch(() => {
           throw new Error("Backend is unreachable. Please ensure the server is running on " + API_BASE);
         });
-        
+
         if (!res.ok) {
           const data = await res.json().catch(() => ({}));
           throw new Error(data.detail || "Registration failed. Username may already exist.");
         }
-        
+
         // Auto-login after signup
         const loginRes = await fetch(`${API_BASE}/auth/login`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ username, password }),
         });
-        
+
         if (loginRes.ok) {
           const data = await loginRes.json();
           login(data.user || { username, role: selectedRole }, data.access_token);
@@ -141,7 +140,7 @@ export default function RootHomePage() {
       <main className="flex-1 flex flex-col items-center justify-center p-4 py-12">
         {step === "role-selection" ? (
           <div className="w-full max-w-xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
-            
+
             <div className="text-center mb-10">
               <div className="inline-flex items-center justify-center p-3 bg-white rounded-full shadow-xs mb-4">
                 <Activity className="w-8 h-8 text-teal-600" />
@@ -153,7 +152,7 @@ export default function RootHomePage() {
                 Select your secure portal to continue
               </p>
             </div>
-            
+
             <div className="flex flex-col gap-4">
               {/* PHC Doctor */}
               <button
@@ -206,20 +205,20 @@ export default function RootHomePage() {
           </div>
         ) : (
           <div className="w-full max-w-[420px] bg-white rounded-3xl shadow-xl overflow-hidden border border-slate-100 animate-in fade-in zoom-in-95 duration-300">
-            
+
             {/* Header */}
             <div className={`${roleInfo.theme.bgHeader} px-8 py-10 text-center text-white relative overflow-hidden`}>
               {/* Subtle background decoration */}
               <div className="absolute top-0 right-0 -mt-10 -mr-10 w-40 h-40 bg-white opacity-5 rounded-full blur-2xl"></div>
-              
-              <button 
-                onClick={() => setStep("role-selection")} 
+
+              <button
+                onClick={() => setStep("role-selection")}
                 className="absolute top-4 left-4 p-2 rounded-full hover:bg-white/20 text-white/80 hover:text-white transition-all flex items-center gap-1 text-sm font-medium"
               >
                 <ArrowLeft className="w-4 h-4" />
                 Back
               </button>
-              
+
               <div className={`w-16 h-16 rounded-2xl ${roleInfo.theme.bgIcon} border border-white/20 flex items-center justify-center shadow-inner mx-auto mb-5 relative z-10`}>
                 <RoleIcon className="w-8 h-8 text-white" />
               </div>
@@ -331,17 +330,17 @@ export default function RootHomePage() {
                   </button>
                 </p>
               </div>
-              
+
               {/* Quick test accounts */}
               <div className="mt-8 bg-slate-50 rounded-xl p-4 text-center">
-                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-3">Quick Test Fillers</p>
-                 <div className="flex justify-center gap-3">
-                   {selectedRole === "ADMIN" && <button type="button" onClick={() => { setUsername("dr_sanjay"); setPassword("123456"); setName("Dr. Sanjay"); }} className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-600 hover:border-slate-300 hover:shadow-xs transition-all">PHC (dr_sanjay)</button>}
-                   {selectedRole === "HOSPITAL" && <button type="button" onClick={() => { setUsername("HOSPITAL_NAND_001"); setPassword("hospital2024"); setName("District Civil Hospital"); }} className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-600 hover:border-slate-300 hover:shadow-xs transition-all">Hospital</button>}
-                   {selectedRole === "DHO" && <button type="button" onClick={() => { setUsername("dho_arvind"); setPassword("123456"); setName("Dr. Arvind Patil"); }} className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-600 hover:border-slate-300 hover:shadow-xs transition-all">DHO</button>}
-                 </div>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-3">Quick Test Fillers</p>
+                <div className="flex justify-center gap-3">
+                  {selectedRole === "ADMIN" && <button type="button" onClick={() => { setUsername("dr_sanjay"); setPassword("123456"); setName("Dr. Sanjay"); }} className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-600 hover:border-slate-300 hover:shadow-xs transition-all">PHC (dr_sanjay)</button>}
+                  {selectedRole === "HOSPITAL" && <button type="button" onClick={() => { setUsername("HOSPITAL_NAND_001"); setPassword("hospital2024"); setName("District Civil Hospital"); }} className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-600 hover:border-slate-300 hover:shadow-xs transition-all">Hospital</button>}
+                  {selectedRole === "DHO" && <button type="button" onClick={() => { setUsername("dho_arvind"); setPassword("123456"); setName("Dr. Arvind Patil"); }} className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-600 hover:border-slate-300 hover:shadow-xs transition-all">DHO</button>}
+                </div>
               </div>
-              
+
             </div>
           </div>
         )}
