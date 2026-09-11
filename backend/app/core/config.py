@@ -9,14 +9,15 @@ class Settings(BaseSettings):
 
     # CORS Origins allowed to talk to the backend
     BACKEND_CORS_ORIGINS: List[str] = [
-        "http://localhost:3000",
-        "http://localhost:5173",
-        "http://localhost:5174",
-        "http://127.0.0.1:3000",
-        "http://127.0.0.1:5173",
-        "http://127.0.0.1:5174",
-    ]
-
+    "http://localhost:3000",
+    "http://localhost:5173",
+    "http://localhost:5174",
+    "http://localhost:8081",
+    "http://127.0.0.1:3000",
+    "http://127.0.0.1:5173",
+    "http://127.0.0.1:5174",
+    "http://127.0.0.1:8081",
+]
     # Supabase Configuration
     SUPABASE_URL: str = "https://your-supabase-project.supabase.co"
     SUPABASE_KEY: str = "your-supabase-anon-key"

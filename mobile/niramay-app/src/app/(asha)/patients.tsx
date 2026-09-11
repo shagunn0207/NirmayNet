@@ -25,60 +25,32 @@ interface Patient {
 
 const DEFAULT_PATIENTS: Patient[] = [
   {
-    id: 'p-1',
-    name: 'Savitri Devi',
-    age: 32,
+    id: '11111111-1111-1111-1111-111111111111',
+    name: 'Rekha Patil',
+    age: 28,
     gender: 'Female',
-    phone: '9876543210',
-    village: 'Nandgaon',
+    phone: '9823011234',
+    village: 'Chinchpada',
     abha_id: '91-8823-4410-12',
     allergies: 'None',
-    risk: 'Medium',
+    risk: 'High',
     statusNote: 'Follow-up due',
     lastVisit: '12 Sep 2026',
     nextFollowup: '19 Sep 2026',
   },
   {
-    id: 'p-2',
-    name: 'Ramesh Kumar',
-    age: 45,
-    gender: 'Male',
-    phone: '9823011234',
-    village: 'Chinchpada',
-    abha_id: '91-3341-9920-55',
-    allergies: 'Penicillin',
-    risk: 'High',
-    statusNote: 'Referred',
-    lastVisit: '10 Sep 2026',
-    nextFollowup: '15 Sep 2026',
-  },
-  {
-    id: 'p-3',
-    name: 'Pooja Sharma',
-    age: 28,
+    id: '22222222-2222-2222-2222-222222222222',
+    name: 'Sunita Kamble',
+    age: 34,
     gender: 'Female',
     phone: '9421056789',
-    village: 'Nandurbar',
-    abha_id: '91-5521-8812-30',
-    allergies: 'None',
-    risk: 'Low',
-    statusNote: 'Stable',
-    lastVisit: '08 Sep 2026',
-    nextFollowup: '22 Sep 2026',
-  },
-  {
-    id: 'p-4',
-    name: 'Mohammed Ali',
-    age: 60,
-    gender: 'Male',
-    phone: '9860012345',
     village: 'Chinchpada',
-    abha_id: '91-7723-1109-88',
-    allergies: 'Sulfa drugs',
-    risk: 'High',
-    statusNote: 'High-risk',
-    lastVisit: '05 Sep 2026',
-    nextFollowup: '12 Sep 2026',
+    abha_id: '91-3341-9920-55',
+    allergies: 'None',
+    risk: 'Medium',
+    statusNote: 'Follow-up due',
+    lastVisit: '10 Sep 2026',
+    nextFollowup: '15 Sep 2026',
   },
 ];
 
@@ -108,7 +80,7 @@ export default function PatientsScreen() {
         const data = await res.json();
         if (Array.isArray(data) && data.length > 0) {
           const apiPatients: Patient[] = data.map((p: any, idx: number) => ({
-            id: p.id ? String(p.id) : `p-api-${idx}`,
+            id: String(p.id),
             name: p.name || 'Unnamed Patient',
             age: Number(p.age) || 30,
             gender: p.gender || 'Female',
@@ -121,8 +93,7 @@ export default function PatientsScreen() {
             lastVisit: '12 Sep 2026',
             nextFollowup: '19 Sep 2026',
           }));
-          // Merge API patients at top
-          setPatients([...apiPatients, ...DEFAULT_PATIENTS]);
+          setPatients(apiPatients);
         }
       }
     } catch {
@@ -288,22 +259,42 @@ export default function PatientsScreen() {
           </View>
         )}
 
-        {/* Action Button: Add Follow-up */}
-        <TouchableOpacity
-          style={styles.actionAddFollowupBtn}
-          activeOpacity={0.85}
-          onPress={() => {
-            router.push({
-              pathname: '/(asha)/referral',
-              params: {
-                patientId: selectedPatient.id,
-                patientName: selectedPatient.name,
-              },
-            });
-          }}
-        >
-          <Text style={styles.actionAddFollowupText}>Add Follow-up / Referral</Text>
-        </TouchableOpacity>
+        {/* Action Buttons: 1. Add Follow-up, 2. Create Referral */}
+        <View style={styles.actionBtnRow}>
+          <TouchableOpacity
+            style={[styles.actionHalfBtn, styles.actionHalfBtnFollowup]}
+            activeOpacity={0.85}
+            onPress={() => {
+              router.push({
+                pathname: '/(asha)/followup',
+                params: {
+                  patientId: selectedPatient.id,
+                  patientName: selectedPatient.name,
+                },
+              });
+            }}
+          >
+            <FontAwesome5 name="calendar-check" size={14} color="#FFFFFF" style={{ marginRight: 6 }} />
+            <Text style={styles.actionHalfBtnText}>Add Follow-up</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.actionHalfBtn, styles.actionHalfBtnReferral]}
+            activeOpacity={0.85}
+            onPress={() => {
+              router.push({
+                pathname: '/(asha)/referral',
+                params: {
+                  patientId: selectedPatient.id,
+                  patientName: selectedPatient.name,
+                },
+              });
+            }}
+          >
+            <FontAwesome5 name="file-medical-alt" size={14} color="#FFFFFF" style={{ marginRight: 6 }} />
+            <Text style={styles.actionHalfBtnText}>Create Referral</Text>
+          </TouchableOpacity>
+        </View>
       </ScrollView>
     );
   }
@@ -717,20 +708,32 @@ const styles = StyleSheet.create({
     color: '#334155',
     lineHeight: 18,
   },
-  actionAddFollowupBtn: {
-    backgroundColor: '#059669',
-    borderRadius: 14,
+  actionBtnRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  actionHalfBtn: {
+    flex: 1,
+    flexDirection: 'row',
     height: 48,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#059669',
+    borderRadius: 14,
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.2,
     shadowRadius: 6,
     elevation: 3,
   },
-  actionAddFollowupText: {
-    fontSize: 15,
+  actionHalfBtnReferral: {
+    backgroundColor: '#7C3AED',
+    shadowColor: '#7C3AED',
+  },
+  actionHalfBtnFollowup: {
+    backgroundColor: '#059669',
+    shadowColor: '#059669',
+  },
+  actionHalfBtnText: {
+    fontSize: 14,
     fontFamily: 'Inter_700Bold',
     color: '#FFFFFF',
   },

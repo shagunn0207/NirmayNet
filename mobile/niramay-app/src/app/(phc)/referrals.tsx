@@ -206,6 +206,37 @@ export default function PhcReferralsScreen() {
     }
   };
 
+  const handleUpdateStatus = async (referral: ReferralItem, targetStatus: string) => {
+    try {
+      const token = session?.access_token;
+      if (token) {
+        const patchRes = await fetch(`${BACKEND_URL}/api/v1/referrals/${referral.id}/status`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ status: targetStatus }),
+        });
+        if (!patchRes.ok) {
+          const errData = await patchRes.json().catch(() => null);
+          throw new Error(errData?.detail || 'Failed to update referral status');
+        }
+        const updated = await patchRes.json();
+        const nextStatus = updated.status || targetStatus;
+        setReferrals(prev =>
+          prev.map(r => (r.id === referral.id ? { ...r, status: nextStatus } : r))
+        );
+        if (selectedReferral && selectedReferral.id === referral.id) {
+          setSelectedReferral({ ...selectedReferral, status: nextStatus });
+        }
+        Alert.alert('Status Updated', `Referral status is now ${nextStatus.replace(/_/g, ' ')}.`);
+      }
+    } catch (err: any) {
+      Alert.alert('Status Update Error', err.message || 'Failed to update referral status');
+    }
+  };
+
   const handleStartTeleconsult = async (referral: ReferralItem) => {
     try {
       const token = session?.access_token;
@@ -367,18 +398,64 @@ export default function PhcReferralsScreen() {
 
         {/* Action Buttons */}
         <View style={styles.actionButtonsRow}>
-          <TouchableOpacity
-            style={[styles.acceptBtn, isArrivalRecorded && { backgroundColor: '#2563EB' }]}
-            activeOpacity={0.85}
-            onPress={() => isArrivalRecorded ? router.push({
-              pathname: '/(phc)/consultations',
-              params: { patientId: selectedReferral.patientId, patientName: selectedReferral.patientName },
-            }) : handleAccept(selectedReferral)}
-          >
-            <Text style={styles.acceptBtnText}>
-              {isArrivalRecorded ? 'Consult Patient' : 'Confirm Arrival'}
-            </Text>
-          </TouchableOpacity>
+          {selectedReferral.status === 'PENDING' || selectedReferral.status === 'DISPATCHED' ? (
+            <TouchableOpacity
+              style={styles.acceptBtn}
+              activeOpacity={0.85}
+              onPress={() => handleAccept(selectedReferral)}
+            >
+              <Text style={styles.acceptBtnText}>Confirm Arrival</Text>
+            </TouchableOpacity>
+          ) : selectedReferral.status === 'CONFIRMED_ARRIVAL' ? (
+            <>
+              <TouchableOpacity
+                style={[styles.acceptBtn, { backgroundColor: '#2563EB', flex: 1 }]}
+                activeOpacity={0.85}
+                onPress={async () => {
+                  await handleUpdateStatus(selectedReferral, 'IN_CONSULTATION');
+                  router.push({
+                    pathname: '/(phc)/consultations',
+                    params: { patientId: selectedReferral.patientId, patientName: selectedReferral.patientName },
+                  });
+                }}
+              >
+                <Text style={styles.acceptBtnText}>Start Consultation</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.acceptBtn, { backgroundColor: '#059669', flex: 1, marginLeft: 8 }]}
+                activeOpacity={0.85}
+                onPress={() => handleUpdateStatus(selectedReferral, 'COMPLETED')}
+              >
+                <Text style={styles.acceptBtnText}>Mark Completed</Text>
+              </TouchableOpacity>
+            </>
+          ) : selectedReferral.status === 'IN_CONSULTATION' ? (
+            <>
+              <TouchableOpacity
+                style={[styles.acceptBtn, { backgroundColor: '#059669', flex: 1 }]}
+                activeOpacity={0.85}
+                onPress={() => handleUpdateStatus(selectedReferral, 'COMPLETED')}
+              >
+                <Text style={styles.acceptBtnText}>Mark Completed</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.acceptBtn, { backgroundColor: '#2563EB', flex: 1, marginLeft: 8 }]}
+                activeOpacity={0.85}
+                onPress={() => {
+                  router.push({
+                    pathname: '/(phc)/consultations',
+                    params: { patientId: selectedReferral.patientId, patientName: selectedReferral.patientName },
+                  });
+                }}
+              >
+                <Text style={styles.acceptBtnText}>Open Consult</Text>
+              </TouchableOpacity>
+            </>
+          ) : (
+            <View style={[styles.acceptBtn, { backgroundColor: '#DCFCE7', flex: 1 }]}>
+              <Text style={[styles.acceptBtnText, { color: '#166534' }]}>✓ Referral Completed</Text>
+            </View>
+          )}
 
           <TouchableOpacity
             style={styles.requestInfoBtn}
@@ -509,29 +586,63 @@ export default function PhcReferralsScreen() {
                   </Text>
                 </View>
 
-                {/* Priority Tag */}
-                <View
-                  style={[
-                    styles.priorityTag,
-                    item.priority === 'Emergency'
-                      ? styles.badgeEmergency
-                      : item.priority === 'Urgent'
-                      ? styles.badgeUrgent
-                      : styles.badgeNormal,
-                  ]}
-                >
-                  <Text
+                {/* Priority & Status Tags */}
+                <View style={{ alignItems: 'flex-end', gap: 4 }}>
+                  <View
                     style={[
-                      styles.priorityTagText,
+                      styles.priorityTag,
                       item.priority === 'Emergency'
-                        ? styles.textEmergency
+                        ? styles.badgeEmergency
                         : item.priority === 'Urgent'
-                        ? styles.textUrgent
-                        : styles.textNormal,
+                        ? styles.badgeUrgent
+                        : styles.badgeNormal,
                     ]}
                   >
-                    {item.priority}
-                  </Text>
+                    <Text
+                      style={[
+                        styles.priorityTagText,
+                        item.priority === 'Emergency'
+                          ? styles.textEmergency
+                          : item.priority === 'Urgent'
+                          ? styles.textUrgent
+                          : styles.textNormal,
+                      ]}
+                    >
+                      {item.priority}
+                    </Text>
+                  </View>
+
+                  <View
+                    style={[
+                      styles.cardStatusBadge,
+                      item.status === 'CONFIRMED_ARRIVAL'
+                        ? styles.cardStatusArrival
+                        : item.status === 'IN_CONSULTATION'
+                        ? styles.cardStatusConsult
+                        : item.status === 'COMPLETED'
+                        ? styles.cardStatusCompleted
+                        : item.status === 'DISPATCHED'
+                        ? styles.cardStatusDispatched
+                        : styles.cardStatusPending,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.cardStatusText,
+                        item.status === 'CONFIRMED_ARRIVAL'
+                          ? styles.cardStatusTextArrival
+                          : item.status === 'IN_CONSULTATION'
+                          ? styles.cardStatusTextConsult
+                          : item.status === 'COMPLETED'
+                          ? styles.cardStatusTextCompleted
+                          : item.status === 'DISPATCHED'
+                          ? styles.cardStatusTextDispatched
+                          : styles.cardStatusTextPending,
+                      ]}
+                    >
+                      {item.status.replace(/_/g, ' ')}
+                    </Text>
+                  </View>
                 </View>
 
                 {/* Chevron */}
@@ -821,4 +932,23 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter_700Bold',
     color: '#FFFFFF',
   },
+  cardStatusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  cardStatusPending: { backgroundColor: '#FEF3C7' },
+  cardStatusDispatched: { backgroundColor: '#FEE2E2' },
+  cardStatusArrival: { backgroundColor: '#DBEAFE' },
+  cardStatusConsult: { backgroundColor: '#EDE9FE' },
+  cardStatusCompleted: { backgroundColor: '#DCFCE7' },
+  cardStatusText: {
+    fontSize: 10,
+    fontFamily: 'Inter_700Bold',
+  },
+  cardStatusTextPending: { color: '#B45309' },
+  cardStatusTextDispatched: { color: '#DC2626' },
+  cardStatusTextArrival: { color: '#1D4ED8' },
+  cardStatusTextConsult: { color: '#6D28D9' },
+  cardStatusTextCompleted: { color: '#15803D' },
 });

@@ -122,29 +122,52 @@ export default function RegisterPatientScreen() {
         body: JSON.stringify(triagePayload),
       });
 
+      let calculatedPriority: 'Emergency' | 'Urgent' | 'Routine' = 'Urgent';
       if (tRes.ok) {
         const tData = await tRes.json();
-        setTriageCategory(tData.triage_category || 'URGENT');
+        const cat = tData.triage_category || 'URGENT';
+        setTriageCategory(cat);
         setTriageReason(tData.reason || 'Patient needs medical attention soon.');
         setTriageScore(tData.triage_score || 2);
+        calculatedPriority = cat === 'EMERGENCY' ? 'Emergency' : cat === 'URGENT' ? 'Urgent' : 'Routine';
       } else {
         // Local evaluation fallback
         if (selectedSymptoms.includes('breathing') && selectedSymptoms.includes('pregnancy')) {
           setTriageCategory('EMERGENCY');
           setTriageReason('Respiratory distress with pregnancy complication. Immediate emergency care required.');
+          calculatedPriority = 'Emergency';
         } else if (selectedSymptoms.length >= 2 || selectedSymptoms.includes('breathing')) {
           setTriageCategory('URGENT');
           setTriageReason('Moderate symptoms requiring doctor consultation within 24 hours.');
+          calculatedPriority = 'Urgent';
         } else {
           setTriageCategory('ROUTINE');
           setTriageReason('Mild symptoms. Routine care and home monitoring advised.');
+          calculatedPriority = 'Routine';
         }
       }
 
       setStep(3);
+      // Automatically navigate to the existing Referral screen with the real patient ID
+      router.push({
+        pathname: '/(asha)/referral',
+        params: {
+          patientId: patientId,
+          patientName: name.trim(),
+          priority: calculatedPriority,
+        },
+      });
     } catch {
       // Local fallback on connection issue
-      setStep(3);
+      const fallbackId = Date.now().toString();
+      router.push({
+        pathname: '/(asha)/referral',
+        params: {
+          patientId: fallbackId,
+          patientName: name.trim(),
+          priority: 'Urgent',
+        },
+      });
     } finally {
       setLoading(false);
     }

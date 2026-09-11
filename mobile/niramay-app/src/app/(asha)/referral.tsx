@@ -1,17 +1,40 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
-  TextInput, ActivityIndicator, Alert
+  TextInput, ActivityIndicator, Alert, RefreshControl
 } from 'react-native';
 import { useAuth } from '../../store/AuthContext';
 import { FontAwesome5 } from '@expo/vector-icons';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { BACKEND_URL } from '../../lib/apiClient';
 
 interface PatientOption {
   id: string;
   name: string;
   village?: string;
+}
+
+interface ReferralRecord {
+  id: string;
+  referral_code: string;
+  patient_id: string;
+  patient_name?: string;
+  destination_hospital: string;
+  reason: string;
+  status: string;
+  created_at: string;
+  updated_at?: string;
+}
+
+interface DispatchResult {
+  id: string;
+  referral_id: string;
+  vehicle_number?: string;
+  driver_name?: string;
+  driver_phone?: string;
+  eta_minutes?: number;
+  status: string;
+  message?: string;
 }
 
 const COMMON_REASONS = [
@@ -28,10 +51,15 @@ export default function CreateReferralScreen() {
   const params = useLocalSearchParams();
   const { session } = useAuth();
 
+  // Top Tab Navigation: 'create' | 'my_referrals'
+  const [activeTab, setActiveTab] = useState<'create' | 'my_referrals'>(
+    params.patientId ? 'create' : 'create'
+  );
+
+  // Form state
   const [patients, setPatients] = useState<PatientOption[]>([
-    { id: '11111111-1111-1111-1111-111111111111', name: 'Savitri Devi', village: 'Nandgaon' },
-    { id: '22222222-2222-2222-2222-222222222222', name: 'Ramesh Kumar', village: 'Chinchpada' },
-    { id: '33333333-3333-3333-3333-333333333333', name: 'Pooja Sharma', village: 'Nandurbar' },
+    { id: '11111111-1111-1111-1111-111111111111', name: 'Rekha Patil', village: 'Chinchpada' },
+    { id: '22222222-2222-2222-2222-222222222222', name: 'Sunita Kamble', village: 'Nandgaon' },
   ]);
 
   const [selectedPatientId, setSelectedPatientId] = useState<string>(
@@ -44,53 +72,145 @@ export default function CreateReferralScreen() {
   );
   const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // Referral Sent / Feedback state
   const [referralSent, setReferralSent] = useState(false);
   const [sentCode, setSentCode] = useState<string>('');
   const [sentReferralId, setSentReferralId] = useState<string | null>(null);
+  const [sentReferralStatus, setSentReferralStatus] = useState<string>('PENDING');
+  const [refreshingStatus, setRefreshingStatus] = useState(false);
 
   // 108 Dispatch state
-  interface DispatchResult {
-    id: string;
-    referral_id: string;
-    vehicle_number?: string;
-    driver_name?: string;
-    driver_phone?: string;
-    eta_minutes?: number;
-    status: string;
-    message?: string;
-  }
   const [dispatchLoading, setDispatchLoading] = useState(false);
   const [dispatchResult, setDispatchResult] = useState<DispatchResult | null>(null);
   const [dispatchError, setDispatchError] = useState<string | null>(null);
 
-  // Fetch registered patients for selector
-  useEffect(() => {
-    (async () => {
-      try {
-        const token = session?.access_token;
-        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-        if (token) headers['Authorization'] = `Bearer ${token}`;
+  // My Referrals list state
+  const [myReferrals, setMyReferrals] = useState<ReferralRecord[]>([]);
+  const [loadingList, setLoadingList] = useState(false);
+  const [refreshingList, setRefreshingList] = useState(false);
+  const [selectedReferralDetail, setSelectedReferralDetail] = useState<ReferralRecord | null>(null);
 
-        const res = await fetch(`${BACKEND_URL}/api/v1/patients/`, { headers });
-        if (res.ok) {
-          const data = await res.json();
-          if (Array.isArray(data) && data.length > 0) {
-            setPatients(data.map((p: any) => ({
-              id: String(p.id),
-              name: p.name,
-              village: p.village,
-            })));
-            if (!params.patientId) {
-              setSelectedPatientId(String(data[0].id));
-            }
+  // Fetch registered patients for selector & patient name resolution
+  const fetchPatients = useCallback(async () => {
+    try {
+      const token = session?.access_token;
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const res = await fetch(`${BACKEND_URL}/api/v1/patients/`, { headers });
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data) && data.length > 0) {
+          setPatients(data.map((p: any) => ({
+            id: String(p.id),
+            name: p.name,
+            village: p.village,
+          })));
+          if (!params.patientId && !selectedPatientId) {
+            setSelectedPatientId(String(data[0].id));
           }
         }
-      } catch {
-        // Keep fallback
       }
-    })();
-  }, [session, params.patientId]);
+    } catch {
+      // Keep fallback
+    }
+  }, [session, params.patientId, selectedPatientId]);
 
+  // Fetch all referrals created by this ASHA worker
+  const fetchMyReferrals = useCallback(async () => {
+    setLoadingList(true);
+    try {
+      const token = session?.access_token;
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const [refRes, patRes] = await Promise.all([
+        fetch(`${BACKEND_URL}/api/v1/referrals/`, { headers }),
+        fetch(`${BACKEND_URL}/api/v1/patients/`, { headers }),
+      ]);
+
+      const patientMap = new Map<string, string>();
+      if (patRes.ok) {
+        const patData = await patRes.json();
+        if (Array.isArray(patData)) {
+          patData.forEach((p: any) => patientMap.set(String(p.id), p.name));
+        }
+      }
+
+      if (refRes.ok) {
+        const data = await refRes.json();
+        if (Array.isArray(data)) {
+          const list: ReferralRecord[] = data.map((r: any) => ({
+            id: String(r.id),
+            referral_code: r.referral_code || `NMN-${String(r.id).slice(0, 8)}`,
+            patient_id: String(r.patient_id),
+            patient_name: patientMap.get(String(r.patient_id)) || 'Patient',
+            destination_hospital: r.destination_hospital || 'District Hospital Nandurbar',
+            reason: r.reason || '',
+            status: r.status || 'PENDING',
+            created_at: r.created_at || new Date().toISOString(),
+            updated_at: r.updated_at,
+          }));
+          setMyReferrals(list);
+
+          // If a referral detail modal is open, sync its updated status
+          if (selectedReferralDetail) {
+            const match = list.find(item => item.id === selectedReferralDetail.id);
+            if (match) setSelectedReferralDetail(match);
+          }
+        }
+      }
+    } catch {
+      // Keep existing list
+    } finally {
+      setLoadingList(false);
+    }
+  }, [session, selectedReferralDetail]);
+
+  useEffect(() => {
+    fetchPatients();
+  }, [fetchPatients]);
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchMyReferrals();
+    }, [fetchMyReferrals])
+  );
+
+  // Poll sent referral live status from backend
+  const checkLiveStatus = async (refId: string) => {
+    if (!refId) return;
+    setRefreshingStatus(true);
+    try {
+      const token = session?.access_token;
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const res = await fetch(`${BACKEND_URL}/api/v1/referrals/${refId}`, { headers });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.status) {
+          setSentReferralStatus(data.status);
+        }
+      }
+    } catch {
+      // Keep existing status
+    } finally {
+      setRefreshingStatus(false);
+    }
+  };
+
+  // Real-time polling while Referral Sent confirmation is visible
+  useEffect(() => {
+    if (!referralSent || !sentReferralId) return;
+    const timer = setInterval(() => {
+      checkLiveStatus(sentReferralId);
+    }, 4000);
+    return () => clearInterval(timer);
+  }, [referralSent, sentReferralId]);
+
+  // ── Handle Send Referral ───────────────────────────────────────────────────
   const handleSendReferral = async () => {
     if (!selectedPatientId) {
       Alert.alert('Required', 'Please select a patient.');
@@ -103,7 +223,7 @@ export default function CreateReferralScreen() {
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       if (token) headers['Authorization'] = `Bearer ${token}`;
 
-      const finalReason = `${selectedReason}${customReason ? ` - ${customReason}` : ''} [Priority: ${priority}]`;
+      const finalReason = `${selectedReason}${customReason ? ` - ${customReason}` : ''} [Priority: ${priority}]${notes ? ` (Notes: ${notes})` : ''}`;
 
       const payload = {
         patient_id: selectedPatientId,
@@ -119,19 +239,17 @@ export default function CreateReferralScreen() {
 
       if (res.ok) {
         const data = await res.json();
-        setSentCode(data.referral_code || 'REF-' + Math.floor(100000 + Math.random() * 900000));
+        setSentCode(data.referral_code || 'NMN-' + new Date().getFullYear() + '-' + Math.floor(1000 + Math.random() * 9000));
         setSentReferralId(data.id ? String(data.id) : null);
+        setSentReferralStatus(data.status || 'PENDING');
         setReferralSent(true);
+        fetchMyReferrals();
       } else {
-        // Fallback local success (no real ID available)
-        setSentCode('REF-' + Math.floor(100000 + Math.random() * 900000));
-        setSentReferralId(null);
-        setReferralSent(true);
+        const err = await res.json().catch(() => ({}));
+        Alert.alert('Error', err.detail || 'Failed to create referral on backend.');
       }
-    } catch {
-      setSentCode('REF-' + Math.floor(100000 + Math.random() * 900000));
-      setSentReferralId(null);
-      setReferralSent(true);
+    } catch (e: any) {
+      Alert.alert('Network Error', 'Could not reach server. Please check your connection.');
     } finally {
       setLoading(false);
     }
@@ -176,6 +294,8 @@ export default function CreateReferralScreen() {
           status: data.status || 'DISPATCHED',
           message: data.message,
         });
+        setSentReferralStatus('DISPATCHED');
+        fetchMyReferrals();
       } else {
         const err = await res.json().catch(() => ({}));
         setDispatchError(err.detail || `Dispatch failed (HTTP ${res.status}).`);
@@ -187,8 +307,175 @@ export default function CreateReferralScreen() {
     }
   };
 
-
   const selectedPatientObj = patients.find(p => p.id === selectedPatientId) || patients[0];
+
+  const getStatusBadge = (st: string) => {
+    switch (st?.toUpperCase()) {
+      case 'CONFIRMED_ARRIVAL':
+        return { bg: '#DBEAFE', text: '#1D4ED8', label: 'Arrival Confirmed' };
+      case 'IN_CONSULTATION':
+        return { bg: '#EDE9FE', text: '#6D28D9', label: 'In Consultation' };
+      case 'COMPLETED':
+        return { bg: '#DCFCE7', text: '#15803D', label: 'Completed' };
+      case 'DISPATCHED':
+        return { bg: '#FEE2E2', text: '#DC2626', label: '108 Dispatched' };
+      case 'CANCELLED':
+        return { bg: '#F1F5F9', text: '#64748B', label: 'Cancelled' };
+      case 'PENDING':
+      default:
+        return { bg: '#FEF3C7', text: '#B45309', label: 'Pending Review' };
+    }
+  };
+
+  const renderTimeline = (st: string) => {
+    const isSent = true;
+    const isDispatched = st === 'DISPATCHED' || st === 'CONFIRMED_ARRIVAL' || st === 'IN_CONSULTATION' || st === 'COMPLETED';
+    const isArrived = st === 'CONFIRMED_ARRIVAL' || st === 'IN_CONSULTATION' || st === 'COMPLETED';
+    const isInConsult = st === 'IN_CONSULTATION' || st === 'COMPLETED';
+    const isDone = st === 'COMPLETED';
+
+    return (
+      <View style={styles.timelineBox}>
+        <Text style={styles.timelineHeader}>Hospital Feedback & Status Progression</Text>
+
+        <View style={styles.timelineRow}>
+          <View style={[styles.timelineDot, styles.timelineDotDone]}>
+            <FontAwesome5 name="check" size={9} color="#FFFFFF" />
+          </View>
+          <View style={styles.timelineContent}>
+            <Text style={styles.timelineLabelDone}>1. Referral Created & Notified</Text>
+            <Text style={styles.timelineSubDone}>Sent to District Hospital</Text>
+          </View>
+        </View>
+
+        {st === 'DISPATCHED' && (
+          <View style={styles.timelineRow}>
+            <View style={[styles.timelineDot, styles.timelineDotDispatched]}>
+              <FontAwesome5 name="ambulance" size={9} color="#FFFFFF" />
+            </View>
+            <View style={styles.timelineContent}>
+              <Text style={[styles.timelineLabelDone, { color: '#DC2626' }]}>2. 108 Ambulance Dispatched</Text>
+              <Text style={styles.timelineSubDone}>Vehicle en route</Text>
+            </View>
+          </View>
+        )}
+
+        <View style={styles.timelineRow}>
+          <View style={[styles.timelineDot, isArrived ? styles.timelineDotDone : styles.timelineDotPending]}>
+            {isArrived && <FontAwesome5 name="check" size={9} color="#FFFFFF" />}
+          </View>
+          <View style={styles.timelineContent}>
+            <Text style={isArrived ? styles.timelineLabelDone : styles.timelineLabelPending}>
+              {isDispatched ? '3.' : '2.'} Hospital Arrival Confirmed
+            </Text>
+            <Text style={styles.timelineSubPending}>
+              {isArrived ? 'PHC recorded patient arrival' : 'Awaiting patient arrival at facility'}
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.timelineRow}>
+          <View style={[styles.timelineDot, isInConsult ? styles.timelineDotDone : styles.timelineDotPending]}>
+            {isInConsult && <FontAwesome5 name="check" size={9} color="#FFFFFF" />}
+          </View>
+          <View style={styles.timelineContent}>
+            <Text style={isInConsult ? styles.timelineLabelDone : styles.timelineLabelPending}>
+              {isDispatched ? '4.' : '3.'} Doctor Consultation
+            </Text>
+            <Text style={styles.timelineSubPending}>
+              {isInConsult ? 'Consultation in progress' : 'Doctor queue pending'}
+            </Text>
+          </View>
+        </View>
+
+        <View style={[styles.timelineRow, { marginBottom: 0 }]}>
+          <View style={[styles.timelineDot, isDone ? styles.timelineDotDone : styles.timelineDotPending]}>
+            {isDone && <FontAwesome5 name="check" size={9} color="#FFFFFF" />}
+          </View>
+          <View style={styles.timelineContent}>
+            <Text style={isDone ? styles.timelineLabelDone : styles.timelineLabelPending}>
+              {isDispatched ? '5.' : '4.'} Referral Completed
+            </Text>
+            <Text style={styles.timelineSubPending}>
+              {isDone ? 'Treatment & consultation completed' : 'Final disposition pending'}
+            </Text>
+          </View>
+        </View>
+      </View>
+    );
+  };
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // SCREEN: REFERRAL DETAIL MODAL (WHEN A REFERRAL IN LIST IS CLICKED)
+  // ───────────────────────────────────────────────────────────────────────────
+  if (selectedReferralDetail) {
+    const badge = getStatusBadge(selectedReferralDetail.status);
+    return (
+      <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+        <View style={styles.header}>
+          <TouchableOpacity style={styles.backBtn} onPress={() => setSelectedReferralDetail(null)}>
+            <FontAwesome5 name="arrow-left" size={16} color="#0F172A" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Referral Status Feedback</Text>
+          <TouchableOpacity
+            style={styles.refreshBtnSmall}
+            onPress={() => {
+              checkLiveStatus(selectedReferralDetail.id);
+              fetchMyReferrals();
+            }}
+          >
+            <FontAwesome5 name="sync-alt" size={14} color="#2563EB" />
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.card}>
+          <View style={styles.detailHeaderRow}>
+            <View>
+              <Text style={styles.detailPatientName}>{selectedReferralDetail.patient_name}</Text>
+              <Text style={styles.detailCodeText}>Code: {selectedReferralDetail.referral_code}</Text>
+            </View>
+            <View style={[styles.statusBadgeLarge, { backgroundColor: badge.bg }]}>
+              <Text style={[styles.statusBadgeTextLarge, { color: badge.text }]}>
+                {badge.label}
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.divider} />
+
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>Hospital</Text>
+            <Text style={styles.infoValue}>{selectedReferralDetail.destination_hospital}</Text>
+          </View>
+
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>Reason</Text>
+            <Text style={[styles.infoValue, { flex: 1, textAlign: 'right' }]} numberOfLines={2}>
+              {selectedReferralDetail.reason}
+            </Text>
+          </View>
+
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>Date</Text>
+            <Text style={styles.infoValue}>
+              {new Date(selectedReferralDetail.created_at).toLocaleDateString('en-IN', {
+                day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
+              })}
+            </Text>
+          </View>
+
+          {renderTimeline(selectedReferralDetail.status)}
+
+          <TouchableOpacity
+            style={[styles.primaryBtn, { marginTop: 16 }]}
+            onPress={() => setSelectedReferralDetail(null)}
+          >
+            <Text style={styles.primaryBtnText}>Close</Text>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
+    );
+  }
 
   return (
     <ScrollView
@@ -196,265 +483,418 @@ export default function CreateReferralScreen() {
       contentContainerStyle={styles.content}
       showsVerticalScrollIndicator={false}
       keyboardShouldPersistTaps="handled"
+      refreshControl={
+        activeTab === 'my_referrals' ? (
+          <RefreshControl refreshing={refreshingList} onRefresh={fetchMyReferrals} colors={['#059669']} />
+        ) : undefined
+      }
     >
       {/* Top Header */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
           <FontAwesome5 name="arrow-left" size={16} color="#0F172A" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Create Referral</Text>
+        <Text style={styles.headerTitle}>ASHA Referrals</Text>
         <View style={{ width: 36 }} />
       </View>
 
-      {/* Success View */}
-      {referralSent ? (
-        <View style={styles.successCard}>
-          <View style={styles.successIconBadge}>
-            <FontAwesome5 name="check-circle" size={40} color="#059669" />
-          </View>
-          <Text style={styles.successTitle}>Referral Sent Successfully</Text>
-          <Text style={styles.successSub}>
-            Tracking ID: <Text style={{ fontFamily: 'Inter_700Bold', color: '#059669' }}>{sentCode}</Text>
+      {/* Tab Switcher: Create Referral vs My Referrals */}
+      <View style={styles.tabSwitcher}>
+        <TouchableOpacity
+          style={[styles.tabSwitchBtn, activeTab === 'create' && styles.tabSwitchBtnActive]}
+          onPress={() => {
+            setActiveTab('create');
+            setReferralSent(false);
+          }}
+        >
+          <FontAwesome5
+            name="plus-circle"
+            size={13}
+            color={activeTab === 'create' ? '#FFFFFF' : '#64748B'}
+            style={{ marginRight: 6 }}
+          />
+          <Text style={[styles.tabSwitchText, activeTab === 'create' && styles.tabSwitchTextActive]}>
+            Create Referral
           </Text>
-          <Text style={styles.successDetails}>
-            Patient: {selectedPatientObj?.name}{'\n'}
-            Priority: {priority}{'\n'}
-            Destination: District Hospital Nandurbar
-          </Text>
+        </TouchableOpacity>
 
-          {/* ── 108 Ambulance Section ── */}
-          {(priority === 'Emergency' || priority === 'Urgent') && !dispatchResult && (
-            <View style={styles.dispatchSection}>
-              {/* Emergency Alert Banner */}
-              <View style={styles.emergencyBanner}>
-                <FontAwesome5 name="exclamation-circle" size={16} color="#DC2626" style={{ marginRight: 8 }} />
-                <Text style={styles.emergencyBannerText}>
-                  {priority === 'Emergency' ? 'Emergency detected' : 'Urgent referral'} — Ambulance may be needed
-                </Text>
+        <TouchableOpacity
+          style={[styles.tabSwitchBtn, activeTab === 'my_referrals' && styles.tabSwitchBtnActive]}
+          onPress={() => {
+            setActiveTab('my_referrals');
+            fetchMyReferrals();
+          }}
+        >
+          <FontAwesome5
+            name="list-alt"
+            size={13}
+            color={activeTab === 'my_referrals' ? '#FFFFFF' : '#64748B'}
+            style={{ marginRight: 6 }}
+          />
+          <Text style={[styles.tabSwitchText, activeTab === 'my_referrals' && styles.tabSwitchTextActive]}>
+            Sent Referrals ({myReferrals.length})
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* ── TAB 1: CREATE REFERRAL / CONFIRMATION ── */}
+      {activeTab === 'create' && (
+        <>
+          {referralSent ? (
+            <View style={styles.successCard}>
+              <View style={styles.successIconBadge}>
+                <FontAwesome5 name="check-circle" size={40} color="#059669" />
+              </View>
+              <Text style={styles.successTitle}>Referral Sent to Hospital</Text>
+              <Text style={styles.successSub}>
+                Tracking ID: <Text style={{ fontFamily: 'Inter_700Bold', color: '#059669' }}>{sentCode}</Text>
+              </Text>
+
+              {/* Real Backend Status Display */}
+              <View style={styles.liveStatusContainer}>
+                <View style={styles.liveStatusHeader}>
+                  <Text style={styles.liveStatusTitle}>Live Hospital Feedback:</Text>
+                  <TouchableOpacity
+                    style={styles.refreshStatusBtn}
+                    onPress={() => sentReferralId && checkLiveStatus(sentReferralId)}
+                    disabled={refreshingStatus}
+                  >
+                    {refreshingStatus ? (
+                      <ActivityIndicator size="small" color="#2563EB" />
+                    ) : (
+                      <>
+                        <FontAwesome5 name="sync-alt" size={11} color="#2563EB" style={{ marginRight: 4 }} />
+                        <Text style={styles.refreshStatusBtnText}>Refresh</Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                </View>
+
+                {(() => {
+                  const b = getStatusBadge(sentReferralStatus);
+                  return (
+                    <View style={[styles.statusBadgeHero, { backgroundColor: b.bg }]}>
+                      <FontAwesome5 name="clock" size={13} color={b.text} style={{ marginRight: 6 }} />
+                      <Text style={[styles.statusBadgeTextHero, { color: b.text }]}>
+                        Status: {b.label}
+                      </Text>
+                    </View>
+                  );
+                })()}
               </View>
 
-              {/* Error message if dispatch failed */}
-              {dispatchError && (
-                <View style={styles.dispatchErrorBox}>
-                  <FontAwesome5 name="times-circle" size={14} color="#DC2626" style={{ marginRight: 6 }} />
-                  <Text style={styles.dispatchErrorText}>{dispatchError}</Text>
+              <Text style={styles.successDetails}>
+                Patient: {selectedPatientObj?.name}{'\n'}
+                Priority: {priority}{'\n'}
+                Destination: District Hospital Nandurbar
+              </Text>
+
+              {/* Real Progression Timeline */}
+              {renderTimeline(sentReferralStatus)}
+
+              {/* ── 108 Ambulance Section ── */}
+              {(priority === 'Emergency' || priority === 'Urgent') && !dispatchResult && (
+                <View style={styles.dispatchSection}>
+                  <View style={styles.emergencyBanner}>
+                    <FontAwesome5 name="exclamation-circle" size={16} color="#DC2626" style={{ marginRight: 8 }} />
+                    <Text style={styles.emergencyBannerText}>
+                      {priority === 'Emergency' ? 'Emergency detected' : 'Urgent referral'} — Ambulance may be needed
+                    </Text>
+                  </View>
+
+                  {dispatchError && (
+                    <View style={styles.dispatchErrorBox}>
+                      <FontAwesome5 name="times-circle" size={14} color="#DC2626" style={{ marginRight: 6 }} />
+                      <Text style={styles.dispatchErrorText}>{dispatchError}</Text>
+                    </View>
+                  )}
+
+                  <TouchableOpacity
+                    accessibilityLabel="Call 108 Ambulance"
+                    style={[styles.ambulanceBtn, dispatchLoading && styles.ambulanceBtnLoading]}
+                    activeOpacity={0.85}
+                    onPress={handleDispatch108}
+                    disabled={dispatchLoading || !sentReferralId}
+                  >
+                    {dispatchLoading ? (
+                      <ActivityIndicator color="#FFFFFF" />
+                    ) : (
+                      <>
+                        <FontAwesome5 name="ambulance" size={18} color="#FFFFFF" style={{ marginRight: 10 }} />
+                        <Text style={styles.ambulanceBtnText}>
+                          {sentReferralId ? '🚑 Call 108 Ambulance' : '108 (No referral ID)'}
+                        </Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
                 </View>
               )}
 
-              {/* Call 108 Button */}
+              {/* ── Dispatch Result Card ── */}
+              {dispatchResult && (
+                <View style={styles.dispatchResultCard}>
+                  <View style={styles.dispatchStatusHeader}>
+                    <View style={styles.dispatchStatusBadge}>
+                      <FontAwesome5 name="ambulance" size={14} color="#DC2626" style={{ marginRight: 6 }} />
+                      <Text style={styles.dispatchStatusText}>{dispatchResult.status}</Text>
+                    </View>
+                    <Text style={styles.dispatchEtaText}>
+                      ETA: <Text style={{ fontFamily: 'Inter_700Bold', color: '#DC2626' }}>
+                        {dispatchResult.eta_minutes ?? '—'} min
+                      </Text>
+                    </Text>
+                  </View>
+
+                  <View style={styles.dispatchInfoRow}>
+                    <View style={styles.dispatchInfoIcon}>
+                      <FontAwesome5 name="car" size={13} color="#7C3AED" />
+                    </View>
+                    <View>
+                      <Text style={styles.dispatchInfoLabel}>Vehicle</Text>
+                      <Text style={styles.dispatchInfoValue}>{dispatchResult.vehicle_number || '—'}</Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.dispatchInfoRow}>
+                    <View style={styles.dispatchInfoIcon}>
+                      <FontAwesome5 name="user" size={13} color="#7C3AED" />
+                    </View>
+                    <View>
+                      <Text style={styles.dispatchInfoLabel}>Driver</Text>
+                      <Text style={styles.dispatchInfoValue}>{dispatchResult.driver_name || '—'}</Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.dispatchInfoRow}>
+                    <View style={styles.dispatchInfoIcon}>
+                      <FontAwesome5 name="phone" size={13} color="#7C3AED" />
+                    </View>
+                    <View>
+                      <Text style={styles.dispatchInfoLabel}>Contact</Text>
+                      <Text style={styles.dispatchInfoValue}>{dispatchResult.driver_phone || '—'}</Text>
+                    </View>
+                  </View>
+
+                  {dispatchResult.message && (
+                    <View style={styles.dispatchMessageBox}>
+                      <FontAwesome5 name="info-circle" size={12} color="#6B7280" style={{ marginRight: 6, marginTop: 1 }} />
+                      <Text style={styles.dispatchMessageText}>{dispatchResult.message}</Text>
+                    </View>
+                  )}
+                </View>
+              )}
+
+              <View style={styles.actionButtonsRow}>
+                <TouchableOpacity
+                  style={[styles.primaryBtn, { flex: 1, marginRight: 8 }]}
+                  onPress={() => {
+                    setActiveTab('my_referrals');
+                    setReferralSent(false);
+                    fetchMyReferrals();
+                  }}
+                >
+                  <Text style={styles.primaryBtnText}>View All Referrals</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.primaryBtn, { flex: 1, backgroundColor: '#475569' }]}
+                  onPress={() => {
+                    setReferralSent(false);
+                    setDispatchResult(null);
+                    setDispatchError(null);
+                    setSentReferralId(null);
+                    router.replace('/(asha)/home');
+                  }}
+                >
+                  <Text style={styles.primaryBtnText}>Back to Home</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ) : (
+            <View style={styles.card}>
+              <Text style={styles.sectionHeader}>Referral Details</Text>
+
+              {/* Patient Selector */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Patient</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.patientScroll}>
+                  {patients.map(p => {
+                    const isSelected = p.id === selectedPatientId;
+                    return (
+                      <TouchableOpacity
+                        key={p.id}
+                        style={[styles.patientChip, isSelected && styles.patientChipActive]}
+                        onPress={() => setSelectedPatientId(p.id)}
+                      >
+                        <FontAwesome5
+                          name="user"
+                          size={12}
+                          color={isSelected ? '#FFFFFF' : '#64748B'}
+                          style={{ marginRight: 6 }}
+                        />
+                        <Text style={[styles.patientChipText, isSelected && styles.patientChipTextActive]}>
+                          {p.name}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+              </View>
+
+              {/* Reason for Referral */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Reason for Referral</Text>
+                <View style={styles.reasonWrap}>
+                  {COMMON_REASONS.map(reason => {
+                    const isSelected = selectedReason === reason;
+                    return (
+                      <TouchableOpacity
+                        key={reason}
+                        style={[styles.reasonChip, isSelected && styles.reasonChipActive]}
+                        onPress={() => setSelectedReason(reason)}
+                      >
+                        <Text style={[styles.reasonChipText, isSelected && styles.reasonChipTextActive]}>
+                          {reason}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+                <TextInput
+                  style={[styles.input, { marginTop: 8 }]}
+                  placeholder="Or specify custom reason..."
+                  placeholderTextColor="#94A3B8"
+                  value={customReason}
+                  onChangeText={setCustomReason}
+                />
+              </View>
+
+              {/* Priority */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Priority</Text>
+                <View style={styles.priorityRow}>
+                  {(['Normal', 'Urgent', 'Emergency'] as const).map(pr => {
+                    const isSelected = priority === pr;
+                    return (
+                      <TouchableOpacity
+                        key={pr}
+                        style={[
+                          styles.priorityChip,
+                          isSelected &&
+                            (pr === 'Emergency'
+                              ? styles.priorityEmergency
+                              : pr === 'Urgent'
+                              ? styles.priorityUrgent
+                              : styles.priorityNormal),
+                        ]}
+                        onPress={() => setPriority(pr)}
+                      >
+                        <Text
+                          style={[
+                            styles.priorityChipText,
+                            isSelected && styles.priorityChipTextActive,
+                          ]}
+                        >
+                          {pr}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+
+              {/* Notes */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Notes</Text>
+                <TextInput
+                  style={[styles.input, { height: 74, textAlignVertical: 'top' }]}
+                  placeholder="Add notes for PHC doctor..."
+                  placeholderTextColor="#94A3B8"
+                  multiline
+                  value={notes}
+                  onChangeText={setNotes}
+                />
+              </View>
+
+              {/* Send Referral Button */}
               <TouchableOpacity
-                accessibilityLabel="Call 108 Ambulance"
-                style={[styles.ambulanceBtn, dispatchLoading && styles.ambulanceBtnLoading]}
+                style={styles.primaryBtn}
                 activeOpacity={0.85}
-                onPress={handleDispatch108}
-                disabled={dispatchLoading || !sentReferralId}
+                onPress={handleSendReferral}
+                disabled={loading}
               >
-                {dispatchLoading ? (
+                {loading ? (
                   <ActivityIndicator color="#FFFFFF" />
                 ) : (
-                  <>
-                    <FontAwesome5 name="ambulance" size={18} color="#FFFFFF" style={{ marginRight: 10 }} />
-                    <Text style={styles.ambulanceBtnText}>
-                      {sentReferralId ? '🚑 Call 108 Ambulance' : '108 (No referral ID)'}
-                    </Text>
-                  </>
+                  <Text style={styles.primaryBtnText}>Send Referral</Text>
                 )}
               </TouchableOpacity>
             </View>
           )}
+        </>
+      )}
 
-          {/* ── Dispatch Result Card ── */}
-          {dispatchResult && (
-            <View style={styles.dispatchResultCard}>
-              {/* Status Header */}
-              <View style={styles.dispatchStatusHeader}>
-                <View style={styles.dispatchStatusBadge}>
-                  <FontAwesome5 name="ambulance" size={14} color="#DC2626" style={{ marginRight: 6 }} />
-                  <Text style={styles.dispatchStatusText}>{dispatchResult.status}</Text>
-                </View>
-                <Text style={styles.dispatchEtaText}>
-                  ETA: <Text style={{ fontFamily: 'Inter_700Bold', color: '#DC2626' }}>
-                    {dispatchResult.eta_minutes ?? '—'} min
+      {/* ── TAB 2: MY REFERRALS LIST ── */}
+      {activeTab === 'my_referrals' && (
+        <View style={{ marginTop: 4 }}>
+          {loadingList && myReferrals.length === 0 ? (
+            <ActivityIndicator size="small" color="#059669" style={{ marginTop: 32 }} />
+          ) : myReferrals.length === 0 ? (
+            <View style={styles.emptyCard}>
+              <FontAwesome5 name="inbox" size={36} color="#CBD5E1" style={{ marginBottom: 10 }} />
+              <Text style={styles.emptyCardTitle}>No Referrals Sent Yet</Text>
+              <Text style={styles.emptyCardSub}>Referrals you send to District Hospital will appear here with live status updates.</Text>
+              <TouchableOpacity
+                style={[styles.primaryBtn, { marginTop: 16, paddingHorizontal: 20 }]}
+                onPress={() => setActiveTab('create')}
+              >
+                <Text style={styles.primaryBtnText}>+ Create New Referral</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            myReferrals.map(item => {
+              const badge = getStatusBadge(item.status);
+              const dateStr = new Date(item.created_at).toLocaleDateString('en-IN', {
+                day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit'
+              });
+
+              return (
+                <TouchableOpacity
+                  key={item.id}
+                  style={styles.referralListCard}
+                  activeOpacity={0.85}
+                  onPress={() => setSelectedReferralDetail(item)}
+                >
+                  <View style={styles.cardTopRow}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.cardPatientName}>{item.patient_name}</Text>
+                      <Text style={styles.cardTrackingCode}>Code: {item.referral_code}</Text>
+                    </View>
+
+                    <View style={[styles.statusBadge, { backgroundColor: badge.bg }]}>
+                      <Text style={[styles.statusBadgeText, { color: badge.text }]}>
+                        {badge.label}
+                      </Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.divider} />
+
+                  <Text style={styles.cardReasonText} numberOfLines={2}>
+                    {item.reason || 'Medical referral'}
                   </Text>
-                </Text>
-              </View>
 
-              {/* Vehicle Info */}
-              <View style={styles.dispatchInfoRow}>
-                <View style={styles.dispatchInfoIcon}>
-                  <FontAwesome5 name="car" size={13} color="#7C3AED" />
-                </View>
-                <View>
-                  <Text style={styles.dispatchInfoLabel}>Vehicle</Text>
-                  <Text style={styles.dispatchInfoValue}>{dispatchResult.vehicle_number || '—'}</Text>
-                </View>
-              </View>
-
-              {/* Driver Info */}
-              <View style={styles.dispatchInfoRow}>
-                <View style={styles.dispatchInfoIcon}>
-                  <FontAwesome5 name="user" size={13} color="#7C3AED" />
-                </View>
-                <View>
-                  <Text style={styles.dispatchInfoLabel}>Driver</Text>
-                  <Text style={styles.dispatchInfoValue}>{dispatchResult.driver_name || '—'}</Text>
-                </View>
-              </View>
-
-              {/* Driver Phone */}
-              <View style={styles.dispatchInfoRow}>
-                <View style={styles.dispatchInfoIcon}>
-                  <FontAwesome5 name="phone" size={13} color="#7C3AED" />
-                </View>
-                <View>
-                  <Text style={styles.dispatchInfoLabel}>Contact</Text>
-                  <Text style={styles.dispatchInfoValue}>{dispatchResult.driver_phone || '—'}</Text>
-                </View>
-              </View>
-
-              {/* System Message */}
-              {dispatchResult.message && (
-                <View style={styles.dispatchMessageBox}>
-                  <FontAwesome5 name="info-circle" size={12} color="#6B7280" style={{ marginRight: 6, marginTop: 1 }} />
-                  <Text style={styles.dispatchMessageText}>{dispatchResult.message}</Text>
-                </View>
-              )}
-            </View>
+                  <View style={styles.cardBottomRow}>
+                    <View style={styles.cardHospitalWrap}>
+                      <FontAwesome5 name="hospital" size={11} color="#64748B" style={{ marginRight: 4 }} />
+                      <Text style={styles.cardHospitalText}>{item.destination_hospital}</Text>
+                    </View>
+                    <Text style={styles.cardDateText}>{dateStr}</Text>
+                  </View>
+                </TouchableOpacity>
+              );
+            })
           )}
-
-          <TouchableOpacity
-            style={[styles.primaryBtn, { marginTop: dispatchResult ? 16 : 0 }]}
-            onPress={() => {
-              setReferralSent(false);
-              setDispatchResult(null);
-              setDispatchError(null);
-              setSentReferralId(null);
-              router.replace('/(asha)/home');
-            }}
-          >
-            <Text style={styles.primaryBtnText}>Back to Home</Text>
-          </TouchableOpacity>
-        </View>
-
-      ) : (
-        <View style={styles.card}>
-          <Text style={styles.sectionHeader}>Referral Details</Text>
-
-          {/* Patient Selector */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Patient</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.patientScroll}>
-              {patients.map(p => {
-                const isSelected = p.id === selectedPatientId;
-                return (
-                  <TouchableOpacity
-                    key={p.id}
-                    style={[styles.patientChip, isSelected && styles.patientChipActive]}
-                    onPress={() => setSelectedPatientId(p.id)}
-                  >
-                    <FontAwesome5
-                      name="user"
-                      size={12}
-                      color={isSelected ? '#FFFFFF' : '#64748B'}
-                      style={{ marginRight: 6 }}
-                    />
-                    <Text style={[styles.patientChipText, isSelected && styles.patientChipTextActive]}>
-                      {p.name}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
-          </View>
-
-          {/* Reason for Referral */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Reason for Referral</Text>
-            <View style={styles.reasonWrap}>
-              {COMMON_REASONS.map(reason => {
-                const isSelected = selectedReason === reason;
-                return (
-                  <TouchableOpacity
-                    key={reason}
-                    style={[styles.reasonChip, isSelected && styles.reasonChipActive]}
-                    onPress={() => setSelectedReason(reason)}
-                  >
-                    <Text style={[styles.reasonChipText, isSelected && styles.reasonChipTextActive]}>
-                      {reason}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-            <TextInput
-              style={[styles.input, { marginTop: 8 }]}
-              placeholder="Or specify custom reason..."
-              placeholderTextColor="#94A3B8"
-              value={customReason}
-              onChangeText={setCustomReason}
-            />
-          </View>
-
-          {/* Priority */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Priority</Text>
-            <View style={styles.priorityRow}>
-              {(['Normal', 'Urgent', 'Emergency'] as const).map(pr => {
-                const isSelected = priority === pr;
-                return (
-                  <TouchableOpacity
-                    key={pr}
-                    style={[
-                      styles.priorityChip,
-                      isSelected &&
-                        (pr === 'Emergency'
-                          ? styles.priorityEmergency
-                          : pr === 'Urgent'
-                          ? styles.priorityUrgent
-                          : styles.priorityNormal),
-                    ]}
-                    onPress={() => setPriority(pr)}
-                  >
-                    <Text
-                      style={[
-                        styles.priorityChipText,
-                        isSelected && styles.priorityChipTextActive,
-                      ]}
-                    >
-                      {pr}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          </View>
-
-          {/* Notes */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Notes</Text>
-            <TextInput
-              style={[styles.input, { height: 74, textAlignVertical: 'top' }]}
-              placeholder="Add notes for PHC doctor..."
-              placeholderTextColor="#94A3B8"
-              multiline
-              value={notes}
-              onChangeText={setNotes}
-            />
-          </View>
-
-          {/* Send Referral Button */}
-          <TouchableOpacity
-            style={styles.primaryBtn}
-            activeOpacity={0.85}
-            onPress={handleSendReferral}
-            disabled={loading}
-          >
-            {loading ? (
-              <ActivityIndicator color="#FFFFFF" />
-            ) : (
-              <Text style={styles.primaryBtnText}>Send Referral</Text>
-            )}
-          </TouchableOpacity>
         </View>
       )}
     </ScrollView>
@@ -474,7 +914,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 16,
+    marginBottom: 14,
   },
   backBtn: {
     width: 36,
@@ -486,11 +926,50 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#E2E8F0',
   },
+  refreshBtnSmall: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#EFF6FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+  },
   headerTitle: {
     fontSize: 18,
     fontFamily: 'Inter_700Bold',
     color: '#0F172A',
   },
+
+  // ── Tab Switcher ──
+  tabSwitcher: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    marginBottom: 16,
+    gap: 8,
+  },
+  tabSwitchBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 9,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    backgroundColor: '#F1F5F9',
+  },
+  tabSwitchBtnActive: {
+    backgroundColor: '#059669',
+  },
+  tabSwitchText: {
+    fontSize: 13,
+    fontFamily: 'Inter_600SemiBold',
+    color: '#64748B',
+  },
+  tabSwitchTextActive: {
+    color: '#FFFFFF',
+  },
+
+  // ── Card ──
   card: {
     backgroundColor: '#FFFFFF',
     borderRadius: 20,
@@ -602,8 +1081,8 @@ const styles = StyleSheet.create({
     color: '#475569',
   },
   priorityChipTextActive: {
-    fontFamily: 'Inter_700Bold',
     color: '#0F172A',
+    fontFamily: 'Inter_700Bold',
   },
   input: {
     backgroundColor: '#F8FAFC',
@@ -634,28 +1113,74 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter_700Bold',
     color: '#FFFFFF',
   },
+
+  // ── Success / Feedback Screen ──
   successCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 20,
-    padding: 24,
+    padding: 22,
     alignItems: 'center',
     borderWidth: 1,
     borderColor: '#E2E8F0',
   },
   successIconBadge: {
-    marginBottom: 16,
+    marginBottom: 14,
   },
   successTitle: {
     fontSize: 18,
     fontFamily: 'Inter_800ExtraBold',
     color: '#0F172A',
-    marginBottom: 8,
+    marginBottom: 6,
   },
   successSub: {
     fontSize: 14,
     fontFamily: 'Inter_500Medium',
     color: '#64748B',
-    marginBottom: 16,
+    marginBottom: 12,
+  },
+  liveStatusContainer: {
+    width: '100%',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  liveStatusHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  liveStatusTitle: {
+    fontSize: 12,
+    fontFamily: 'Inter_600SemiBold',
+    color: '#475569',
+  },
+  refreshStatusBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#EFF6FF',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  refreshStatusBtnText: {
+    fontSize: 11,
+    fontFamily: 'Inter_600SemiBold',
+    color: '#2563EB',
+  },
+  statusBadgeHero: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+  },
+  statusBadgeTextHero: {
+    fontSize: 13,
+    fontFamily: 'Inter_700Bold',
   },
   successDetails: {
     fontSize: 13,
@@ -664,16 +1189,83 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     textAlign: 'center',
     backgroundColor: '#F8FAFC',
-    padding: 14,
+    padding: 12,
     borderRadius: 12,
     width: '100%',
-    marginBottom: 20,
+    marginBottom: 14,
   },
 
-  // ── 108 Dispatch Styles ──────────────────────────────────────────
+  // ── Timeline Styles ──
+  timelineBox: {
+    width: '100%',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 14,
+  },
+  timelineHeader: {
+    fontSize: 12,
+    fontFamily: 'Inter_700Bold',
+    color: '#475569',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 12,
+  },
+  timelineRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 12,
+  },
+  timelineDot: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+    marginTop: 1,
+  },
+  timelineDotDone: {
+    backgroundColor: '#16A34A',
+  },
+  timelineDotDispatched: {
+    backgroundColor: '#DC2626',
+  },
+  timelineDotPending: {
+    backgroundColor: '#E2E8F0',
+  },
+  timelineContent: {
+    flex: 1,
+  },
+  timelineLabelDone: {
+    fontSize: 13,
+    fontFamily: 'Inter_700Bold',
+    color: '#0F172A',
+  },
+  timelineLabelPending: {
+    fontSize: 13,
+    fontFamily: 'Inter_600SemiBold',
+    color: '#94A3B8',
+  },
+  timelineSubDone: {
+    fontSize: 11,
+    fontFamily: 'Inter_500Medium',
+    color: '#64748B',
+    marginTop: 1,
+  },
+  timelineSubPending: {
+    fontSize: 11,
+    fontFamily: 'Inter_500Medium',
+    color: '#94A3B8',
+    marginTop: 1,
+  },
+
+  // ── 108 Dispatch Styles ──
   dispatchSection: {
     width: '100%',
-    marginBottom: 16,
+    marginBottom: 14,
   },
   emergencyBanner: {
     flexDirection: 'row',
@@ -681,9 +1273,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#FEF2F2',
     borderWidth: 1,
     borderColor: '#FECACA',
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 12,
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 10,
   },
   emergencyBannerText: {
     flex: 1,
@@ -713,7 +1305,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: '#DC2626',
     borderRadius: 14,
-    height: 52,
+    height: 50,
     width: '100%',
     shadowColor: '#DC2626',
     shadowOffset: { width: 0, height: 3 },
@@ -725,7 +1317,7 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
   ambulanceBtnText: {
-    fontSize: 16,
+    fontSize: 15,
     fontFamily: 'Inter_700Bold',
     color: '#FFFFFF',
   },
@@ -735,15 +1327,15 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: '#FCA5A5',
     borderRadius: 16,
-    padding: 16,
-    marginBottom: 4,
+    padding: 14,
+    marginBottom: 14,
   },
   dispatchStatusHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 14,
-    paddingBottom: 12,
+    marginBottom: 12,
+    paddingBottom: 10,
     borderBottomWidth: 1,
     borderBottomColor: '#FECACA',
   },
@@ -769,37 +1361,35 @@ const styles = StyleSheet.create({
   dispatchInfoRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: 8,
   },
   dispatchInfoIcon: {
-    width: 32,
-    height: 32,
+    width: 28,
+    height: 28,
     borderRadius: 8,
     backgroundColor: '#F3E8FF',
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 12,
+    marginRight: 10,
   },
   dispatchInfoLabel: {
-    fontSize: 11,
+    fontSize: 10,
     fontFamily: 'Inter_600SemiBold',
     color: '#64748B',
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
   },
   dispatchInfoValue: {
-    fontSize: 14,
+    fontSize: 13,
     fontFamily: 'Inter_700Bold',
     color: '#0F172A',
-    marginTop: 1,
   },
   dispatchMessageBox: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     backgroundColor: '#FFFFFF',
     borderRadius: 10,
-    padding: 10,
-    marginTop: 8,
+    padding: 8,
+    marginTop: 6,
   },
   dispatchMessageText: {
     flex: 1,
@@ -807,5 +1397,150 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter_500Medium',
     color: '#475569',
     lineHeight: 16,
+  },
+  actionButtonsRow: {
+    flexDirection: 'row',
+    width: '100%',
+    marginTop: 10,
+  },
+
+  // ── Sent Referrals List ──
+  referralListCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 1,
+  },
+  cardTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  cardPatientName: {
+    fontSize: 16,
+    fontFamily: 'Inter_700Bold',
+    color: '#0F172A',
+  },
+  cardTrackingCode: {
+    fontSize: 12,
+    fontFamily: 'Inter_500Medium',
+    color: '#64748B',
+    marginTop: 2,
+  },
+  statusBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  statusBadgeText: {
+    fontSize: 11,
+    fontFamily: 'Inter_700Bold',
+  },
+  divider: {
+    height: 1,
+    backgroundColor: '#F1F5F9',
+    marginVertical: 10,
+  },
+  cardReasonText: {
+    fontSize: 13,
+    fontFamily: 'Inter_500Medium',
+    color: '#334155',
+    lineHeight: 18,
+    marginBottom: 10,
+  },
+  cardBottomRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  cardHospitalWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    marginRight: 8,
+  },
+  cardHospitalText: {
+    fontSize: 12,
+    fontFamily: 'Inter_500Medium',
+    color: '#64748B',
+  },
+  cardDateText: {
+    fontSize: 11,
+    fontFamily: 'Inter_500Medium',
+    color: '#94A3B8',
+  },
+  emptyCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 30,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginTop: 12,
+  },
+  emptyCardTitle: {
+    fontSize: 16,
+    fontFamily: 'Inter_700Bold',
+    color: '#0F172A',
+    marginBottom: 4,
+  },
+  emptyCardSub: {
+    fontSize: 13,
+    fontFamily: 'Inter_500Medium',
+    color: '#64748B',
+    textAlign: 'center',
+    lineHeight: 18,
+  },
+
+  // ── Detail Modal View ──
+  detailHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 8,
+  },
+  detailPatientName: {
+    fontSize: 18,
+    fontFamily: 'Inter_800ExtraBold',
+    color: '#0F172A',
+  },
+  detailCodeText: {
+    fontSize: 13,
+    fontFamily: 'Inter_600SemiBold',
+    color: '#059669',
+    marginTop: 2,
+  },
+  statusBadgeLarge: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 10,
+  },
+  statusBadgeTextLarge: {
+    fontSize: 12,
+    fontFamily: 'Inter_700Bold',
+  },
+  infoRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  infoLabel: {
+    fontSize: 12,
+    fontFamily: 'Inter_600SemiBold',
+    color: '#64748B',
+    width: 80,
+  },
+  infoValue: {
+    fontSize: 13,
+    fontFamily: 'Inter_600SemiBold',
+    color: '#0F172A',
   },
 });
