@@ -1,12 +1,12 @@
 import React from "react";
 import { X, MapPin, Stethoscope, Send } from "lucide-react";
-import { Patient } from "@/context/HealthcareContext";
+import { PatientRecord } from "@/lib/healthcareData";
 import { UrgencyBadge } from "@/components/common/Badge";
 
 interface PatientRecordModalProps {
   isOpen: boolean;
   onClose: () => void;
-  patient: Patient | null;
+  patient: PatientRecord | null;
   onOpenConsultation: (patientId: string) => void;
   onOpenReferralModal: (patientId: string) => void;
 }

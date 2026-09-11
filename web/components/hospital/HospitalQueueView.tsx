@@ -34,7 +34,7 @@ export const HospitalQueueView: React.FC = () => {
   return (
     <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs flex flex-col gap-5">
       {/* Header & Controls */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-100">
         <div>
           <h2 className="text-lg font-extrabold text-slate-900">
             District Hospital Casualty & Specialty Admissions Queue
@@ -44,38 +44,34 @@ export const HospitalQueueView: React.FC = () => {
           </p>
         </div>
 
-        {/* Search Input */}
-        <div className="relative w-full sm:w-72">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input
-            type="text"
-            placeholder="Search patient, referral ID, facility..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-slate-200 focus:outline-hidden focus:ring-2 focus:ring-blue-500 bg-slate-50"
-          />
+        {/* Filters */}
+        <div className="flex flex-wrap sm:flex-nowrap gap-2 w-full sm:w-auto">
+          <div className="relative flex-grow sm:flex-grow-0 sm:w-72">
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Search patient, referral ID, facility..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-slate-200 focus:outline-hidden focus:ring-2 focus:ring-blue-500 bg-slate-50"
+            />
+          </div>
+          
+          <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-3 py-2 shrink-0 focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-transparent transition-all">
+            <Filter className="w-4 h-4 text-slate-400" />
+            <select
+              value={selectedDept}
+              onChange={(e) => setSelectedDept(e.target.value)}
+              className="text-xs font-bold text-slate-700 bg-transparent focus:outline-hidden cursor-pointer"
+            >
+              {departments.map((dept) => (
+                <option key={dept} value={dept}>
+                  {dept === "ALL" ? "All Departments" : dept.split("/")[0]}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
-      </div>
-
-      {/* Department Filter Pills */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-1 text-xs">
-        <span className="font-bold text-slate-500 flex items-center gap-1 shrink-0">
-          <Filter className="w-3.5 h-3.5" /> Department:
-        </span>
-        {departments.map((dept) => (
-          <button
-            key={dept}
-            type="button"
-            onClick={() => setSelectedDept(dept)}
-            className={`px-3 py-1.5 rounded-xl font-bold border transition-colors shrink-0 ${
-              selectedDept === dept
-                ? "bg-blue-800 text-white border-blue-800 shadow-xs"
-                : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100"
-            }`}
-          >
-            {dept === "ALL" ? "All Departments" : dept.split("/")[0]}
-          </button>
-        ))}
       </div>
 
       {/* Queue Table */}
@@ -87,17 +83,16 @@ export const HospitalQueueView: React.FC = () => {
               <th className="py-3 px-4">Patient Name</th>
               <th className="py-3 px-4">Urgency</th>
               <th className="py-3 px-4">Department</th>
+              <th className="py-3 px-4">Clinical Reason</th>
               <th className="py-3 px-4">Assigned Specialist</th>
-              <th className="py-3 px-4">Referring PHC</th>
               <th className="py-3 px-4">Status</th>
-              <th className="py-3 px-4">Ambulance Transit</th>
               <th className="py-3 px-4">Queue Action</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {filteredQueue.length === 0 ? (
               <tr>
-                <td colSpan={9} className="py-8 text-center text-slate-400">
+                <td colSpan={8} className="py-8 text-center text-slate-400">
                   No hospital queue records found under the selected filters.
                 </td>
               </tr>
@@ -127,25 +122,17 @@ export const HospitalQueueView: React.FC = () => {
                       {item.department}
                     </td>
                     <td className="py-3.5 px-4 text-slate-700">
-                      <span className="font-semibold text-blue-900">
-                        {item.assignedDoctor || "Triage Officer (Casualty)"}
-                      </span>
+                      <div className="max-w-[200px] truncate text-xs font-medium" title={item.reason}>
+                        {item.reason}
+                      </div>
                     </td>
-                    <td className="py-3.5 px-4 text-slate-600">
-                      {item.referringFacility}
+                    <td className="py-3.5 px-4 text-slate-700">
+                      <span className="font-semibold text-blue-900">
+                        {item.assignedDoctor || "Triage Officer"}
+                      </span>
                     </td>
                     <td className="py-3.5 px-4 whitespace-nowrap">
                       <ReferralStatusBadge status={item.status} size="sm" />
-                    </td>
-                    <td className="py-3.5 px-4 text-slate-600 whitespace-nowrap">
-                      {item.ambulanceRequested ? (
-                        <span className="font-bold text-red-700 text-[11px] block">
-                          108: {item.ambulanceStatus || "In Transit"}
-                          {item.ambulanceEta ? ` (${item.ambulanceEta})` : ""}
-                        </span>
-                      ) : (
-                        <span className="text-slate-400">Self Transport</span>
-                      )}
                     </td>
                     <td className="py-3.5 px-4 whitespace-nowrap">
                       {item.status === "SENT" || item.status === "IN_TRANSIT" ? (

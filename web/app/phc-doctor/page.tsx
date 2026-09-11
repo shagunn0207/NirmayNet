@@ -148,7 +148,7 @@ export default function PHCDoctorPortalPage() {
   return (
     <PortalLayout
       roleTitle={currentUser?.name || "PHC Doctor Portal"}
-      facilityName={currentUser?.facility_name || "Dhadgaon Primary Health Centre"}
+      facilityName={(currentUser as any)?.facility_name || "Dhadgaon Primary Health Centre"}
       tabs={tabs}
       activeTab={activeTab}
       onTabChange={(tabId) => setActiveTab(tabId)}

@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from "react";
-import { UserOut } from "@/context/HealthcareContext";
+import { UserAccount } from "@/context/HealthcareContext";
 import { X, Save, User, Phone, Building2, LogOut } from "lucide-react";
 
 interface ProfileEditModalProps {
   isOpen: boolean;
   onClose: () => void;
-  currentUser: UserOut | null;
-  onSave: (updates: Partial<UserOut>) => Promise<void>;
+  currentUser: UserAccount | null;
+  onSave: (updates: Partial<UserAccount>) => Promise<void>;
   onLogout: () => void;
 }
 
@@ -26,8 +26,8 @@ export const ProfileEditModal: React.FC<ProfileEditModalProps> = ({
   useEffect(() => {
     if (currentUser && isOpen) {
       setName(currentUser.name || "");
-      setPhone(currentUser.phone || "");
-      setFacilityName(currentUser.facility_name || "");
+      setPhone((currentUser as any).phone || "");
+      setFacilityName((currentUser as any).facility_name || "");
       setError("");
     }
   }, [currentUser, isOpen]);
@@ -57,7 +57,7 @@ export const ProfileEditModal: React.FC<ProfileEditModalProps> = ({
         name,
         phone,
         facility_name: facilityName,
-      });
+      } as any);
       onClose();
     } catch (err: any) {
       setError(err.message || "Failed to update profile.");

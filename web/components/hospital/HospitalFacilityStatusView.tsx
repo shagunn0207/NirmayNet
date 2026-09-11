@@ -5,13 +5,10 @@ import { useHealthcare } from "@/context/HealthcareContext";
 import {
   Bed,
   Activity,
-  CheckCircle,
-  XCircle,
-  AlertTriangle,
-  Plus,
-  Minus,
   Zap,
   Droplet,
+  Minus,
+  Plus,
 } from "lucide-react";
 
 export const HospitalFacilityStatusView: React.FC = () => {
@@ -24,258 +21,301 @@ export const HospitalFacilityStatusView: React.FC = () => {
       name: "Intensive Care Unit (ICU)",
       available: facilityStatus.icuBedsAvailable,
       total: facilityStatus.icuTotal,
-      color: "border-red-200 bg-red-50/40 text-red-950",
+      color: "bg-red-50/50 border-red-100",
       accent: "text-red-700",
+      bar: "bg-red-500",
     },
     {
       id: "maternity" as const,
-      name: "Maternity & Labor Ward (SNCU)",
+      name: "Maternity & Labor (SNCU)",
       available: facilityStatus.maternityBedsAvailable,
       total: facilityStatus.maternityTotal,
-      color: "border-purple-200 bg-purple-50/40 text-purple-950",
+      color: "bg-purple-50/50 border-purple-100",
       accent: "text-purple-700",
+      bar: "bg-purple-500",
     },
     {
       id: "emergency" as const,
       name: "Emergency Casualty / HDU",
       available: facilityStatus.emergencyBedsAvailable,
       total: facilityStatus.emergencyTotal,
-      color: "border-amber-200 bg-amber-50/40 text-amber-950",
+      color: "bg-amber-50/50 border-amber-100",
       accent: "text-amber-700",
+      bar: "bg-amber-500",
     },
     {
       id: "general" as const,
       name: "General Inpatient Wards",
       available: facilityStatus.generalBedsAvailable,
       total: facilityStatus.generalTotal,
-      color: "border-teal-200 bg-teal-50/40 text-teal-950",
+      color: "bg-teal-50/50 border-teal-100",
       accent: "text-teal-700",
+      bar: "bg-teal-500",
     },
   ];
 
   return (
     <div className="flex flex-col gap-6">
       {/* Bed Capacity Management */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs">
-        <div className="pb-3 border-b border-slate-100 mb-4">
-          <h2 className="text-base font-extrabold text-slate-900">
-            District Civil Hospital Bed Capacity Management
+      <div className="bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden">
+        <div className="px-6 py-5 border-b border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <h2 className="text-lg font-black text-slate-900 flex items-center gap-2">
+              <Bed className="w-5 h-5 text-blue-600" />
+              Bed Capacity Management
+            </h2>
+            <p className="text-xs text-slate-500 font-medium mt-1">
+              Real-time occupancy and bed availability tracking
+            </p>
+          </div>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-slate-50/80 border-b border-slate-100 text-xs font-bold text-slate-500 uppercase tracking-wider">
+                <th className="px-6 py-4">Ward / Department</th>
+                <th className="px-6 py-4">Occupancy Status</th>
+                <th className="px-6 py-4 text-center">Available Beds</th>
+                <th className="px-6 py-4 text-right">Manage Free Beds</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {bedCards.map((bed) => {
+                const occupancyPercent = Math.round(((bed.total - bed.available) / bed.total) * 100);
+                
+                return (
+                  <tr key={bed.id} className="hover:bg-slate-50/50 transition-colors">
+                    {/* Ward Name */}
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-3">
+                        <div className={`w-2 h-8 rounded-full ${bed.bar}`} />
+                        <span className="text-sm font-extrabold text-slate-900">{bed.name}</span>
+                      </div>
+                    </td>
+
+                    {/* Occupancy Bar */}
+                    <td className="px-6 py-4">
+                      <div className="flex flex-col gap-1.5 w-48">
+                        <div className="flex justify-between text-[10px] font-bold text-slate-500">
+                          <span>{occupancyPercent}% Occupied</span>
+                          <span>{bed.total - bed.available} / {bed.total}</span>
+                        </div>
+                        <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full ${occupancyPercent > 85 ? "bg-red-500" : bed.bar}`}
+                            style={{ width: `${occupancyPercent}%` }}
+                          />
+                        </div>
+                      </div>
+                    </td>
+
+                    {/* Available Beds */}
+                    <td className="px-6 py-4 text-center">
+                      <span className={`inline-flex items-center justify-center min-w-[3rem] h-8 px-3 rounded-lg border text-sm font-black ${bed.color} ${bed.accent}`}>
+                        {bed.available}
+                      </span>
+                    </td>
+
+                    {/* Manage Controls */}
+                    <td className="px-6 py-4">
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          type="button"
+                          onClick={() => updateBedAvailability(bed.id, -1)}
+                          disabled={bed.available <= 0}
+                          className="w-8 h-8 rounded-lg bg-white border border-slate-200 text-slate-600 flex items-center justify-center hover:bg-slate-50 disabled:opacity-30 transition-colors"
+                        >
+                          <Minus className="w-4 h-4" />
+                        </button>
+                        
+                        <select
+                          value={bed.available}
+                          onChange={(e) => {
+                            const newAvailable = parseInt(e.target.value, 10);
+                            const difference = newAvailable - bed.available;
+                            updateBedAvailability(bed.id, difference);
+                          }}
+                          className="h-8 px-2 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                        >
+                          {Array.from({ length: bed.total + 1 }, (_, i) => (
+                            <option key={i} value={i}>{i}</option>
+                          ))}
+                        </select>
+
+                        <button
+                          type="button"
+                          onClick={() => updateBedAvailability(bed.id, 1)}
+                          disabled={bed.available >= bed.total}
+                          className="w-8 h-8 rounded-lg bg-white border border-slate-200 text-slate-600 flex items-center justify-center hover:bg-slate-50 disabled:opacity-30 transition-colors"
+                        >
+                          <Plus className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Unified Resources Table */}
+      <div className="bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden">
+        <div className="px-6 py-5 border-b border-slate-100 bg-slate-50/50">
+          <h2 className="text-lg font-black text-slate-900 flex items-center gap-2">
+            <Activity className="w-5 h-5 text-purple-600" />
+            Hospital Resources & Critical Infrastructure
           </h2>
-          <p className="text-xs text-slate-500">
-            Real-time occupancy and bed availability tracking for incoming rural PHC transfers
+          <p className="text-xs text-slate-500 font-medium mt-1">
+            Operational status of life-saving utilities and blood bank reserves
           </p>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {bedCards.map((bed) => {
-            const occupancyPercent = Math.round(
-              ((bed.total - bed.available) / bed.total) * 100
-            );
-            return (
-              <div
-                key={bed.id}
-                className={`p-4 rounded-2xl border flex flex-col justify-between gap-3 ${bed.color}`}
-              >
-                <div>
-                  <span className="text-[11px] font-black uppercase tracking-wider block mb-1">
-                    {bed.name}
-                  </span>
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-3xl font-black text-slate-900">
-                      {bed.available}
-                    </span>
-                    <span className="text-xs font-semibold text-slate-500">
-                      free of {bed.total} total
-                    </span>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-slate-50/80 border-b border-slate-100 text-xs font-bold text-slate-500 uppercase tracking-wider">
+                <th className="px-6 py-4">Resource / Equipment</th>
+                <th className="px-6 py-4">Details</th>
+                <th className="px-6 py-4 text-right">System Status</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              
+              {/* Oxygen */}
+              <tr className="hover:bg-slate-50/50 transition-colors">
+                <td className="px-6 py-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-100 flex items-center justify-center">
+                      <Zap className="w-5 h-5" />
+                    </div>
+                    <span className="text-sm font-extrabold text-slate-900">PSA Oxygen Plant</span>
                   </div>
-                  <div className="w-full bg-slate-200 h-2 rounded-full mt-2 overflow-hidden">
-                    <div
-                      className={`h-full ${
-                        occupancyPercent > 85 ? "bg-red-600" : "bg-blue-600"
-                      }`}
-                      style={{ width: `${occupancyPercent}%` }}
+                </td>
+                <td className="px-6 py-4">
+                  <span className="text-xs font-medium text-slate-500">500 LPM output · Purity 94.2% · Piped to ICU</span>
+                </td>
+                <td className="px-6 py-4 text-right">
+                  <label className="relative inline-flex items-center justify-end cursor-pointer">
+                    <span className="mr-3 text-xs font-bold text-slate-700 w-16 text-right">
+                      {facilityStatus.oxygenPlantOperational ? "Online" : "Offline"}
+                    </span>
+                    <input 
+                      type="checkbox" 
+                      className="sr-only peer" 
+                      checked={facilityStatus.oxygenPlantOperational}
+                      onChange={() => toggleEquipmentStatus("oxygen")}
                     />
-                  </div>
-                  <span className="text-[10px] text-slate-500 block mt-1">
-                    {occupancyPercent}% Occupancy
-                  </span>
-                </div>
+                    <div className="w-11 h-6 bg-slate-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
+                  </label>
+                </td>
+              </tr>
 
-                {/* Adjust Stepper */}
-                <div className="flex items-center justify-between pt-2 border-t border-slate-200/60">
-                  <span className="text-[11px] font-bold text-slate-700">Adjust Free:</span>
-                  <div className="flex items-center gap-1.5">
-                    <button
-                      type="button"
-                      onClick={() => updateBedAvailability(bed.id, -1)}
-                      disabled={bed.available <= 0}
-                      className="w-7 h-7 rounded-lg bg-white border border-slate-300 font-black text-slate-800 flex items-center justify-center hover:bg-slate-100 disabled:opacity-30 shadow-2xs"
-                    >
-                      <Minus className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => updateBedAvailability(bed.id, 1)}
-                      disabled={bed.available >= bed.total}
-                      className="w-7 h-7 rounded-lg bg-white border border-slate-300 font-black text-slate-800 flex items-center justify-center hover:bg-slate-100 disabled:opacity-30 shadow-2xs"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                    </button>
+              {/* CT Scan */}
+              <tr className="hover:bg-slate-50/50 transition-colors">
+                <td className="px-6 py-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 border border-blue-100 flex items-center justify-center">
+                      <Activity className="w-5 h-5" />
+                    </div>
+                    <span className="text-sm font-extrabold text-slate-900">128-Slice Digital CT</span>
                   </div>
-                </div>
-              </div>
-            );
-          })}
+                </td>
+                <td className="px-6 py-4">
+                  <span className="text-xs font-medium text-slate-500">Trauma & acute stroke imaging ready</span>
+                </td>
+                <td className="px-6 py-4 text-right">
+                  <label className="relative inline-flex items-center justify-end cursor-pointer">
+                    <span className="mr-3 text-xs font-bold text-slate-700 w-16 text-right">
+                      {facilityStatus.ctScanOperational ? "Online" : "Offline"}
+                    </span>
+                    <input 
+                      type="checkbox" 
+                      className="sr-only peer" 
+                      checked={facilityStatus.ctScanOperational}
+                      onChange={() => toggleEquipmentStatus("ct")}
+                    />
+                    <div className="w-11 h-6 bg-slate-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
+                  </label>
+                </td>
+              </tr>
+
+              {/* Digital X-Ray */}
+              <tr className="hover:bg-slate-50/50 transition-colors">
+                <td className="px-6 py-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 border border-purple-100 flex items-center justify-center">
+                      <Activity className="w-5 h-5" />
+                    </div>
+                    <span className="text-sm font-extrabold text-slate-900">Digital X-Ray (500mA)</span>
+                  </div>
+                </td>
+                <td className="px-6 py-4">
+                  <span className="text-xs font-medium text-slate-500">Orthopedic & trauma unit</span>
+                </td>
+                <td className="px-6 py-4 text-right">
+                  <label className="relative inline-flex items-center justify-end cursor-pointer">
+                    <span className="mr-3 text-xs font-bold text-slate-700 w-16 text-right">
+                      {facilityStatus.xrayOperational ? "Online" : "Offline"}
+                    </span>
+                    <input 
+                      type="checkbox" 
+                      className="sr-only peer" 
+                      checked={facilityStatus.xrayOperational}
+                      onChange={() => toggleEquipmentStatus("xray")}
+                    />
+                    <div className="w-11 h-6 bg-slate-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
+                  </label>
+                </td>
+              </tr>
+
+              {/* Blood Bank O+ */}
+              <tr className="hover:bg-slate-50/50 transition-colors">
+                <td className="px-6 py-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-red-50 text-red-600 border border-red-100 flex items-center justify-center">
+                      <Droplet className="w-5 h-5" />
+                    </div>
+                    <span className="text-sm font-extrabold text-slate-900">O Positive (O+) PRBC</span>
+                  </div>
+                </td>
+                <td className="px-6 py-4">
+                  <span className="text-xs font-medium text-slate-500">Ready for emergency obstetric & trauma transfers</span>
+                </td>
+                <td className="px-6 py-4 text-right">
+                  <span className="inline-flex items-center justify-center h-8 px-3 rounded-lg border bg-slate-50 text-slate-800 border-slate-200 text-sm font-black">
+                    {facilityStatus.bloodBankUnitsOpos} Units
+                  </span>
+                </td>
+              </tr>
+
+              {/* Blood Bank O- */}
+              <tr className="hover:bg-slate-50/50 transition-colors">
+                <td className="px-6 py-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-red-50 text-red-600 border border-red-100 flex items-center justify-center">
+                      <Droplet className="w-5 h-5" />
+                    </div>
+                    <span className="text-sm font-extrabold text-slate-900">O Negative (O-) Universal</span>
+                  </div>
+                </td>
+                <td className="px-6 py-4">
+                  <span className="text-xs font-medium text-slate-500">Universal donor reserve</span>
+                </td>
+                <td className="px-6 py-4 text-right">
+                  <span className="inline-flex items-center justify-center h-8 px-3 rounded-lg border bg-amber-50 text-amber-800 border-amber-200 text-sm font-black">
+                    {facilityStatus.bloodBankUnitsOneg} Units
+                  </span>
+                </td>
+              </tr>
+
+            </tbody>
+          </table>
         </div>
       </div>
 
-      {/* Equipment, Diagnostics & Blood Bank Status */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-        {/* Critical Equipment & Infrastructure */}
-        <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs">
-          <div className="pb-3 border-b border-slate-100 mb-4">
-            <h3 className="text-sm font-extrabold text-slate-900">
-              Critical Infrastructure & Life Support
-            </h3>
-            <p className="text-xs text-slate-500">Operational status of key life-saving utilities</p>
-          </div>
-
-          <div className="flex flex-col gap-3 text-xs">
-            {/* Oxygen */}
-            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center font-black">
-                  <Zap className="w-5 h-5" />
-                </div>
-                <div>
-                  <span className="font-bold text-slate-900 block">
-                    PSA Medical Oxygen Generation Plant
-                  </span>
-                  <span className="text-[11px] text-slate-500">
-                    500 LPM output · Purity 94.2% · Piped to all ICU/HDU beds
-                  </span>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => toggleEquipmentStatus("oxygen")}
-                className={`px-3 py-1 rounded-lg text-xs font-bold transition-colors ${
-                  facilityStatus.oxygenPlantOperational
-                    ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
-                    : "bg-red-100 text-red-800 border border-red-300"
-                }`}
-              >
-                {facilityStatus.oxygenPlantOperational ? "Operational" : "Offline / Fault"}
-              </button>
-            </div>
-
-            {/* CT Scan */}
-            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-xl bg-blue-100 text-blue-800 flex items-center justify-center font-black">
-                  <Activity className="w-5 h-5" />
-                </div>
-                <div>
-                  <span className="font-bold text-slate-900 block">
-                    128-Slice Digital CT Scanner
-                  </span>
-                  <span className="text-[11px] text-slate-500">
-                    Trauma & acute stroke imaging ready
-                  </span>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => toggleEquipmentStatus("ct")}
-                className={`px-3 py-1 rounded-lg text-xs font-bold transition-colors ${
-                  facilityStatus.ctScanOperational
-                    ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
-                    : "bg-red-100 text-red-800 border border-red-300"
-                }`}
-              >
-                {facilityStatus.ctScanOperational ? "Operational" : "Calibrating"}
-              </button>
-            </div>
-
-            {/* Digital X-Ray */}
-            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-xl bg-purple-100 text-purple-800 flex items-center justify-center font-black">
-                  <Activity className="w-5 h-5" />
-                </div>
-                <div>
-                  <span className="font-bold text-slate-900 block">
-                    Fixed Digital X-Ray (500mA)
-                  </span>
-                  <span className="text-[11px] text-slate-500">
-                    Orthopedic & trauma unit online
-                  </span>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => toggleEquipmentStatus("xray")}
-                className={`px-3 py-1 rounded-lg text-xs font-bold transition-colors ${
-                  facilityStatus.xrayOperational
-                    ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
-                    : "bg-red-100 text-red-800 border border-red-300"
-                }`}
-              >
-                {facilityStatus.xrayOperational ? "Operational" : "Offline"}
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Blood Bank & Pharmacy */}
-        <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs flex flex-col justify-between">
-          <div>
-            <div className="pb-3 border-b border-slate-100 mb-4">
-              <h3 className="text-sm font-extrabold text-slate-900">
-                Blood Storage Center & Emergency Stock
-              </h3>
-              <p className="text-xs text-slate-500">
-                Blood component units ready for emergency obstetric & trauma transfers
-              </p>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3 mb-4">
-              <div className="p-3 bg-red-50 rounded-xl border border-red-200 text-center">
-                <span className="text-[10px] uppercase font-bold text-red-700 block">
-                  O Positive (O+) PRBC
-                </span>
-                <span className="text-2xl font-black text-red-950">
-                  {facilityStatus.bloodBankUnitsOpos} Units
-                </span>
-                <span className="text-[10px] text-emerald-700 font-bold block mt-0.5">
-                  ✓ Safe Reserve
-                </span>
-              </div>
-
-              <div className="p-3 bg-red-50 rounded-xl border border-red-200 text-center">
-                <span className="text-[10px] uppercase font-bold text-red-700 block">
-                  O Negative (O-) Universal
-                </span>
-                <span className="text-2xl font-black text-red-950">
-                  {facilityStatus.bloodBankUnitsOneg} Units
-                </span>
-                <span className="text-[10px] text-amber-700 font-bold block mt-0.5">
-                  ⚠ Low Reserve
-                </span>
-              </div>
-            </div>
-
-            <div className="p-3 bg-blue-50/70 rounded-xl border border-blue-200 text-xs">
-              <span className="font-bold text-blue-950 block mb-1">
-                Hospital Pharmacy Status
-              </span>
-              <p className="text-slate-700 leading-relaxed">
-                Emergency antivenom (35 vials), IV fluids (250 bottles), Obstetric magnesium sulfate, and blood transfusion sets are fully stocked for 24/7 casualty intake.
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
     </div>
   );
 };

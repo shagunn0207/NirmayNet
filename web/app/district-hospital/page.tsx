@@ -5,6 +5,7 @@ import { PortalLayout, NavTabItem } from "@/components/layout/PortalLayout";
 import { useHealthcare } from "@/context/HealthcareContext";
 import { HospitalDashboardView } from "@/components/hospital/HospitalDashboardView";
 import { HospitalReferralsView } from "@/components/hospital/HospitalReferralsView";
+import { RegisterPatientModal } from "@/components/hospital/RegisterPatientModal";
 import { HospitalQueueView } from "@/components/hospital/HospitalQueueView";
 import { HospitalPatientsView } from "@/components/hospital/HospitalPatientsView";
 import { HospitalSpecialistsView } from "@/components/hospital/HospitalSpecialistsView";
@@ -19,12 +20,15 @@ import {
   FileText,
   Ambulance,
   AlertOctagon,
+  UserPlus,
+  Printer,
 } from "lucide-react";
 
 export default function DistrictHospitalPage() {
   const { hospitalReferrals, specialists, facilityStatus, currentUser } = useHealthcare();
   const [activeTab, setActiveTab] = useState<string>("dashboard");
   const [selectedReferralId, setSelectedReferralId] = useState<string | null>(null);
+  const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
 
   const incomingCount = hospitalReferrals.filter(
     (r) => r.status === "SENT" || r.status === "RECEIVED"
@@ -98,7 +102,7 @@ export default function DistrictHospitalPage() {
   return (
     <PortalLayout
       roleTitle={currentUser?.name || "District Hospital Portal"}
-      facilityName={currentUser?.facility_name || "District Civil Hospital, Nandurbar"}
+      facilityName={(currentUser as any)?.facility_name || "District Civil Hospital, Nandurbar"}
       tabs={tabs}
       activeTab={activeTab}
       onTabChange={(tabId) => setActiveTab(tabId)}
@@ -114,14 +118,46 @@ export default function DistrictHospitalPage() {
           </div>
 
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setActiveTab("emergency")}
-              className="px-3.5 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold shadow-xs transition-colors flex items-center gap-1.5"
-            >
-              <AlertOctagon className="w-4 h-4 text-white animate-pulse" />
-              <span>{emergencyCount} Emergency Transits</span>
-            </button>
+            {emergencyCount > 0 && (
+              <button
+                type="button"
+                onClick={() => setActiveTab("emergency")}
+                className="px-3.5 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold shadow-xs transition-colors flex items-center gap-1.5"
+              >
+                <AlertOctagon className="w-4 h-4 text-white animate-pulse" />
+                <span>{emergencyCount} Emergency Transits</span>
+              </button>
+            )}
+
+            {/* Contextual Action Button */}
+            {activeTab === "specialists" ? (
+              <button
+                type="button"
+                onClick={() => alert("Downloading specialist roster PDF...")}
+                className="px-3.5 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold shadow-xs transition-colors flex items-center gap-1.5"
+              >
+                <Printer className="w-4 h-4 text-white" />
+                <span>Print Roster</span>
+              </button>
+            ) : activeTab === "facility" ? (
+              <button
+                type="button"
+                onClick={() => alert("Generating facility status report...")}
+                className="px-3.5 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold shadow-xs transition-colors flex items-center gap-1.5"
+              >
+                <FileText className="w-4 h-4 text-white" />
+                <span>Generate Report</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setIsRegisterModalOpen(true)}
+                className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-xs transition-colors flex items-center gap-1.5"
+              >
+                <UserPlus className="w-4 h-4 text-white" />
+                <span>Register Walk-in</span>
+              </button>
+            )}
           </div>
         </div>
       }
@@ -146,6 +182,12 @@ export default function DistrictHospitalPage() {
       {activeTab === "specialists" && <HospitalSpecialistsView />}
 
       {activeTab === "facility" && <HospitalFacilityStatusView />}
+
+      {/* Register Patient Modal */}
+      <RegisterPatientModal 
+        isOpen={isRegisterModalOpen}
+        onClose={() => setIsRegisterModalOpen(false)}
+      />
     </PortalLayout>
   );
 }

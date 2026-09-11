@@ -104,7 +104,7 @@ export const PHCDashboardView: React.FC<PHCDashboardViewProps> = ({
                       <span className="text-sm font-bold text-slate-900">{referral.patientName}</span>
                       <span className="px-2 py-0.5 bg-amber-200/50 text-amber-800 text-[10px] font-bold rounded-md">ASHA Field Alert</span>
                     </div>
-                    <p className="text-xs text-amber-900 font-medium mt-0.5">{referral.reason} (Referred by {referral.ashaName})</p>
+                    <p className="text-xs text-amber-900 font-medium mt-0.5">{referral.referralReason || referral.symptoms.join(", ")} (Referred by {referral.ashaName})</p>
                   </div>
                 </div>
                 <button
