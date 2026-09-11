@@ -222,22 +222,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
   const [networkStatus, setNetworkStatus] = useState<NetworkStatus>('synced');
-  const [isLoggedIn, setIsLoggedIn] = useState(() => {
-    try { return Boolean(localStorage.getItem('niramaynet_session')); } catch { return false; }
-  });
-  const [currentUser, setCurrentUser] = useState<UserAccount | null>(() => {
-    try {
-      const sess = localStorage.getItem('niramaynet_session');
-      if (sess) return JSON.parse(sess);
-    } catch {}
-    return null;
-  });
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [currentUser, setCurrentUser] = useState<UserAccount | null>(null);
   const [activeTab, setActiveTab] = useState('home');
-  const [activeScreen, setActiveScreen] = useState(() => {
-    try { return localStorage.getItem('niramaynet_session') ? 'home' : 'login'; } catch { return 'login'; }
-  });
+  const [activeScreen, setActiveScreen] = useState('login');
 
-  const [patients, setPatients] = useState<Patient[]>([]);
+  const [patients, setPatients] = useState<Patient[]>(INITIAL_PATIENTS);
   const [currentPatient, setCurrentPatient] = useState<Patient | null>(null);
   const [triageResult, setTriageResult] = useState<TriageResult | null>(null);
   const [lastTriageRecordId, setLastTriageRecordId] = useState<string | null>(null);
@@ -396,6 +386,37 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           }
         } catch {
           // Backend unreachable — local SQLite records already loaded above
+        }
+
+        // Load patients from SQLite
+        const dbPatients = await db.getAllAsync<any>('SELECT * FROM patients ORDER BY registrationDate DESC');
+        if (dbPatients && dbPatients.length > 0) {
+          const loadedPatients: Patient[] = dbPatients.map(p => ({
+            id: p.id,
+            name: p.name,
+            age: Number(p.age),
+            sex: p.sex as any,
+            abhaId: p.abhaId,
+            village: p.village,
+            phone: p.phone,
+            registrationDate: p.registrationDate,
+            lastVisit: p.lastVisit,
+            lastTriage: p.lastTriage as any,
+            symptoms: p.symptoms ? JSON.parse(p.symptoms) : [],
+            allergies: p.allergies,
+            consultations: p.consultations ? JSON.parse(p.consultations) : [],
+            referrals: p.referrals ? JSON.parse(p.referrals) : [],
+            notes: p.notes,
+          }));
+          if (mounted) {
+            setPatients(prev => {
+              const existingIds = new Set(INITIAL_PATIENTS.map(ip => ip.id));
+              const newLocal = loadedPatients.filter(lp => !existingIds.has(lp.id));
+              return [...INITIAL_PATIENTS, ...newLocal];
+            });
+          }
+        } else {
+          if (mounted) setPatients(INITIAL_PATIENTS);
         }
       } catch (err) {
         console.error('Error initializing SQLite database:', err);
@@ -653,12 +674,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       });
 
       if (response.error || !response.data) {
-        showSnackbar('Error saving patient: ' + response.error);
-        return null;
+        // Fallback to local saving if API fails
+        showSnackbar('Saved locally. Will sync when online.');
+      } else {
+        patientId = response.data.id;
+        registrationDate = response.data.created_at ? response.data.created_at.split('T')[0] : registrationDate;
       }
-      
-      patientId = response.data.id;
-      registrationDate = response.data.created_at ? response.data.created_at.split('T')[0] : registrationDate;
     }
 
     const newP: Patient = {
@@ -671,6 +692,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
     setPatients(prev => [newP, ...prev]);
     setCurrentPatient(newP);
+
+    // Save to SQLite
+    openDatabaseAsync('niramaynet.db').then(db => {
+      db.runAsync(
+        'INSERT INTO patients (id, name, age, sex, abhaId, village, phone, registrationDate, lastVisit, lastTriage, symptoms, allergies, consultations, referrals, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [newP.id, newP.name, newP.age, newP.sex, newP.abhaId, newP.village, newP.phone, newP.registrationDate, newP.lastVisit || '', newP.lastTriage || '', JSON.stringify(newP.symptoms || []), newP.allergies || '', JSON.stringify(newP.consultations || []), JSON.stringify(newP.referrals || []), newP.notes || '']
+      );
+    });
+
     return newP;
   };
 

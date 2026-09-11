@@ -41,6 +41,23 @@ interface DBState {
     visited: number;
     phone?: string;
   }>;
+  patients: Array<{
+    id: string;
+    name: string;
+    age: number;
+    sex: string;
+    abhaId: string;
+    village: string;
+    phone: string;
+    registrationDate: string;
+    lastVisit: string;
+    lastTriage: string;
+    symptoms: string;
+    allergies: string;
+    consultations: string;
+    referrals: string;
+    notes: string;
+  }>;
 }
 
 function loadState(): DBState {
@@ -54,12 +71,13 @@ function loadState(): DBState {
         tasks: Array.isArray(parsed.tasks) ? parsed.tasks : [],
         drafts: Array.isArray(parsed.drafts) ? parsed.drafts : [],
         followups: Array.isArray(parsed.followups) ? parsed.followups : [],
+        patients: Array.isArray(parsed.patients) ? parsed.patients : [],
       };
     }
   } catch (_e) {
     // Ignore storage parse errors
   }
-  return { settings: {}, tasks: [], drafts: [], followups: [] };
+  return { settings: {}, tasks: [], drafts: [], followups: [], patients: [] };
 }
 
 function saveState(state: DBState): void {
@@ -108,11 +126,17 @@ export class BrowserSQLiteDatabase {
       return [...state.followups] as any[];
     }
 
-    // SELECT field_name, field_value FROM drafts WHERE draft_id = ?
+    // SELECT * FROM drafts...
     if (/SELECT\s+field_name,\s*field_value\s+FROM\s+drafts\s+WHERE\s+draft_id\s*=\s*\?/i.test(cleanSql)) {
       const draftId = params[0];
       const matches = state.drafts.filter(d => d.draft_id === draftId);
       return matches.map(d => ({ field_name: d.field_name, field_value: d.field_value })) as any[];
+    }
+
+    // SELECT * FROM patients
+    if (/SELECT\s+\*\s+FROM\s+patients/i.test(cleanSql)) {
+      const sorted = [...state.patients].sort((a, b) => (b.registrationDate || '').localeCompare(a.registrationDate || ''));
+      return sorted as any[];
     }
 
     return [];
@@ -229,6 +253,50 @@ export class BrowserSQLiteDatabase {
       const prevLen = state.drafts.length;
       state.drafts = state.drafts.filter(d => d.draft_id !== draft_id);
       changes = prevLen - state.drafts.length;
+    }
+    // INSERT OR REPLACE INTO patients
+    else if (/INSERT\s+(OR\s+REPLACE\s+)?INTO\s+patients/i.test(cleanSql)) {
+      const [id, name, age, sex, abhaId, village, phone, registrationDate, lastVisit, lastTriage, symptoms, allergies, consultations, referrals, notes] = params;
+      const existingIdx = state.patients.findIndex(p => p.id === id);
+      const newPatient = {
+        id: String(id),
+        name: String(name),
+        age: Number(age),
+        sex: String(sex),
+        abhaId: String(abhaId || ''),
+        village: String(village || ''),
+        phone: String(phone || ''),
+        registrationDate: String(registrationDate || ''),
+        lastVisit: String(lastVisit || ''),
+        lastTriage: String(lastTriage || ''),
+        symptoms: String(symptoms || ''),
+        allergies: String(allergies || ''),
+        consultations: String(consultations || ''),
+        referrals: String(referrals || ''),
+        notes: String(notes || '')
+      };
+      if (existingIdx >= 0) {
+        state.patients[existingIdx] = newPatient;
+      } else {
+        state.patients.push(newPatient);
+      }
+      changes = 1;
+    }
+    // UPDATE patients SET ...
+    else if (/UPDATE\s+patients\s+SET/i.test(cleanSql)) {
+      const [name, age, phone, village, lastTriage, id] = params;
+      const idx = state.patients.findIndex(p => p.id === id);
+      if (idx >= 0) {
+        state.patients[idx] = {
+          ...state.patients[idx],
+          name: String(name),
+          age: Number(age),
+          phone: String(phone),
+          village: String(village),
+          lastTriage: String(lastTriage),
+        };
+        changes = 1;
+      }
     }
 
     saveState(state);

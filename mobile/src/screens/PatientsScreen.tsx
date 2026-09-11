@@ -636,7 +636,7 @@ export const PatientsScreen: React.FC = () => {
       if (active) {
         setLoading(false);
         if (res.error) {
-          showSnackbar('Error fetching patients: ' + res.error);
+          console.warn('Backend sync failed:', res.error);
         } else if (res.data) {
           // Map backend patients to frontend Patient type
           const backendPatients: Patient[] = res.data.map(p => ({
