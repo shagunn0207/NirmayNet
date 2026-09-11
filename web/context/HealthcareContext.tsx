@@ -29,6 +29,17 @@ export interface UserAccount {
   username: string;
   name?: string;
   role: string;
+  facility_name?: string;
+}
+
+export interface UserOut {
+  id: string;
+  name?: string;
+  email?: string;
+  phone?: string;
+  role: string;
+  village?: string;
+  facility_name?: string;
 }
 
 export interface FacilityStatus {
@@ -161,7 +172,7 @@ export const HealthcareProvider: React.FC<{ children: React.ReactNode }> = ({
 
   useEffect(() => {
     try {
-      const sess = localStorage.getItem('niramaynet_web_session');
+      const sess = localStorage.getItem('niramaynet_session');
       if (sess) {
         const parsed = JSON.parse(sess);
         setIsLoggedIn(true);
@@ -178,7 +189,7 @@ export const HealthcareProvider: React.FC<{ children: React.ReactNode }> = ({
     setIsLoggedIn(true);
     setCurrentUser(userData);
     setAuthToken(token);
-    localStorage.setItem('niramaynet_web_session', JSON.stringify({ user: userData, token }));
+    localStorage.setItem('niramaynet_session', JSON.stringify({ user: userData, token }));
     if (userData.role === 'HOSPITAL') setCurrentRole('district-hospital');
     else if (userData.role === 'DHO') setCurrentRole('dho');
     else setCurrentRole('phc-doctor');
@@ -188,7 +199,7 @@ export const HealthcareProvider: React.FC<{ children: React.ReactNode }> = ({
     setIsLoggedIn(false);
     setCurrentUser(null);
     setAuthToken(null);
-    localStorage.removeItem('niramaynet_web_session');
+    localStorage.removeItem('niramaynet_session');
     if (typeof window !== 'undefined') window.location.href = '/';
   };
 
@@ -313,7 +324,7 @@ export const HealthcareProvider: React.FC<{ children: React.ReactNode }> = ({
     try {
       let tokenToUse = authToken;
       if (!tokenToUse) {
-        const sess = localStorage.getItem('niramaynet_web_session');
+        const sess = localStorage.getItem('niramaynet_session');
         if (sess) tokenToUse = JSON.parse(sess).token;
       }
       if (!tokenToUse) return;
@@ -590,7 +601,7 @@ export const HealthcareProvider: React.FC<{ children: React.ReactNode }> = ({
 
       let tokenToUse = authToken;
       if (!tokenToUse) {
-        const sess = localStorage.getItem('niramaynet_web_session');
+        const sess = localStorage.getItem('niramaynet_session');
         if (sess) tokenToUse = JSON.parse(sess).token;
       }
       if (!tokenToUse) {

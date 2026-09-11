@@ -81,6 +81,7 @@ export interface AshaReferral {
   patientId?: string;
   ashaPhone?: string;
   referralReason?: string;
+  reason?: string;
   vitals?: PatientVitals;
   ashaAssessment?: string;
 }
