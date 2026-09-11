@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Navbar } from "@/components/layout/Navbar";
 import { useHealthcare } from "@/context/HealthcareContext";
 import { Stethoscope, Building2, BarChart3, Activity, ArrowLeft, ChevronRight } from "lucide-react";
+import { getApiBaseUrl } from "@/lib/api";
 
 type RoleType = "HOSPITAL" | "DHO" | "ADMIN" | "ASHA" | null;
 
@@ -45,7 +46,7 @@ export default function RootHomePage() {
     setError("");
     setIsLoading(true);
 
-    const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000/api/v1";
+    const API_BASE = getApiBaseUrl();
 
     try {
       if (isLogin) {

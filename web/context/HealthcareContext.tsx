@@ -1,7 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect } from "react";
-import { api } from "../lib/api";
+import { api, getApiBaseUrl } from "../lib/api";
 import {
   PatientRecord,
   AshaReferral,
@@ -196,7 +196,8 @@ export const HealthcareProvider: React.FC<{ children: React.ReactNode }> = ({
     if (!authToken || !currentUser) throw new Error("Not authenticated");
 
     try {
-      const res = await fetch("http://127.0.0.1:8000/api/v1/auth/profile", {
+      const API_BASE = getApiBaseUrl();
+      const res = await fetch(`${API_BASE}/auth/profile`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -308,7 +309,7 @@ export const HealthcareProvider: React.FC<{ children: React.ReactNode }> = ({
 
   // ── FastAPI Integration: fetch real hospital queue & status actions ─────────
   const fetchHospitalQueue = async () => {
-    const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000/api/v1";
+    const API_BASE = getApiBaseUrl();
 
     try {
       let tokenToUse = authToken;
@@ -582,7 +583,7 @@ export const HealthcareProvider: React.FC<{ children: React.ReactNode }> = ({
       })
     );
 
-    const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000/api/v1";
+    const API_BASE = getApiBaseUrl();
 
     try {
       const targetRef = hospitalReferrals.find((r) => r.id === id || r.realReferralId === id);
