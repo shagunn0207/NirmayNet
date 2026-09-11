@@ -1,12 +1,13 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, TextInput, Modal, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
 import { useAuth } from '../../store/AuthContext';
+import { BACKEND_URL } from '../../lib/apiClient';
 import { FontAwesome5, Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from 'expo-router';
-import { supabase } from '../../lib/supabase';
+
 
 export default function PatientsScreen() {
-  const { t, user } = useAuth();
+  const { t, user, session } = useAuth();
   const [patients, setPatients] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [query, setQuery] = useState('');
@@ -27,27 +28,46 @@ export default function PatientsScreen() {
   useFocusEffect(
     useCallback(() => {
       fetchPatients();
-      
-      // Subscribe to realtime updates for patients
-      const channel = supabase.channel('public:patients')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'patients' }, (payload) => {
-          fetchPatients(); // Re-fetch all patients when a change occurs
-        })
-        .subscribe();
-        
-      return () => {
-        supabase.removeChannel(channel);
-      };
+      // No realtime channels when using backend API; refresh on focus instead.
+      return () => {};
     }, [user])
   );
 
   const fetchPatients = async () => {
     setIsLoading(true);
-    if (user) {
-      const { data, error } = await supabase.from('patients').select('*').eq('asha_id', user.id).order('created_at', { ascending: false });
-      if (!error && data) {
-        setPatients(data);
+    try {
+      // Use the stored JWT from AuthContext when available
+      const token = session?.access_token;
+      const headers: any = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const res = await fetch(`${BACKEND_URL}/api/v1/patients/`, { headers });
+      if (!res.ok) {
+        setPatients([]);
+        setIsLoading(false);
+        return;
       }
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        // map backend patient shape to client expected fields and normalize gender to 'M'|'F'|Other
+        const mapped = data.map((p: any) => ({
+          id: p.id,
+          name: p.name,
+          age: typeof p.age === 'number' ? p.age : (p.age ? parseInt(p.age, 10) || 0 : 0),
+          age_unit: p.age_unit || p.ageUnit || undefined,
+          gender: p.gender === 'Female' ? 'F' : p.gender === 'Male' ? 'M' : (p.gender || 'Other'),
+          village: p.village,
+          phone: p.phone,
+          abha_id: p.abha_id || p.abhaId,
+          lastTriage: p.last_triage || p.lastTriage || undefined,
+        }));
+        setPatients(mapped);
+      } else {
+        setPatients([]);
+      }
+    } catch (err) {
+      console.warn('fetchPatients failed', err);
+      setPatients([]);
     }
     setIsLoading(false);
   };
@@ -129,7 +149,10 @@ export default function PatientsScreen() {
             <TouchableOpacity
               key={patient.id}
               style={styles.patientCard}
-              onPress={() => setSelectedId(patient.id)}
+              onPress={() => {
+                // open patient detail modal; also support navigation if needed
+                setSelectedId(patient.id);
+              }}
             >
               <View style={styles.patientCardLeft}>
                 <View style={styles.avatar}>
@@ -137,7 +160,7 @@ export default function PatientsScreen() {
                 </View>
                 <View>
                   <Text style={styles.patientName}>{patient.name}</Text>
-                  <Text style={styles.patientSub}>{patient.age} yrs • {patient.gender === 'F' ? 'Female' : patient.gender === 'M' ? 'Male' : 'Other'} • {patient.village}</Text>
+                  <Text style={styles.patientSub}>{patient.age}{patient.age_unit ? ` ${patient.age_unit}` : ' yrs'} • {patient.gender === 'F' ? (t('sexFemale') || 'Female') : patient.gender === 'M' ? (t('sexMale') || 'Male') : (t('sexOther') || 'Other')} • {patient.village}</Text>
                 </View>
               </View>
               <View style={[
@@ -159,7 +182,7 @@ export default function PatientsScreen() {
               </TouchableOpacity>
               <View style={styles.modalTitleContainer}>
                 <Text style={styles.modalTitle}>{selectedPatient.name}</Text>
-                <Text style={styles.modalSubtitle}>{selectedPatient.age} yrs • {selectedPatient.gender === 'F' ? 'Female' : selectedPatient.gender === 'M' ? 'Male' : 'Other'}</Text>
+                <Text style={styles.modalSubtitle}>{selectedPatient.age} yrs • {selectedPatient.gender === 'F' ? (t('sexFemale') || 'Female') : selectedPatient.gender === 'M' ? (t('sexMale') || 'Male') : (t('sexOther') || 'Other')}</Text>
               </View>
               <TouchableOpacity style={styles.editBtn}>
                 <FontAwesome5 name="edit" size={14} color="#FFFFFF" />
@@ -248,7 +271,6 @@ const styles = StyleSheet.create({
   },
   dropdownButtonText: {
     fontSize: 15,
-    fontFamily: 'OpenSans_400Regular',
     fontFamily: 'Inter_600SemiBold',
     color: '#0F172A',
   },
@@ -281,7 +303,6 @@ const styles = StyleSheet.create({
   },
   dropdownItemText: {
     fontSize: 15,
-    fontFamily: 'OpenSans_400Regular',
     fontFamily: 'Inter_500Medium',
     color: '#475569',
   },
@@ -331,12 +352,10 @@ const styles = StyleSheet.create({
   avatarText: {
     color: '#FFFFFF',
     fontSize: 18,
-    fontFamily: 'OpenSans_400Regular',
     fontFamily: 'Inter_700Bold',
   },
   patientName: {
     fontSize: 16,
-    fontFamily: 'OpenSans_400Regular',
     fontFamily: 'Inter_700Bold',
     color: '#0F172A',
   },
@@ -360,7 +379,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     padding: 16,
-    paddingTop: 48, // approximate safe area
+    paddingTop: 48,
   },
   iconBtn: {
     padding: 8,
@@ -372,7 +391,6 @@ const styles = StyleSheet.create({
   modalTitle: {
     color: '#FFFFFF',
     fontSize: 18,
-    fontFamily: 'OpenSans_400Regular',
     fontFamily: 'Inter_700Bold',
   },
   modalSubtitle: {
@@ -409,7 +427,6 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 16,
-    fontFamily: 'OpenSans_400Regular',
     fontFamily: 'Inter_700Bold',
     color: '#0F172A',
     marginBottom: 12,
@@ -431,7 +448,6 @@ const styles = StyleSheet.create({
   infoValue: {
     color: '#0F172A',
     fontSize: 14,
-    fontFamily: 'OpenSans_400Regular',
     fontFamily: 'Inter_600SemiBold',
   },
   divider: {

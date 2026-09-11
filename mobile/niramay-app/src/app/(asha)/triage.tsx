@@ -5,10 +5,10 @@ import { FontAwesome5 } from '@expo/vector-icons';
 import { MASTER_SYMPTOMS, getCommonQuickSymptoms } from '../../constants/masterSymptoms';
 import { evaluateTriage, type TriageAssessment } from '../../utils/triageEngine';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { supabase } from '../../lib/supabase';
+import { BACKEND_URL } from '../../lib/apiClient';
 
 export default function TriageScreen() {
-  const { t, language, user } = useAuth();
+  const { t, language, user, session } = useAuth();
   const router = useRouter();
   const params = useLocalSearchParams();
   const patient_id = params.patient_id as string;
@@ -19,11 +19,25 @@ export default function TriageScreen() {
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
-    if (patient_id) {
-      supabase.from('patients').select('*').eq('id', patient_id).single()
-        .then(({ data }) => setPatient(data));
-    }
-  }, [patient_id]);
+    if (!patient_id) return;
+    (async () => {
+      try {
+        const token = session?.access_token;
+        const headers: any = { 'Content-Type': 'application/json' };
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+        const res = await fetch(`${BACKEND_URL}/api/v1/patients/${patient_id}`, { headers });
+        if (!res.ok) {
+          setPatient(null);
+          return;
+        }
+        const p = await res.json();
+        setPatient({ ...p, gender: p.gender === 'Female' ? 'F' : p.gender === 'Male' ? 'M' : p.gender || 'Other' });
+      } catch (err) {
+        console.warn('fetch patient failed', err);
+        setPatient(null);
+      }
+    })();
+  }, [patient_id, session]);
 
   const commonQuickSymptoms = useMemo(() => getCommonQuickSymptoms(), []);
 
@@ -52,22 +66,52 @@ export default function TriageScreen() {
   };
 
   const handleAction = async (actionPath: string) => {
-    if (!assessment || !user || !patient_id) return;
+    if (!selectedKeys || selectedKeys.length === 0 || !user || !patient_id) return;
     setIsSaving(true);
     try {
-      const { data, error } = await supabase.from('consultations').insert({
-        patient_id,
-        asha_id: user.id,
-        symptoms: selectedKeys.join(','),
-        triage_level: assessment.urgency,
-        status: 'WAITING',
-      }).select().single();
-      
-      if (error) throw error;
-      
-      router.push({ pathname: actionPath as any, params: { patient_id, consultation_id: data.id } });
+      const token = session?.access_token;
+      const headers: any = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      // 1. Submit triage assessment to backend
+      const triageRes = await fetch(`${BACKEND_URL}/api/v1/triage/assess`, {
+        method: 'POST', headers, body: JSON.stringify({ patient_id, symptoms: selectedKeys }),
+      });
+      if (!triageRes.ok) {
+        let msg = 'Triage submission failed';
+        try { const j = await triageRes.json(); if (j && j.detail) msg = j.detail; } catch {}
+        throw new Error(msg);
+      }
+      const triageData = await triageRes.json();
+
+      // 2. If action is consultation, create teleconsult room via backend and navigate to consultation screen
+      if (actionPath.includes('/consultation')) {
+        const roomRes = await fetch(`${BACKEND_URL}/api/v1/teleconsult/room`, {
+          method: 'POST', headers, body: JSON.stringify({ patient_id, referral_id: null, notes: '' }),
+        });
+        if (!roomRes.ok) {
+          let msg = t('failedCreateRoom') || 'Failed to create consultation room';
+          try { const j = await roomRes.json(); if (j && j.detail) msg = j.detail; } catch {}
+          throw new Error(msg);
+        }
+        const roomData = await roomRes.json();
+        // navigate to consultation with created room id
+        router.push({ pathname: actionPath as any, params: { patient_id, consultation_id: roomData.id } });
+        setIsSaving(false);
+        return;
+      }
+
+      // 3. If action is referral, route to referral screen (triage record created)
+      if (actionPath.includes('/referral')) {
+        router.push({ pathname: actionPath as any, params: { patient_id, triage_record_id: triageData.id } } as any);
+        setIsSaving(false);
+        return;
+      }
+
+      // Default: navigate to path with triage id
+      router.push({ pathname: actionPath as any, params: { patient_id, triage_record_id: triageData.id } } as any);
     } catch (e: any) {
-      Alert.alert('Error', e.message);
+      Alert.alert(t('consultationErrorTitle') || 'Error', e?.message || 'Failed to submit triage');
     } finally {
       setIsSaving(false);
     }
@@ -79,7 +123,7 @@ export default function TriageScreen() {
         {patient ? (
           <>
             <Text style={styles.patientName}>{patient.name}</Text>
-            <Text style={styles.patientSub}>{patient.age} yrs • {patient.gender === 'F' ? 'Female' : patient.gender === 'M' ? 'Male' : 'Other'} • {patient.village}</Text>
+            <Text style={styles.patientSub}>{patient.age} yrs • {patient.gender === 'F' ? (t('sexFemale') || 'Female') : patient.gender === 'M' ? (t('sexMale') || 'Male') : (t('sexOther') || 'Other')} • {patient.village}</Text>
           </>
         ) : (
           <ActivityIndicator color="#0F766E" />
@@ -93,7 +137,7 @@ export default function TriageScreen() {
             <FontAwesome5 name="microphone" size={24} color="#0F766E" />
           </View>
           <Text style={styles.voiceBtnText}>{t('speakSymptoms') || 'Speak Symptoms'}</Text>
-          <Text style={styles.voiceBtnSub}>{t('speakInMarathi') || '(Supports English, Hindi, Marathi, Kannada)'}</Text>
+          <Text style={styles.voiceBtnSub}>{t('speakInLanguages') || '(Supports English, Hindi, Marathi, Kannada)'}</Text>
         </TouchableOpacity>
       </View>
 
@@ -189,23 +233,23 @@ export default function TriageScreen() {
             {assessment.urgency === 'EMERGENCY' && (
               <>
                 <TouchableOpacity style={styles.btnDanger} onPress={() => handleAction('/(asha)/referral')} disabled={isSaving}>
-                  <Text style={styles.btnDangerText}>🚑 {isSaving ? 'Saving...' : (t('makeReferral') || 'Make Referral')}</Text>
+                  <Text style={styles.btnDangerText}>🚑 {isSaving ? (t('saving') || 'Saving...') : (t('makeReferral') || 'Make Referral')}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.btnPrimary} onPress={() => handleAction('/(asha)/consultation')} disabled={isSaving}>
-                  <Text style={styles.btnPrimaryText}>📞 {isSaving ? 'Saving...' : (t('startConsultBtn') || 'Start Consultation')}</Text>
+                  <Text style={styles.btnPrimaryText}>📞 {isSaving ? (t('saving') || 'Saving...') : (t('startConsultBtn') || 'Start Consultation')}</Text>
                 </TouchableOpacity>
               </>
             )}
             {assessment.urgency === 'URGENT' && (
               <>
                 <TouchableOpacity style={styles.btnPrimary} onPress={() => handleAction('/(asha)/consultation')} disabled={isSaving}>
-                  <Text style={styles.btnPrimaryText}>📞 {isSaving ? 'Saving...' : (t('startConsultBtn') || 'Start Consultation')}</Text>
+                  <Text style={styles.btnPrimaryText}>📞 {isSaving ? (t('saving') || 'Saving...') : (t('startConsultBtn') || 'Start Consultation')}</Text>
                 </TouchableOpacity>
               </>
             )}
             {assessment.urgency === 'ROUTINE' && (
               <TouchableOpacity style={styles.btnSuccess} onPress={() => handleAction('/(asha)/home')} disabled={isSaving}>
-                <Text style={styles.btnSuccessText}>📅 {isSaving ? 'Saving...' : (t('bookAppointment') || 'Book Appointment')}</Text>
+                <Text style={styles.btnSuccessText}>📅 {isSaving ? (t('saving') || 'Saving...') : (t('bookAppointment') || 'Book Appointment')}</Text>
               </TouchableOpacity>
             )}
           </View>

@@ -7,3 +7,97 @@
   --font-rounded: 'SF Pro Rounded', 'Hiragino Maru Gothic ProN', Meiryo, 'MS PGothic', sans-serif;
   --font-serif: Georgia, 'Times New Roman', serif;
 }
+
+/* Web phone preview styles */
+.web-phone-background {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(circle at 10% 10%, #e6f7f5 0%, rgba(230,247,245,0) 30%), linear-gradient(180deg, #f3f7fb 0%, #eaf4f3 100%);
+  padding: 40px;
+  box-sizing: border-box;
+}
+
+.phone-viewport {
+  width: min(420px, 92vw);
+  /* Maintain realistic portrait aspect ratio (approx iPhone 14) */
+  aspect-ratio: 390 / 844;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.phone-device {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  perspective: 1200px;
+}
+
+.phone-frame {
+  width: 100%;
+  height: 100%;
+  border-radius: 50px;
+  background: linear-gradient(180deg, #0f1724, #0b1220);
+  padding: 14px;
+  box-shadow: 0 20px 50px rgba(2,6,23,0.5), inset 0 2px 0 rgba(255,255,255,0.02);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.phone-screen {
+  width: 100%;
+  height: 100%;
+  border-radius: 36px;
+  background: #fff;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.status-bar {
+  height: 28px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(0,0,0,0));
+  display: block;
+  -webkit-user-select: none;
+}
+
+.app-screen {
+  flex: 1 1 auto;
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+  background: transparent;
+}
+
+.home-indicator {
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.home-indicator::after {
+  content: '';
+  width: 134px;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(0,0,0,0.12);
+}
+
+/* Responsive: scale down phone when viewport is narrow */
+@media (max-width: 480px) {
+  .web-phone-background { padding: 18px; }
+  .phone-viewport { width: min(360px, 96vw); }
+}
+
+@media (max-height: 700px) {
+  .web-phone-background { align-items: flex-start; padding-top: 28px; padding-bottom: 28px; }
+}
+
+/* Ensure the app content isn't covered by browser UI */
+body, html, #root { height: 100%; }
+

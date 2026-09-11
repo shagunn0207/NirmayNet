@@ -1,9 +1,10 @@
-import React from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert, Linking } from 'react-native';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 
 import { useAuth } from '../../store/AuthContext';
+import { BACKEND_URL } from '../../lib/apiClient';
 
 const dummyConsultations = [
   {
@@ -30,9 +31,65 @@ const dummyConsultations = [
 
 export default function PhcConsultationsScreen() {
   const router = useRouter();
-  const { t } = useAuth();
+  const { t, session } = useAuth();
+  const [items, setItems] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
 
-  const renderItem = ({ item }: { item: typeof dummyConsultations[0] }) => (
+  useEffect(() => {
+    const load = async () => {
+      if (!session?.access_token) return;
+      setLoading(true);
+      try {
+        const res = await fetch(`${BACKEND_URL}/api/v1/queue/hospital`, {
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        setItems(data || []);
+      } catch (err) {
+        console.warn('Failed to load queue', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, [session]);
+
+  const handleJoin = async (item: any) => {
+    try {
+      if (!session?.access_token) {
+        Alert.alert('Not authenticated');
+        return;
+      }
+
+      // If teleconsult already exists, open it; otherwise create a room
+      if (item.has_teleconsult) {
+        const res = await fetch(`${BACKEND_URL}/api/v1/queue/${item.referral_id}`, {
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        });
+        if (!res.ok) throw new Error('Failed to fetch consult');
+        const detail = await res.json();
+        if (detail.teleconsult?.jitsi_url) {
+          await Linking.openURL(detail.teleconsult.jitsi_url);
+          return;
+        }
+      }
+
+      // create teleconsult room
+      const response = await fetch(`${BACKEND_URL}/api/v1/teleconsult/room`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ patient_id: item.patient_id, referral_id: item.referral_id, notes: 'PHC initiated teleconsult' }),
+      });
+      if (!response.ok) throw new Error('Failed to create room');
+      const room = await response.json();
+      if (room?.jitsi_url) await Linking.openURL(room.jitsi_url);
+    } catch (err: any) {
+      Alert.alert(t('consultationErrorTitle') || 'Error', err?.message || (t('consultationErrorMsg') || 'Unable to join call'));
+    }
+  };
+
+  const renderItem = ({ item }: { item: any }) => (
     <View style={styles.card}>
       <View style={styles.cardHeader}>
         <View style={styles.headerLeft}>
@@ -50,11 +107,11 @@ export default function PhcConsultationsScreen() {
       </View>
 
       <View style={styles.actionRow}>
-        <TouchableOpacity style={styles.primaryButton}>
+        <TouchableOpacity style={styles.primaryButton} onPress={() => handleJoin(item)}>
           <FontAwesome5 name="video" size={14} color="#fff" style={{ marginRight: 8 }} />
-          <Text style={styles.primaryButtonText}>Join Call</Text>
+          <Text style={styles.primaryButtonText}>{t('joinCall') || 'Join Call'}</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.secondaryButton} onPress={() => router.push('/(phc)/patient-record')}>
+        <TouchableOpacity style={styles.secondaryButton} onPress={() => router.push(`/(phc)/patient-record?referral_id=${item.referral_id}`)}>
           <FontAwesome5 name="file-medical-alt" size={14} color="#00796B" style={{ marginRight: 8 }} />
           <Text style={styles.secondaryButtonText}>{t('phc.record.btn.view')}</Text>
         </TouchableOpacity>
@@ -64,10 +121,10 @@ export default function PhcConsultationsScreen() {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.headerTitle}>{t('phc.consult.title')} (2)</Text>
+      <Text style={styles.headerTitle}>{t('phc.consult.title')} ({items.length})</Text>
       <FlatList
-        data={dummyConsultations}
-        keyExtractor={item => item.id}
+        data={items}
+        keyExtractor={item => String(item.referral_id)}
         renderItem={renderItem}
         contentContainerStyle={styles.listContent}
       />

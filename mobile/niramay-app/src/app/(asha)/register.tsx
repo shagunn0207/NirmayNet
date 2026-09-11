@@ -1,17 +1,19 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, TextInput, KeyboardAvoidingView, Platform, Alert, ActivityIndicator } from 'react-native';
 import { useAuth } from '../../store/AuthContext';
+import { BACKEND_URL } from '../../lib/apiClient';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useRouter, useFocusEffect } from 'expo-router';
-import { supabase } from '../../lib/supabase';
 import Voice, { SpeechResultsEvent, SpeechErrorEvent } from '@react-native-voice/voice';
 import { SafeAreaView } from 'react-native-safe-area-context';
 export default function RegistrationScreen() {
-  const { t, user } = useAuth();
+  const { t, user, session } = useAuth();
   const router = useRouter();
 
   const [name, setName] = useState('');
   const [age, setAge] = useState(25);
+  const [ageUnit, setAgeUnit] = useState<'Years' | 'Months' | 'Weeks'>('Years');
+  const [ageUnitOpen, setAgeUnitOpen] = useState(false);
   const [sex, setSex] = useState<'Female' | 'Male' | 'Other'>('Female');
   const [abhaId, setAbhaId] = useState('');
   const [village, setVillage] = useState('Chinchpada');
@@ -45,6 +47,14 @@ export default function RegistrationScreen() {
       setAbhaVerified(false);
     }, [])
   );
+
+  // Close age unit menu on background click (web)
+  useEffect(() => {
+    if (!ageUnitOpen) return;
+    const handler = (e: any) => setAgeUnitOpen(false);
+    window.addEventListener('click', handler);
+    return () => window.removeEventListener('click', handler);
+  }, [ageUnitOpen]);
 
   useEffect(() => {
     Voice.onSpeechResults = (e: SpeechResultsEvent) => {
@@ -108,6 +118,11 @@ export default function RegistrationScreen() {
     setAge(prev => Math.max(0, Math.min(120, prev + delta)));
   };
 
+  const handleAgeInput = (val: string) => {
+    const parsed = parseInt(val.replace(/\D/g, ''), 10);
+    setAge(isNaN(parsed) ? 0 : Math.max(0, Math.min(120, parsed)));
+  };
+
   const handleScanAbha = () => {
     const demoAbha = '91-8823-4410-12';
     setAbhaId(demoAbha);
@@ -122,22 +137,39 @@ export default function RegistrationScreen() {
 
     if (!isFormValid) return;
     setIsSubmitting(true);
-    
     try {
-      const { data, error } = await supabase.from('patients').insert({
-        name: name.trim(),
-        age,
-        gender: sex === 'Female' ? 'F' : sex === 'Male' ? 'M' : 'Other',
-        abha_id: abhaId || null,
-        village,
-        phone,
-        asha_id: user?.id || 'demo-asha-id'
-      }).select().single();
+      const token = session?.access_token;
+      const headers: any = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
 
-      if (error) throw error;
-      router.push({ pathname: '/(asha)/triage', params: { patient_id: data.id } });
+      // Send age as integer (backend schema expects int years). Age unit is UI-only here.
+      const payload = {
+        name: name.trim(),
+        age: age,
+        gender: sex,
+        abha_id: abhaId || undefined,
+        village,
+        phone: phone || undefined,
+        allergies: allergies || undefined,
+      } as any;
+
+      const res = await fetch(`${BACKEND_URL}/api/v1/patients/`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        let msg = 'Failed to create patient';
+        try { const j = await res.json(); if (j && j.detail) msg = j.detail; } catch {}
+        throw new Error(String(msg));
+      }
+
+      const created = await res.json();
+      // Navigate to triage with created patient id
+      router.push({ pathname: '/(asha)/triage', params: { patient_id: created.id } });
     } catch (e: any) {
-      Alert.alert('Error', e.message);
+      Alert.alert('Error', e?.message || 'Failed to register patient');
     } finally {
       setIsSubmitting(false);
     }
@@ -197,17 +229,32 @@ export default function RegistrationScreen() {
 
         {/* Age */}
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>{t('age') || 'Age'} ({t('yearsOld') || 'years'})</Text>
-          <View style={styles.numberPicker}>
+          <Text style={styles.label}>{t('age') || 'Age'}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
             <TouchableOpacity style={styles.numberBtn} onPress={() => handleAgeChange(-1)}>
               <Text style={styles.numberBtnText}>-</Text>
             </TouchableOpacity>
-            <View style={styles.numberValueContainer}>
-              <Text style={styles.numberValue}>{age}</Text>
-            </View>
+            <TextInput
+              value={String(age)}
+              onChangeText={handleAgeInput}
+              keyboardType="number-pad"
+              style={[styles.inputSingle, { width: 88, textAlign: 'center' }]}
+            />
             <TouchableOpacity style={styles.numberBtn} onPress={() => handleAgeChange(1)}>
               <Text style={styles.numberBtnText}>+</Text>
             </TouchableOpacity>
+
+            <View style={{ flexDirection: 'row', marginLeft: 8 }}>
+              {(['Years', 'Months', 'Weeks'] as const).map(u => (
+                <TouchableOpacity
+                  key={u}
+                  onPress={() => setAgeUnit(u)}
+                  style={[styles.ageUnitBtn, ageUnit === u && styles.ageUnitBtnActive]}
+                >
+                  <Text style={[styles.ageUnitText, ageUnit === u && styles.ageUnitTextActive]}>{u}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
           </View>
         </View>
 
@@ -473,6 +520,27 @@ const styles = StyleSheet.create({
     fontSize: moderateScale(18),
     fontWeight: 'bold',
     color: '#0F172A',
+  },
+  ageUnitBtn: {
+    paddingHorizontal: moderateScale(10),
+    paddingVertical: moderateScale(8),
+    borderRadius: moderateScale(8),
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    backgroundColor: '#F1F5F9',
+    marginRight: moderateScale(6),
+  },
+  ageUnitBtnActive: {
+    backgroundColor: '#F0FDFA',
+    borderColor: '#CCFBF1',
+  },
+  ageUnitText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#475569',
+  },
+  ageUnitTextActive: {
+    color: '#0F766E',
   },
   chipContainer: {
     flexDirection: 'row',

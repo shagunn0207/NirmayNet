@@ -1,49 +1,60 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { useAuth } from '../../store/AuthContext';
 import { FontAwesome5 } from '@expo/vector-icons';
-
-const dummyReferrals = [
-  { id: '1', patientName: 'Ramesh Patel', destination: 'Nandurbar District Hospital', status: 'In Transit', date: 'Today, 09:30 AM' },
-  { id: '2', patientName: 'Sunita', destination: 'Nandurbar District Hospital', status: 'Admitted', date: 'Yesterday' }
-];
+import { useRouter } from 'expo-router';
+import { BACKEND_URL } from '../../lib/apiClient';
 
 export default function PhcReferralsScreen() {
-  const { t } = useAuth();
-  
+  const { t, session } = useAuth();
+  const router = useRouter();
+  const [items, setItems] = useState<any[]>([]);
+
+  useEffect(() => {
+    const load = async () => {
+      if (!session?.access_token) return;
+      try {
+        const res = await fetch(`${BACKEND_URL}/api/v1/referrals`, {
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        setItems(data || []);
+      } catch (err) {
+        console.warn('Failed to load referrals', err);
+      }
+    };
+    load();
+  }, [session]);
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ padding: 16 }}>
       <Text style={styles.headerTitle}>{t('phc.referral.title')}</Text>
       <Text style={styles.subtitle}>{t('phc.referral.subtitle')}</Text>
       
-      {dummyReferrals.map(item => (
-        <View key={item.id} style={styles.card}>
+      {items.map(item => (
+        <View key={String(item.id)} style={styles.card}>
           <View style={styles.cardHeader}>
-            <Text style={styles.patientName}>{item.patientName}</Text>
+            <Text style={styles.patientName}>{item.referral_code || item.id}</Text>
             <View style={[
               styles.statusBadge,
-              { backgroundColor: item.status === 'Admitted' ? '#E8F5E9' : '#FFF3E0' }
+              { backgroundColor: item.status === 'ADMITTED' ? '#E8F5E9' : '#FFF3E0' }
             ]}>
               <Text style={[
                 styles.statusText,
-                { color: item.status === 'Admitted' ? '#2E7D32' : '#E65100' }
+                { color: item.status === 'ADMITTED' ? '#2E7D32' : '#E65100' }
               ]}>
-                {item.status === 'Admitted' ? t('phc.referral.status.admitted') : item.status === 'In Transit' ? t('phc.referral.status.transit') : t('phc.referral.status.discharged')}
+                {item.status}
               </Text>
             </View>
           </View>
           
           <View style={styles.detailsRow}>
             <FontAwesome5 name="hospital" size={14} color="#666" style={{ marginRight: 8 }} />
-            <Text style={styles.detailsText}>{item.destination}</Text>
-          </View>
-          
-          <View style={styles.detailsRow}>
-            <FontAwesome5 name="clock" size={14} color="#666" style={{ marginRight: 8 }} />
-            <Text style={styles.detailsText}>{item.date}</Text>
+            <Text style={styles.detailsText}>{item.destination_hospital}</Text>
           </View>
 
-          <TouchableOpacity style={styles.viewBtn}>
+          <TouchableOpacity style={styles.viewBtn} onPress={() => router.push(`/(phc)/patient-record?referral_id=${item.id}`)}>
             <Text style={styles.viewBtnText}>{t('phc.referral.btn.details')}</Text>
           </TouchableOpacity>
         </View>

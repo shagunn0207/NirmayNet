@@ -1,23 +1,63 @@
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import { FontAwesome5 } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useAuth } from '../../store/AuthContext';
+import { BACKEND_URL } from '../../lib/apiClient';
 
 export default function PatientRecordScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams();
+  const { session, t } = useAuth();
+  const referral_id = (params.referral_id as string) || null;
+
+  const [detail, setDetail] = useState<any>(null);
+
+  useEffect(() => {
+    const load = async () => {
+      if (!referral_id || !session?.access_token) return;
+      try {
+        const res = await fetch(`${BACKEND_URL}/api/v1/queue/${referral_id}`, {
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        setDetail(data);
+      } catch (err) {
+        console.warn('Failed to load detail', err);
+      }
+    };
+    load();
+  }, [referral_id, session]);
+
+  const postAction = async (path: string) => {
+    if (!referral_id || !session?.access_token) return;
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/v1/queue/${referral_id}/${path}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+      });
+      if (!res.ok) throw new Error('Action failed');
+      const data = await res.json();
+      setDetail((d:any)=> ({...d, referral: data}));
+      Alert.alert('Success');
+    } catch (err: any) {
+      Alert.alert('Error', err?.message || 'Action failed');
+    }
+  };
 
   return (
     <ScrollView style={styles.container}>
       {/* Top Header Card */}
       <View style={styles.card}>
         <View style={styles.headerRow}>
-          <Text style={styles.patientName}>Rekha Patil</Text>
+          <Text style={styles.patientName}>{detail?.patient?.name || 'Patient'}</Text>
           <View style={styles.abhaBadge}>
             <FontAwesome5 name="check-circle" size={12} color="#00796B" style={{ marginRight: 4 }} />
-            <Text style={styles.abhaText}>ABHA linked</Text>
+            <Text style={styles.abhaText}>{detail?.patient?.abha_id ? 'ABHA linked' : 'No ABHA'}</Text>
           </View>
         </View>
-        <Text style={styles.demographics}>28F · Chinchpada</Text>
+        <Text style={styles.demographics}>{detail?.patient?.age || ''} · {detail?.patient?.village || ''}</Text>
       </View>
 
       {/* Triage and Symptoms */}
@@ -25,59 +65,47 @@ export default function PatientRecordScreen() {
         <View style={styles.triageRow}>
           <Text style={styles.sectionTitle}>Current triage: </Text>
           <View style={styles.triageBadge}>
-            <View style={[styles.indicator, { backgroundColor: '#F44336' }]} />
-            <Text style={[styles.triageText, { color: '#F44336' }]}>Emergency</Text>
+            <View style={[styles.indicator, { backgroundColor: detail?.triage?.triage_category === 'EMERGENCY' ? '#F44336' : '#FFC107' }]} />
+            <Text style={[styles.triageText, { color: detail?.triage?.triage_category === 'EMERGENCY' ? '#F44336' : '#FFC107' }]}>{detail?.triage?.triage_category || 'N/A'}</Text>
           </View>
         </View>
         
         <Text style={[styles.sectionTitle, { marginTop: 16 }]}>Symptoms reported:</Text>
-        <Text style={styles.symptomsText}>Breathlessness, swelling</Text>
-        <Text style={styles.symptomsText}>7 months pregnant</Text>
+        <Text style={styles.symptomsText}>{detail?.triage?.symptoms || '—'}</Text>
       </View>
 
       {/* Visit History */}
       <View style={styles.card}>
         <Text style={styles.sectionTitle}>Visit history:</Text>
-        
-        <View style={styles.historyRow}>
-          <Text style={styles.historyDate}>15 Aug</Text>
-          <Text style={styles.historySeparator}>—</Text>
-          <Text style={styles.historyDetail}>BP: 130/85</Text>
-        </View>
-        
-        <View style={styles.historyRow}>
-          <Text style={styles.historyDate}>01 Aug</Text>
-          <Text style={styles.historySeparator}>—</Text>
-          <Text style={styles.historyDetail}>ANC routine</Text>
-        </View>
-        
-        <View style={styles.historyRow}>
-          <Text style={styles.historyDate}>12 Jul</Text>
-          <Text style={styles.historySeparator}>—</Text>
-          <Text style={styles.historyDetail}>Iron supplement</Text>
-        </View>
+        {detail?.patient_history?.map((h:any, i:number) => (
+          <View style={styles.historyRow} key={i}>
+            <Text style={styles.historyDate}>{h.date || ''}</Text>
+            <Text style={styles.historySeparator}>—</Text>
+            <Text style={styles.historyDetail}>{h.note || ''}</Text>
+          </View>
+        ))}
       </View>
 
       {/* Action Buttons */}
       <View style={styles.actionsContainer}>
-        <TouchableOpacity style={[styles.actionBtn, styles.btnOutlineRed]}>
+        <TouchableOpacity style={[styles.actionBtn, styles.btnOutlineRed]} onPress={() => postAction('arrive')}>
           <FontAwesome5 name="arrow-up" size={16} color="#F44336" style={{ marginRight: 8 }} />
-          <Text style={styles.textRed}>Upgrade to Emergency</Text>
+          <Text style={styles.textRed}>{t('confirmArrival') || 'Confirm Arrival'}</Text>
         </TouchableOpacity>
         
-        <TouchableOpacity style={[styles.actionBtn, styles.btnOutlineBlue]}>
-          <FontAwesome5 name="ambulance" size={16} color="#3F51B5" style={{ marginRight: 8 }} />
-          <Text style={styles.textBlue}>Refer to District Hosp</Text>
+        <TouchableOpacity style={[styles.actionBtn, styles.btnOutlineBlue]} onPress={() => postAction('consult')}>
+          <FontAwesome5 name="stethoscope" size={16} color="#3F51B5" style={{ marginRight: 8 }} />
+          <Text style={styles.textBlue}>{t('startConsultBtn') || 'Start Consultation'}</Text>
         </TouchableOpacity>
         
-        <TouchableOpacity style={[styles.actionBtn, styles.btnOutlineTeal]}>
-          <FontAwesome5 name="stethoscope" size={16} color="#00796B" style={{ marginRight: 8 }} />
-          <Text style={styles.textTeal}>Treat at PHC</Text>
+        <TouchableOpacity style={[styles.actionBtn, styles.btnOutlineTeal]} onPress={() => postAction('complete')}>
+          <FontAwesome5 name="check" size={16} color="#00796B" style={{ marginRight: 8 }} />
+          <Text style={styles.textTeal}>{t('markCompleted') || 'Mark Completed'}</Text>
         </TouchableOpacity>
         
-        <TouchableOpacity style={[styles.actionBtn, styles.btnSolidTeal]}>
+        <TouchableOpacity style={[styles.actionBtn, styles.btnSolidTeal]} onPress={() => router.push(`/(phc)/consultations`)}>
           <FontAwesome5 name="edit" size={16} color="#FFF" style={{ marginRight: 8 }} />
-          <Text style={styles.textWhite}>Add Note</Text>
+          <Text style={styles.textWhite}>Back</Text>
         </TouchableOpacity>
       </View>
     </ScrollView>

@@ -3,54 +3,89 @@ import { View, Text, ScrollView, TouchableOpacity, StyleSheet, TextInput, Activi
 import { useAuth } from '../../store/AuthContext';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { supabase } from '../../lib/supabase';
+import { BACKEND_URL } from '../../lib/apiClient';
 
 export default function ReferralScreen() {
-  const { t, user } = useAuth();
+  const { t, user, session } = useAuth();
   const router = useRouter();
   const params = useLocalSearchParams();
   const patient_id = params.patient_id as string;
-  const consultation_id = params.consultation_id as string;
+  const triage_record_id = params.triage_record_id as string;
 
   const [patient, setPatient] = useState<any>(null);
-  const [consultation, setConsultation] = useState<any>(null);
   const [referral, setReferral] = useState<any>(null);
+  const [dispatch, setDispatch] = useState<any>(null);
   const [notes, setNotes] = useState('');
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
 
   useEffect(() => {
-    if (patient_id) {
-      supabase.from('patients').select('*').eq('id', patient_id).single()
-        .then(({ data }) => setPatient(data));
-    }
-    if (consultation_id) {
-      supabase.from('consultations').select('*').eq('id', consultation_id).single()
-        .then(({ data }) => setConsultation(data));
-    }
-  }, [patient_id, consultation_id]);
+    if (!patient_id) return;
+    (async () => {
+      try {
+        const token = session?.access_token;
+        const headers: any = { 'Content-Type': 'application/json' };
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+        const res = await fetch(`${BACKEND_URL}/api/v1/patients/${patient_id}`, { headers });
+        if (!res.ok) {
+          setPatient(null);
+          return;
+        }
+        const p = await res.json();
+        setPatient({ ...p, gender: p.gender === 'Female' ? 'F' : p.gender === 'Male' ? 'M' : p.gender || 'Other' });
+      } catch (err) {
+        console.warn('fetch patient failed', err);
+        setPatient(null);
+      }
+    })();
+  }, [patient_id, session]);
 
   const handleSend = async () => {
     if (!user || !patient_id) return;
     setSending(true);
-    
-    try {
-      const { data, error } = await supabase.from('referrals').insert({
-        patient_id,
-        from_phc_id: 'phc-mock-id', // Assuming connected to a default PHC
-        to_district_id: 'district-mock-id',
-        reason: notes || (consultation?.symptoms || 'Emergency'),
-        status: 'IN_TRANSIT',
-        vehicle_no: 'MH-39-AB-1234', // Mock auto-assigned vehicle
-        driver_name: 'Ramesh (9876543210)',
-        estimated_time: '15 mins'
-      }).select().single();
 
-      if (error) throw error;
-      setReferral(data);
+    try {
+      const headers: any = { 'Content-Type': 'application/json' };
+      if (session?.access_token) headers['Authorization'] = `Bearer ${session.access_token}`;
+
+      const destinationHospital = (user as any)?.facility_name || 'District Hospital Nandurbar';
+      const reason = notes.trim() || 'Emergency referral requested';
+
+      const referralRes = await fetch(`${BACKEND_URL}/api/v1/referrals/`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          patient_id,
+          triage_record_id: triage_record_id || undefined,
+          destination_hospital: destinationHospital,
+          reason,
+        }),
+      });
+
+      if (!referralRes.ok) {
+        let msg = 'Failed to create referral';
+        try { const j = await referralRes.json(); if (j && j.detail) msg = j.detail; } catch {}
+        throw new Error(msg);
+      }
+
+      const referralData = await referralRes.json();
+      setReferral(referralData);
       setSent(true);
+
+      // Trigger ambulance dispatch for emergency referral as supported by backend.
+      const dispatchRes = await fetch(`${BACKEND_URL}/api/v1/dispatch/108`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ referral_id: referralData.id }),
+      });
+
+      if (dispatchRes.ok) {
+        const dispatchData = await dispatchRes.json();
+        setDispatch(dispatchData);
+        setReferral((prev: any) => ({ ...prev, status: prev?.status || dispatchData?.status || 'DISPATCHED' }));
+      }
     } catch (error: any) {
-      Alert.alert('Error', error.message);
+      Alert.alert('Error', error?.message || 'Failed to create referral');
     } finally {
       setSending(false);
     }
@@ -64,7 +99,6 @@ export default function ReferralScreen() {
 
   return (
     <ScrollView style={styles.container}>
-      {/* Patient + urgency */}
       <View style={styles.emergencyCard}>
         <View style={styles.emergencyCardHeader}>
           <View>
@@ -76,25 +110,22 @@ export default function ReferralScreen() {
             <Text style={styles.patientSub}>{t('urgentReferral') || 'Urgent Referral'}</Text>
           </View>
           <View style={styles.emergencyBadge}>
-            <Text style={styles.emergencyBadgeText}>{t('emergencyLabel') || 'EMERGENCY'}</Text>
+            <Text style={styles.emergencyBadgeText}>{(referral?.status || 'PENDING').toUpperCase()}</Text>
           </View>
         </View>
       </View>
 
-      {/* Reason from triage mock */}
       <View style={styles.reasonCard}>
         <Text style={styles.reasonTitle}>{t('symptoms') || 'SYMPTOMS'}</Text>
-        <Text style={styles.reasonText}>{consultation?.symptoms || t('breathingSwelling') || 'Severe breathing difficulty and swelling'}</Text>
+        <Text style={styles.reasonText}>{notes || t('breathingSwelling') || 'Severe breathing difficulty and swelling'}</Text>
       </View>
 
-      {/* Referred to */}
       <View style={styles.card}>
         <Text style={styles.sectionTitle}>{t('referredHospital') || 'Referred to Hospital'}</Text>
-        <Text style={styles.boldText}>{t('districtHospital') || 'Nandurbar District Hospital'}</Text>
-        <Text style={styles.subText}>{t('distanceKm') || '45 km away • Approx 1h 15m'}</Text>
+        <Text style={styles.boldText}>{referral?.destination_hospital || (user as any)?.facility_name || t('districtHospital') || 'District Hospital Nandurbar'}</Text>
+        <Text style={styles.subText}>{referral?.reason || t('distanceKm') || 'Urgent transport arranged via 108'}</Text>
       </View>
 
-      {/* Referral Notes Input */}
       {!sent && (
         <View style={styles.card}>
           <Text style={styles.label}>{t('notes') || 'Referral Notes (Optional)'}</Text>
@@ -109,7 +140,6 @@ export default function ReferralScreen() {
         </View>
       )}
 
-      {/* Ambulance */}
       <View style={styles.card}>
         <Text style={styles.sectionTitle}>{t('ambulanceSection') || 'Ambulance & Transport'}</Text>
         {sent ? (
@@ -123,16 +153,17 @@ export default function ReferralScreen() {
             <View style={styles.divider} />
             <View style={styles.infoRow}>
               <Text style={styles.infoLabel}>{t('vehicleNo') || 'Vehicle No'}</Text>
-              <Text style={styles.infoValue}>{referral?.vehicle_no || t('vehicle') || 'MH-39-AB-1234'}</Text>
+              <Text style={styles.infoValue}>{dispatch?.vehicle_number || '—'}</Text>
             </View>
             <View style={styles.infoRow}>
               <Text style={styles.infoLabel}>{t('driverLabel') || 'Driver Contact'}</Text>
-              <Text style={styles.infoValue}>{referral?.driver_name || t('driver') || 'Ramesh (9876543210)'}</Text>
+              <Text style={styles.infoValue}>{dispatch ? `${dispatch.driver_name} (${dispatch.driver_phone})` : '—'}</Text>
             </View>
             <View style={styles.infoRow}>
               <Text style={styles.infoLabel}>{t('etaLabel') || 'Estimated Arrival'}</Text>
-              <Text style={styles.infoValueAccent}>{referral?.estimated_time || t('estimatedArrival') || '15 mins'}</Text>
+              <Text style={styles.infoValueAccent}>{dispatch ? `${dispatch.eta_minutes} mins` : '—'}</Text>
             </View>
+            {dispatch?.message ? <Text style={styles.noteText}>{dispatch.message}</Text> : null}
           </View>
         ) : (
           <View style={styles.rowCenterGap10}>
@@ -142,7 +173,6 @@ export default function ReferralScreen() {
         )}
       </View>
 
-      {/* Hospital timeline */}
       {sent && (
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>{t('hospitalTimeline') || 'Hospital Timeline'}</Text>
@@ -150,12 +180,12 @@ export default function ReferralScreen() {
             <View style={styles.timelineRow}>
               <View style={styles.timelineCircleDone}><FontAwesome5 name="check" size={10} color="#FFFFFF" /></View>
               <Text style={styles.timelineLabelDone}>{t('referralSent') || 'Referral Sent'}</Text>
-              <Text style={styles.timelineTime}>14:32</Text>
+              <Text style={styles.timelineTime}>{referral?.status || 'PENDING'}</Text>
             </View>
             <View style={styles.timelineRow}>
               <View style={styles.timelineCircleDone}><FontAwesome5 name="check" size={10} color="#FFFFFF" /></View>
               <Text style={styles.timelineLabelDone}>{t('hospitalNotified') || 'Hospital Notified'}</Text>
-              <Text style={styles.timelineTime}>14:33</Text>
+              <Text style={styles.timelineTime}>{dispatch ? 'DISPATCHED' : '—'}</Text>
             </View>
             <View style={styles.timelineRow}>
               <View style={styles.timelineCirclePending} />
@@ -166,7 +196,6 @@ export default function ReferralScreen() {
         </View>
       )}
 
-      {/* Dynamic while-waiting instructions */}
       {sent && (
         <View style={styles.urgentCard}>
           <Text style={styles.urgentSectionTitle}>⏱ {t('whileWaiting') || 'While Waiting'}</Text>
@@ -181,7 +210,6 @@ export default function ReferralScreen() {
         </View>
       )}
 
-      {/* Send button */}
       {!sent && (
         <TouchableOpacity
           style={[styles.btnDanger, sending && styles.btnDisabled]}

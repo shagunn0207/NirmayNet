@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, Modal, FlatList, Platform } from 'react-native';
 import { loginWithBackend } from '../../lib/apiClient';
 import { useAuth } from '../../store/AuthContext';
+import { useRouter } from 'expo-router';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -12,7 +13,7 @@ const LANGUAGES = [
   { code: 'kannada', label: 'ಕನ್ನಡ' }
 ];
 
-type Role = 'asha' | 'phc_doctor' | 'district';
+type Role = 'asha' | 'phc_doctor';
 
 export default function LoginScreen() {
   const [phone, setPhone] = useState('');
@@ -23,28 +24,28 @@ export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
   const [showLangPicker, setShowLangPicker] = useState(false);
   
-  const { language, setLanguage, setRoleOverride, bypassLogin, setBackendAuth, t } = useAuth();
+ const { language, setLanguage, setRoleOverride, setBackendAuth, t } = useAuth();
+  const router = useRouter();
 
   const handleSendOtp = async () => {
-    if (!selectedRole) {
-      Alert.alert('Error', 'Please select a role first.');
-      return;
-    }
-    if (phone.length < 10) {
-      Alert.alert('Error', 'Please enter a valid 10-digit phone number.');
-      return;
-    }
+  if (!selectedRole) {
+    Alert.alert('Error', 'Please select a role first.');
+    return;
+  }
 
-    // Developer bypass
-    if (phone === '0000000000') {
-      bypassLogin(selectedRole);
-      return;
-    }
+  // Validate phone by digits only
+  const normalized = phone.replace(/\D/g, '');
+  const normalized10 = normalized.length > 10 ? normalized.slice(-10) : normalized;
 
-    setIsOtpSent(true);
-  };
+  if (normalized10.length !== 10) {
+    Alert.alert('Error', 'Please enter a valid 10-digit phone number.');
+    return;
+  }
 
-  const handleVerifyOtp = async () => {
+  setIsOtpSent(true);
+};
+
+const handleVerifyOtp = async () => {
     if (!otp) {
       Alert.alert('Error', 'Please enter password / OTP.');
       return;
@@ -52,12 +53,29 @@ export default function LoginScreen() {
 
     setLoading(true);
     try {
-      const data = await loginWithBackend(phone, otp);
+      // Normalize phone to 10 digits before sending to backend (strip +91 / spaces)
+      const normalized = phone.replace(/\D/g, '');
+      const phoneToSend = normalized.length > 10 ? normalized.slice(-10) : normalized;
+      if (phoneToSend.length !== 10) {
+        throw new Error('Phone number invalid for verification');
+      }
+
+      const data = await loginWithBackend(phoneToSend, otp);
       if (data && data.access_token) {
         await setBackendAuth(data.access_token, data.user);
+        // Prefer the role selected on the login screen for navigation
+        if (selectedRole) {
+          try {
+            setRoleOverride(selectedRole);
+          } catch (e) {
+            // noop
+          }
+          if (selectedRole === 'asha') router.replace('/(asha)/home');
+          else if (selectedRole === 'phc_doctor') router.replace('/(phc)/home');
+        }
       }
     } catch (err: any) {
-      Alert.alert('Login Failed', err.message || 'Invalid credentials');
+      Alert.alert('Verification Failed', err.message || 'Invalid OTP or credentials');
     } finally {
       setLoading(false);
     }
@@ -127,6 +145,8 @@ export default function LoginScreen() {
                 <Text style={styles.roleDesc}>Consultations and referral decisions.</Text>
               </View>
             </TouchableOpacity>
+
+            {/* District/DHO role intentionally not shown on mobile login */}
 
             <TouchableOpacity 
               style={[styles.primaryButton, (!selectedRole) && styles.buttonDisabled, { marginTop: 24 }]}

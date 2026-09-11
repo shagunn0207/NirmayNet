@@ -124,7 +124,6 @@ const styles = StyleSheet.create({
   logoText: {
     color: '#fff',
     fontSize: 20,
-    fontFamily: 'OpenSans_400Regular',
     fontFamily: 'Inter_700Bold',
     marginLeft: 12,
   },
@@ -146,9 +145,8 @@ const styles = StyleSheet.create({
   navText: {
     color: '#B2DFDB',
     fontSize: 16,
-    fontFamily: 'OpenSans_400Regular',
-    marginLeft: 16,
     fontFamily: 'Inter_500Medium',
+    marginLeft: 16,
   },
   navTextActive: {
     color: '#fff',
@@ -165,9 +163,8 @@ const styles = StyleSheet.create({
   langText: {
     color: '#B2DFDB',
     fontSize: 16,
-    fontFamily: 'OpenSans_400Regular',
-    marginLeft: 16,
     fontFamily: 'Inter_500Medium',
+    marginLeft: 16,
   },
   logoutButton: {
     flexDirection: 'row',
@@ -176,9 +173,8 @@ const styles = StyleSheet.create({
   logoutText: {
     color: '#ff5252',
     fontSize: 16,
-    fontFamily: 'OpenSans_400Regular',
-    marginLeft: 16,
     fontFamily: 'Inter_500Medium',
+    marginLeft: 16,
   },
   mainContent: {
     flex: 1,
@@ -199,7 +195,6 @@ const styles = StyleSheet.create({
   },
   modalTitle: {
     fontSize: 18,
-    fontFamily: 'OpenSans_400Regular',
     fontFamily: 'Inter_700Bold',
     marginBottom: 16,
     textAlign: 'center',
@@ -222,7 +217,6 @@ const styles = StyleSheet.create({
     color: '#d32f2f',
     textAlign: 'center',
     fontSize: 16,
-    fontFamily: 'OpenSans_400Regular',
     fontFamily: 'Inter_600SemiBold',
   }
 });

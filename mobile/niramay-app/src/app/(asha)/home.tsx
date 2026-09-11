@@ -1,9 +1,9 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, TextInput, Modal, KeyboardAvoidingView, Platform } from 'react-native';
 import { useAuth } from '../../store/AuthContext';
 import { FontAwesome5, Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { useRouter, useFocusEffect } from 'expo-router';
-import { supabase } from '../../lib/supabase';
+import { BACKEND_URL } from '../../lib/apiClient';
 
 // Dummy data for UX porting
 const DUMMY_TASKS = [
@@ -13,7 +13,7 @@ const DUMMY_TASKS = [
 ];
 
 export default function HomeScreen() {
-  const { t, user } = useAuth();
+  const { t, user, session } = useAuth();
   const router = useRouter();
 
   const [tasks, setTasks] = useState(DUMMY_TASKS);
@@ -24,59 +24,46 @@ export default function HomeScreen() {
   const [isNewTaskUrgent, setIsNewTaskUrgent] = useState(false);
   const [networkStatus, setNetworkStatus] = useState('offline');
 
-  useFocusEffect(
-    useCallback(() => {
+  // On native platforms use the router's focus effect; on web fallback to useEffect
+  if (Platform.OS === 'web') {
+    useEffect(() => {
       fetchTasks();
-      
-      const channel1 = supabase.channel('public:consultations')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'consultations' }, () => {
-          fetchTasks();
-        }).subscribe();
-        
-      const channel2 = supabase.channel('public:referrals')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'referrals' }, () => {
-          fetchTasks();
-        }).subscribe();
-        
-      return () => {
-        supabase.removeChannel(channel1);
-        supabase.removeChannel(channel2);
-      };
-    }, [user])
-  );
+      // No realtime channels for backend; poll/refresh on focus
+    }, [user, session]);
+  } else {
+    useFocusEffect(
+      useCallback(() => {
+        fetchTasks();
+        // No realtime channels for backend; poll/refresh on focus
+      }, [user, session])
+    );
+  }
 
   const fetchTasks = async () => {
     if (!user) return;
     setNetworkStatus('syncing');
     try {
-      // Map consultations and referrals into tasks
-      const { data: cons } = await supabase.from('consultations').select('*, patients(name)').eq('asha_id', user.id).neq('status', 'COMPLETED');
-      const { data: refs } = await supabase.from('referrals').select('*, patients(name)');
-      
-      let newTasks: any[] = [];
-      if (cons) {
-        newTasks = [...newTasks, ...cons.map(c => ({
-          id: `cons_${c.id}`,
-          title: `Consultation: ${(c.patients as any)?.name || 'Unknown'}`,
-          visited: false,
-          urgency: c.triage_level,
-          category: 'Consultation'
-        }))];
-      }
-      if (refs) {
-        newTasks = [...newTasks, ...refs.map(r => ({
-          id: `ref_${r.id}`,
-          title: `Referral: ${(r.patients as any)?.name || 'Unknown'}`,
-          visited: false,
-          urgency: 'EMERGENCY',
-          category: 'Referral'
-        }))];
-      }
-      
-      // Merge with dummy tasks just to show some data if DB is empty
-      setTasks([...DUMMY_TASKS, ...newTasks]);
+      // Fetch tasks from backend API
+      const token = session?.access_token;
+      const headers: any = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const res = await fetch(`${BACKEND_URL}/api/v1/tasks/`, { headers });
+      if (!res.ok) throw new Error('Failed to fetch tasks');
+      const data = await res.json();
+      // Map backend TaskOut to local shape
+      const backendTasks = Array.isArray(data) ? data.map((t: any) => ({
+        id: t.id,
+        title: t.title,
+        visited: Boolean(t.visited),
+        urgency: t.urgency || 'ROUTINE',
+        category: t.category || 'General',
+      })) : [];
+
+      setTasks([...DUMMY_TASKS, ...backendTasks]);
       setNetworkStatus('synced');
     } catch (e) {
+      console.warn('fetchTasks error', e);
       setNetworkStatus('offline');
     }
   };
@@ -90,28 +77,97 @@ export default function HomeScreen() {
 
   const handleCreateTask = () => {
     if (!newTaskTitle.trim()) return;
-    setTasks(prev => [{
-      id: Date.now().toString(),
-      title: newTaskTitle,
-      visited: false,
-      urgency: isNewTaskUrgent ? 'URGENT' : 'ROUTINE',
-      category: 'General',
-    }, ...prev]);
-    setNewTaskTitle('');
-    setIsNewTaskUrgent(false);
-    setIsAddingTask(false);
+    (async () => {
+      const token = session?.access_token;
+      const headers: any = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      try {
+        const res = await fetch(`${BACKEND_URL}/api/v1/tasks/`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ title: newTaskTitle.trim(), category: 'General', urgency: isNewTaskUrgent ? 'URGENT' : 'ROUTINE' }),
+        });
+        if (res.ok) {
+          const created = await res.json();
+          setTasks(prev => [{
+            id: created.id,
+            title: created.title,
+            visited: Boolean(created.visited),
+            urgency: created.urgency || 'ROUTINE',
+            category: created.category || 'General',
+          }, ...prev]);
+        } else {
+          // fallback to local-only
+          setTasks(prev => [{ id: Date.now().toString(), title: newTaskTitle, visited: false, urgency: isNewTaskUrgent ? 'URGENT' : 'ROUTINE', category: 'General' }, ...prev]);
+        }
+      } catch (err) {
+        setTasks(prev => [{ id: Date.now().toString(), title: newTaskTitle, visited: false, urgency: isNewTaskUrgent ? 'URGENT' : 'ROUTINE', category: 'General' }, ...prev]);
+      } finally {
+        setNewTaskTitle('');
+        setIsNewTaskUrgent(false);
+        setIsAddingTask(false);
+      }
+    })();
   };
 
   const toggleTask = (id: string) => {
     setTasks(prev => prev.map(t => t.id === id ? { ...t, visited: !t.visited } : t));
+    (async () => {
+      const token = session?.access_token;
+      const headers: any = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      // Only patch backend if this looks like a backend task id
+      if (typeof id === 'string' && id.length > 8) {
+        try {
+          await fetch(`${BACKEND_URL}/api/v1/tasks/${id}`, {
+            method: 'PATCH',
+            headers,
+            body: JSON.stringify({ visited: true }),
+          });
+        } catch (err) {
+          console.warn('toggleTask patch failed', err);
+        }
+      }
+    })();
   };
 
   const toggleTaskUrgent = (id: string) => {
     setTasks(prev => prev.map(t => t.id === id ? { ...t, urgency: t.urgency === 'URGENT' ? 'ROUTINE' : 'URGENT' } : t));
+    (async () => {
+      const token = session?.access_token;
+      const headers: any = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      if (typeof id === 'string' && id.length > 8) {
+        try {
+          // toggle urgency server-side
+          const task = tasks.find(t => t.id === id);
+          const next = task?.urgency === 'URGENT' ? 'ROUTINE' : 'URGENT';
+          await fetch(`${BACKEND_URL}/api/v1/tasks/${id}`, {
+            method: 'PATCH', headers, body: JSON.stringify({ urgency: next }),
+          });
+        } catch (err) {
+          console.warn('toggleTaskUrgent patch failed', err);
+        }
+      }
+    })();
   };
 
   const deleteTaskItem = (id: string) => {
     setTasks(prev => prev.filter(t => t.id !== id));
+    (async () => {
+      const token = session?.access_token;
+      const headers: any = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      if (typeof id === 'string' && id.length > 8) {
+        try {
+          await fetch(`${BACKEND_URL}/api/v1/tasks/${id}`, { method: 'DELETE', headers });
+        } catch (err) {
+          console.warn('deleteTaskItem failed', err);
+        }
+      }
+    })();
   };
 
   const urgentReminders = tasks.filter(t => !t.visited && (t.urgency === 'URGENT' || t.urgency === 'EMERGENCY'));
@@ -362,7 +418,6 @@ const styles = StyleSheet.create({
   greetingPrefix: {
     color: '#CCFBF1',
     fontSize: 12,
-    fontFamily: 'OpenSans_400Regular',
     fontFamily: 'Inter_700Bold',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
@@ -370,7 +425,6 @@ const styles = StyleSheet.create({
   greetingName: {
     color: '#FFFFFF',
     fontSize: 20,
-    fontFamily: 'OpenSans_400Regular',
     fontFamily: 'Inter_800ExtraBold',
     marginTop: 2,
   },
@@ -393,7 +447,6 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 18,
-    fontFamily: 'OpenSans_400Regular',
     fontFamily: 'Inter_800ExtraBold',
     color: '#0F172A',
     marginBottom: 12,
@@ -419,7 +472,6 @@ const styles = StyleSheet.create({
   },
   badgeText: {
     fontSize: 12,
-    fontFamily: 'OpenSans_400Regular',
     fontFamily: 'Inter_800ExtraBold',
     color: '#0F766E',
   },
@@ -433,7 +485,6 @@ const styles = StyleSheet.create({
   },
   syncBtnText: {
     fontSize: 11,
-    fontFamily: 'OpenSans_400Regular',
     fontFamily: 'Inter_800ExtraBold',
     color: '#0369A1',
   },
@@ -458,7 +509,6 @@ const styles = StyleSheet.create({
   },
   dropdownButtonText: {
     fontSize: 15,
-    fontFamily: 'OpenSans_400Regular',
     fontFamily: 'Inter_600SemiBold',
     color: '#0F172A',
   },
@@ -491,7 +541,6 @@ const styles = StyleSheet.create({
   },
   dropdownItemText: {
     fontSize: 15,
-    fontFamily: 'OpenSans_400Regular',
     fontFamily: 'Inter_500Medium',
     color: '#475569',
   },
@@ -507,7 +556,6 @@ const styles = StyleSheet.create({
   },
   dropdownBadgeText: {
     fontSize: 12,
-    fontFamily: 'OpenSans_400Regular',
     fontFamily: 'Inter_700Bold',
     color: '#64748B',
   },
@@ -532,7 +580,6 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 14,
-    fontFamily: 'OpenSans_400Regular',
     fontFamily: 'Inter_600SemiBold',
     color: '#94A3B8',
   },
@@ -568,7 +615,6 @@ const styles = StyleSheet.create({
   },
   taskTitle: {
     fontSize: 14,
-    fontFamily: 'OpenSans_400Regular',
     fontFamily: 'Inter_700Bold',
     color: '#0F172A',
   },
@@ -592,7 +638,6 @@ const styles = StyleSheet.create({
   },
   taskCategoryText: {
     fontSize: 11,
-    fontFamily: 'OpenSans_400Regular',
     fontFamily: 'Inter_700Bold',
     color: '#0F766E',
   },
@@ -618,7 +663,6 @@ const styles = StyleSheet.create({
   },
   urgentToggleText: {
     fontSize: 11,
-    fontFamily: 'OpenSans_400Regular',
     fontFamily: 'Inter_800ExtraBold',
     color: '#64748B',
   },
@@ -661,7 +705,6 @@ const styles = StyleSheet.create({
   },
   btnOutlineText: {
     fontSize: 13,
-    fontFamily: 'OpenSans_400Regular',
     fontFamily: 'Inter_600SemiBold',
     color: '#475569',
   },
@@ -673,7 +716,6 @@ const styles = StyleSheet.create({
   },
   btnPrimaryText: {
     fontSize: 13,
-    fontFamily: 'OpenSans_400Regular',
     fontFamily: 'Inter_600SemiBold',
     color: '#FFFFFF',
   },
@@ -690,7 +732,6 @@ const styles = StyleSheet.create({
   addReminderText: {
     marginLeft: 8,
     fontSize: 14,
-    fontFamily: 'OpenSans_400Regular',
     fontFamily: 'Inter_700Bold',
     color: '#0F766E',
   },
@@ -736,7 +777,6 @@ const styles = StyleSheet.create({
   },
   actionLabel: {
     fontSize: 15,
-    fontFamily: 'OpenSans_400Regular',
     fontFamily: 'Inter_700Bold',
     color: '#0F172A',
   },
