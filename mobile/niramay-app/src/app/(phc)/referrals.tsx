@@ -30,7 +30,7 @@ interface ReferralItem {
 }
 
 export default function PhcReferralsScreen() {
-  const { session } = useAuth();
+  const { session, t } = useAuth();
   const router = useRouter();
 
   const [referrals, setReferrals] = useState<ReferralItem[]>([]);
@@ -129,6 +129,8 @@ export default function PhcReferralsScreen() {
   useFocusEffect(
     useCallback(() => {
       fetchReferrals();
+      // Reset any open referral-detail modal so returning always shows the list cleanly
+      setSelectedReferral(null);
     }, [session])
   );
 
@@ -176,24 +178,7 @@ export default function PhcReferralsScreen() {
                 params: {
                   patientId: referral.patientId,
                   patientName: referral.patientName,
-                },
-              });
-            },
-          },
-          {
-            text: 'View Record',
-            onPress: () => {
-              setSelectedReferral(null);
-              router.push({
-                pathname: '/(phc)/patient-record',
-                params: {
-                  patientId: referral.patientId,
-                  name: referral.patientName,
-                  age: String(referral.age),
-                  gender: referral.gender,
-                  village: referral.village,
-                  phone: referral.phone || '',
-                  history: referral.allergies ? `Allergies: ${referral.allergies}` : '',
+                  ts: Date.now(),
                 },
               });
             },
@@ -293,7 +278,7 @@ export default function PhcReferralsScreen() {
           <TouchableOpacity style={styles.backBtn} onPress={() => setSelectedReferral(null)}>
             <FontAwesome5 name="arrow-left" size={16} color="#0F172A" />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Referral Details</Text>
+          <Text style={styles.headerTitle}>{t('Referral Details') || 'Referral Details'}</Text>
           <View style={{ width: 36 }} />
         </View>
 
@@ -404,7 +389,7 @@ export default function PhcReferralsScreen() {
               activeOpacity={0.85}
               onPress={() => handleAccept(selectedReferral)}
             >
-              <Text style={styles.acceptBtnText}>Confirm Arrival</Text>
+              <Text style={styles.acceptBtnText}>{t('confirmArrival') || 'Confirm Arrival'}</Text>
             </TouchableOpacity>
           ) : selectedReferral.status === 'CONFIRMED_ARRIVAL' ? (
             <>
@@ -415,18 +400,18 @@ export default function PhcReferralsScreen() {
                   await handleUpdateStatus(selectedReferral, 'IN_CONSULTATION');
                   router.push({
                     pathname: '/(phc)/consultations',
-                    params: { patientId: selectedReferral.patientId, patientName: selectedReferral.patientName },
+                    params: { patientId: selectedReferral.patientId, patientName: selectedReferral.patientName, ts: Date.now() },
                   });
                 }}
               >
-                <Text style={styles.acceptBtnText}>Start Consultation</Text>
+                <Text style={styles.acceptBtnText}>{t('startConsultation') || 'Start Consultation'}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.acceptBtn, { backgroundColor: '#059669', flex: 1, marginLeft: 8 }]}
                 activeOpacity={0.85}
                 onPress={() => handleUpdateStatus(selectedReferral, 'COMPLETED')}
               >
-                <Text style={styles.acceptBtnText}>Mark Completed</Text>
+                <Text style={styles.acceptBtnText}>{t('markCompleted') || 'Mark Completed'}</Text>
               </TouchableOpacity>
             </>
           ) : selectedReferral.status === 'IN_CONSULTATION' ? (
@@ -436,7 +421,7 @@ export default function PhcReferralsScreen() {
                 activeOpacity={0.85}
                 onPress={() => handleUpdateStatus(selectedReferral, 'COMPLETED')}
               >
-                <Text style={styles.acceptBtnText}>Mark Completed</Text>
+                <Text style={styles.acceptBtnText}>{t('markCompleted') || 'Mark Completed'}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.acceptBtn, { backgroundColor: '#2563EB', flex: 1, marginLeft: 8 }]}
@@ -444,11 +429,11 @@ export default function PhcReferralsScreen() {
                 onPress={() => {
                   router.push({
                     pathname: '/(phc)/consultations',
-                    params: { patientId: selectedReferral.patientId, patientName: selectedReferral.patientName },
+                    params: { patientId: selectedReferral.patientId, patientName: selectedReferral.patientName, ts: Date.now() },
                   });
                 }}
               >
-                <Text style={styles.acceptBtnText}>Open Consult</Text>
+                <Text style={styles.acceptBtnText}>{t('startConsultation') || 'Open Consult'}</Text>
               </TouchableOpacity>
             </>
           ) : (
@@ -457,26 +442,6 @@ export default function PhcReferralsScreen() {
             </View>
           )}
 
-          <TouchableOpacity
-            style={styles.requestInfoBtn}
-            activeOpacity={0.85}
-            onPress={() => {
-              router.push({
-                pathname: '/(phc)/patient-record',
-                params: {
-                  patientId: selectedReferral.patientId,
-                  name: selectedReferral.patientName,
-                  age: String(selectedReferral.age),
-                  gender: selectedReferral.gender,
-                  village: selectedReferral.village,
-                  phone: selectedReferral.phone || '',
-                  history: selectedReferral.allergies ? `Allergies: ${selectedReferral.allergies}` : '',
-                },
-              });
-            }}
-          >
-            <Text style={styles.requestInfoText}>View Record</Text>
-          </TouchableOpacity>
         </View>
 
         {/* Teleconsultation Button */}
@@ -502,7 +467,7 @@ export default function PhcReferralsScreen() {
         <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
           <FontAwesome5 name="arrow-left" size={16} color="#0F172A" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Pending Referrals</Text>
+        <Text style={styles.headerTitle}>{t('phc.stats.pending') || 'Pending Referrals'}</Text>
         <View style={{ width: 36 }} />
       </View>
 
@@ -515,7 +480,7 @@ export default function PhcReferralsScreen() {
             onPress={() => setActiveTab(tab)}
           >
             <Text style={[styles.tabText, activeTab === tab && styles.tabTextActive]}>
-              {tab}
+              {tab === 'All' ? t('filterAll') || 'All' : tab === 'Urgent' ? t('urgentLabel') || 'Urgent' : t('routineLabel') || 'Normal'}
             </Text>
           </TouchableOpacity>
         ))}
@@ -532,7 +497,7 @@ export default function PhcReferralsScreen() {
         ) : filteredReferrals.length === 0 ? (
           <View style={styles.emptyState}>
             <FontAwesome5 name="file-medical" size={32} color="#CBD5E1" />
-            <Text style={styles.emptyText}>No referrals in this category</Text>
+            <Text style={styles.emptyText}>{t('No referrals in this category') || 'No referrals in this category'}</Text>
           </View>
         ) : (
           filteredReferrals.map(item => {

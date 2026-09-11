@@ -1,12 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   ScrollView, ActivityIndicator, Alert
 } from 'react-native';
 import { FontAwesome5 } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { useAuth } from '../../store/AuthContext';
 import { BACKEND_URL } from '../../lib/apiClient';
+import { enqueuePatientRegistration, enqueueTriagePersistence } from '../../lib/syncQueue';
 
 type AgeUnit = 'Years' | 'Months' | 'Weeks';
 type Gender = 'Female' | 'Male' | 'Other';
@@ -24,7 +25,7 @@ const SYMPTOM_OPTIONS = [
 
 export default function RegisterPatientScreen() {
   const router = useRouter();
-  const { session, user } = useAuth();
+  const { session, user, t } = useAuth();
 
   // Multi-step: 1 = Basic Info, 2 = Patient Details, 3 = Triage Result
   const [step, setStep] = useState<1 | 2 | 3>(1);
@@ -38,6 +39,14 @@ export default function RegisterPatientScreen() {
   const [phone, setPhone] = useState('');
   const [village, setVillage] = useState(user?.village || 'Chinchpada');
   const [abhaId, setAbhaId] = useState('');
+  const formatAbhaId = (value: string) => {
+    const digits = value.replace(/\D/g, '').slice(0, 14);
+
+    return digits
+      .replace(/^(\d{2})(\d)/, '$1-$2')
+      .replace(/^(\d{2})-(\d{4})(\d)/, '$1-$2-$3')
+      .replace(/^(\d{2})-(\d{4})-(\d{4})(\d)/, '$1-$2-$3-$4');
+  };
   const [allergies, setAllergies] = useState('');
 
   // Step 2: Health Info / Assessment
@@ -53,6 +62,31 @@ export default function RegisterPatientScreen() {
   const [triageReason, setTriageReason] = useState('Patient needs medical attention soon.');
   const [triageScore, setTriageScore] = useState(2);
 
+  // Reset all form state when screen gains focus (prevents stale state across navigations)
+  useFocusEffect(
+    useCallback(() => {
+      setStep(1);
+      setLoading(false);
+      setName('');
+      setAge(28);
+      setAgeUnit('Years');
+      setGender('Female');
+      setPhone('');
+      setVillage(user?.village || 'Chinchpada');
+      setAbhaId('');
+      setAllergies('');
+      setChiefComplaint('High fever with cough');
+      setSelectedSymptoms(['fever']);
+      setOtherSymptoms('');
+      setMedicalHistory('None');
+      setNotes('');
+      setCreatedPatientId(null);
+      setTriageCategory('URGENT');
+      setTriageReason('Patient needs medical attention soon.');
+      setTriageScore(2);
+    }, [user?.village])
+  );
+
   // Age adjusters
   const incrementAge = () => setAge(prev => prev + 1);
   const decrementAge = () => setAge(prev => (prev > 1 ? prev - 1 : 1));
@@ -63,15 +97,19 @@ export default function RegisterPatientScreen() {
     );
   };
 
-  // ── Step 1 Validation ──
   const handleNextToStep2 = () => {
     if (!name.trim()) {
       Alert.alert('Required', 'Please enter patient full name.');
       return;
     }
+
+    if (abhaId.replace(/\D/g, '').length !== 14) {
+      Alert.alert('Required', 'Please enter a valid 14-digit ABHA ID.');
+      return;
+    }
+
     setStep(2);
   };
-
   // ── Step 2: Submit to Backend and Run Triage ──
   const handleSubmitAndTriage = async () => {
     setLoading(true);
@@ -91,19 +129,30 @@ export default function RegisterPatientScreen() {
         allergies: allergies.trim() || undefined,
       };
 
-      const pRes = await fetch(`${BACKEND_URL}/api/v1/patients/`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(patientPayload),
-      });
+      let patientId: string = `temp-${Date.now()}`;
+      let patientOnlineSuccess = false;
 
-      let patientId: string = Date.now().toString();
-      if (pRes.ok) {
-        const pData = await pRes.json();
-        patientId = pData.id;
-        setCreatedPatientId(pData.id);
-      } else {
+      try {
+        const pRes = await fetch(`${BACKEND_URL}/api/v1/patients/`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(patientPayload),
+        });
+
+        if (pRes.ok) {
+          const pData = await pRes.json();
+          patientId = String(pData.id);
+          patientOnlineSuccess = true;
+          setCreatedPatientId(pData.id);
+        }
+      } catch {
+        // Network offline
+      }
+
+      if (!patientOnlineSuccess) {
+        // Queue patient registration locally for background sync
         setCreatedPatientId(patientId);
+        await enqueuePatientRegistration(patientPayload, patientId);
       }
 
       // 2. Assess Triage
@@ -116,22 +165,31 @@ export default function RegisterPatientScreen() {
         symptoms: allSymptoms.length > 0 ? allSymptoms : ['fever'],
       };
 
-      const tRes = await fetch(`${BACKEND_URL}/api/v1/triage/assess`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(triagePayload),
-      });
-
       let calculatedPriority: 'Emergency' | 'Urgent' | 'Routine' = 'Urgent';
-      if (tRes.ok) {
-        const tData = await tRes.json();
-        const cat = tData.triage_category || 'URGENT';
-        setTriageCategory(cat);
-        setTriageReason(tData.reason || 'Patient needs medical attention soon.');
-        setTriageScore(tData.triage_score || 2);
-        calculatedPriority = cat === 'EMERGENCY' ? 'Emergency' : cat === 'URGENT' ? 'Urgent' : 'Routine';
-      } else {
-        // Local evaluation fallback
+      let triageOnlineSuccess = false;
+
+      try {
+        const tRes = await fetch(`${BACKEND_URL}/api/v1/triage/assess`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(triagePayload),
+        });
+
+        if (tRes.ok) {
+          const tData = await tRes.json();
+          const cat = tData.triage_category || 'URGENT';
+          setTriageCategory(cat);
+          setTriageReason(tData.reason || 'Patient needs medical attention soon.');
+          setTriageScore(tData.triage_score || 2);
+          calculatedPriority = cat === 'EMERGENCY' ? 'Emergency' : cat === 'URGENT' ? 'Urgent' : 'Routine';
+          triageOnlineSuccess = true;
+        }
+      } catch {
+        // Network offline
+      }
+
+      if (!triageOnlineSuccess) {
+        // Local rule evaluation fallback
         if (selectedSymptoms.includes('breathing') && selectedSymptoms.includes('pregnancy')) {
           setTriageCategory('EMERGENCY');
           setTriageReason('Respiratory distress with pregnancy complication. Immediate emergency care required.');
@@ -145,29 +203,18 @@ export default function RegisterPatientScreen() {
           setTriageReason('Mild symptoms. Routine care and home monitoring advised.');
           calculatedPriority = 'Routine';
         }
+        // Queue triage persistence locally for background sync
+        await enqueueTriagePersistence(triagePayload);
       }
 
       setStep(3);
-      // Automatically navigate to the existing Referral screen with the real patient ID
-      router.push({
-        pathname: '/(asha)/referral',
-        params: {
-          patientId: patientId,
-          patientName: name.trim(),
-          priority: calculatedPriority,
-        },
-      });
     } catch {
-      // Local fallback on connection issue
-      const fallbackId = Date.now().toString();
-      router.push({
-        pathname: '/(asha)/referral',
-        params: {
-          patientId: fallbackId,
-          patientName: name.trim(),
-          priority: 'Urgent',
-        },
-      });
+      // Robust fallback on connection issue or other errors
+      const fallbackId = `temp-${Date.now()}`;
+      setCreatedPatientId(fallbackId);
+      setTriageCategory('URGENT');
+      setTriageReason('Error assessing triage. Defaulting to Urgent.');
+      setStep(3);
     } finally {
       setLoading(false);
     }
@@ -193,7 +240,7 @@ export default function RegisterPatientScreen() {
           <FontAwesome5 name="arrow-left" size={16} color="#0F172A" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>
-          {step === 1 ? 'New Patient' : step === 2 ? 'Patient Details' : 'Triage Result'}
+          {step === 1 ? t('newPatient') : step === 2 ? t('patientDetails') : t('triageResult')}
         </Text>
         <View style={{ width: 36 }} />
       </View>
@@ -218,11 +265,11 @@ export default function RegisterPatientScreen() {
       ──────────────────────────────────────────────────────────────────────── */}
       {step === 1 && (
         <View style={styles.card}>
-          <Text style={styles.sectionHeader}>Basic Information</Text>
+          <Text style={styles.sectionHeader}>{t('basicInfo')}</Text>
 
           {/* Full Name */}
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Full Name *</Text>
+            <Text style={styles.label}>{t('fullName')}</Text>
             <TextInput
               style={styles.input}
               placeholder="e.g. Savitri Devi"
@@ -234,7 +281,7 @@ export default function RegisterPatientScreen() {
 
           {/* Age & Unit */}
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Age *</Text>
+            <Text style={styles.label}>{t('ageLabel')}</Text>
             <View style={styles.ageRow}>
               <View style={styles.ageCounter}>
                 <TouchableOpacity style={styles.ageBtn} onPress={decrementAge}>
@@ -269,7 +316,7 @@ export default function RegisterPatientScreen() {
 
           {/* Sex */}
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Sex *</Text>
+            <Text style={styles.label}>{t('sexLabel')}</Text>
             <View style={styles.genderRow}>
               {(['Female', 'Male', 'Other'] as Gender[]).map(g => (
                 <TouchableOpacity
@@ -284,7 +331,7 @@ export default function RegisterPatientScreen() {
                     style={{ marginRight: 6 }}
                   />
                   <Text style={[styles.genderChipText, gender === g && styles.genderChipTextActive]}>
-                    {g}
+                    {g === 'Female' ? t('sexFemale') : g === 'Male' ? t('sexMale') : t('sexOther')}
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -293,7 +340,7 @@ export default function RegisterPatientScreen() {
 
           {/* Phone Number */}
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Phone Number (Optional)</Text>
+            <Text style={styles.label}>{t('phoneNumber')}</Text>
             <TextInput
               style={styles.input}
               placeholder="e.g. 9876543210"
@@ -306,7 +353,7 @@ export default function RegisterPatientScreen() {
 
           {/* Village */}
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Village</Text>
+            <Text style={styles.label}>{t('village')}</Text>
             <TextInput
               style={styles.input}
               placeholder="Village name"
@@ -315,22 +362,22 @@ export default function RegisterPatientScreen() {
               onChangeText={setVillage}
             />
           </View>
-
           {/* ABHA ID */}
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>ABHA ID (Optional)</Text>
+            <Text style={styles.label}>ABHA ID *</Text>
             <TextInput
               style={styles.input}
-              placeholder="e.g. 91-8823-4410-12"
+              placeholder="e.g. 91-8823-4410-1234"
               placeholderTextColor="#94A3B8"
+              keyboardType="numeric"
               value={abhaId}
-              onChangeText={setAbhaId}
+              onChangeText={(value) => setAbhaId(formatAbhaId(value))}
             />
           </View>
 
           {/* Allergies */}
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Allergies (Optional)</Text>
+            <Text style={styles.label}>{t('allergiesLabel')}</Text>
             <TextInput
               style={styles.input}
               placeholder="e.g. Penicillin, Sulfa drugs, None"
@@ -346,7 +393,7 @@ export default function RegisterPatientScreen() {
             activeOpacity={0.85}
             onPress={handleNextToStep2}
           >
-            <Text style={styles.primaryBtnText}>Next</Text>
+            <Text style={styles.primaryBtnText}>{t('nextBtn')}</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -356,11 +403,11 @@ export default function RegisterPatientScreen() {
       ──────────────────────────────────────────────────────────────────────── */}
       {step === 2 && (
         <View style={styles.card}>
-          <Text style={styles.sectionHeader}>Health Information</Text>
+          <Text style={styles.sectionHeader}>{t('healthInfo')}</Text>
 
           {/* Chief Complaint */}
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Chief Complaint *</Text>
+            <Text style={styles.label}>{t('chiefComplaint')}</Text>
             <TextInput
               style={styles.input}
               placeholder="e.g. Fever with chest discomfort"
@@ -372,7 +419,7 @@ export default function RegisterPatientScreen() {
 
           {/* Symptoms Chips */}
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Symptoms</Text>
+            <Text style={styles.label}>{t('symptomsLabel')}</Text>
             <View style={styles.chipsWrap}>
               {SYMPTOM_OPTIONS.map(s => {
                 const isSelected = selectedSymptoms.includes(s.id);
@@ -383,7 +430,7 @@ export default function RegisterPatientScreen() {
                     onPress={() => toggleSymptom(s.id)}
                   >
                     <Text style={[styles.symptomChipText, isSelected && styles.symptomChipTextActive]}>
-                      {s.label}
+                      {t(s.id) || s.label}
                     </Text>
                   </TouchableOpacity>
                 );
@@ -393,7 +440,7 @@ export default function RegisterPatientScreen() {
 
           {/* Other Symptoms */}
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Other Symptoms</Text>
+            <Text style={styles.label}>{t('otherSymptoms')}</Text>
             <TextInput
               style={styles.input}
               placeholder="Select or type additional symptoms"
@@ -405,7 +452,7 @@ export default function RegisterPatientScreen() {
 
           {/* Medical History */}
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Medical History</Text>
+            <Text style={styles.label}>{t('medicalHistory')}</Text>
             <TextInput
               style={styles.input}
               placeholder="Any relevant past history?"
@@ -417,7 +464,7 @@ export default function RegisterPatientScreen() {
 
           {/* Notes */}
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Notes (Optional)</Text>
+            <Text style={styles.label}>{t('notesOptional')}</Text>
             <TextInput
               style={[styles.input, { height: 68, textAlignVertical: 'top' }]}
               placeholder="Add any additional notes"
@@ -435,7 +482,7 @@ export default function RegisterPatientScreen() {
               onPress={() => setStep(1)}
               disabled={loading}
             >
-              <Text style={styles.backButtonText}>Back</Text>
+              <Text style={styles.backButtonText}>{t('backBtn')}</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -447,7 +494,7 @@ export default function RegisterPatientScreen() {
               {loading ? (
                 <ActivityIndicator color="#FFFFFF" />
               ) : (
-                <Text style={styles.primaryBtnText}>Run Triage</Text>
+                <Text style={styles.primaryBtnText}>{t('runTriage')}</Text>
               )}
             </TouchableOpacity>
           </View>
@@ -466,8 +513,8 @@ export default function RegisterPatientScreen() {
               triageCategory === 'EMERGENCY'
                 ? styles.triageEmergency
                 : triageCategory === 'URGENT'
-                ? styles.triageUrgent
-                : styles.triageRoutine,
+                  ? styles.triageUrgent
+                  : styles.triageRoutine,
             ]}
           >
             <FontAwesome5
@@ -475,16 +522,16 @@ export default function RegisterPatientScreen() {
                 triageCategory === 'EMERGENCY'
                   ? 'ambulance'
                   : triageCategory === 'URGENT'
-                  ? 'exclamation-triangle'
-                  : 'check-circle'
+                    ? 'exclamation-triangle'
+                    : 'check-circle'
               }
               size={36}
               color={
                 triageCategory === 'EMERGENCY'
                   ? '#DC2626'
                   : triageCategory === 'URGENT'
-                  ? '#D97706'
-                  : '#059669'
+                    ? '#D97706'
+                    : '#059669'
               }
             />
             <Text
@@ -495,23 +542,23 @@ export default function RegisterPatientScreen() {
                     triageCategory === 'EMERGENCY'
                       ? '#991B1B'
                       : triageCategory === 'URGENT'
-                      ? '#92400E'
-                      : '#065F46',
+                        ? '#92400E'
+                        : '#065F46',
                 },
               ]}
             >
               {triageCategory === 'EMERGENCY'
-                ? 'Emergency'
+                ? t('emergencyCare')
                 : triageCategory === 'URGENT'
-                ? 'Urgent Care'
-                : 'Routine Care'}
+                  ? t('urgentCare')
+                  : t('routineCare')}
             </Text>
             <Text style={styles.triageReason}>{triageReason}</Text>
           </View>
 
           {/* Recommended Action Box */}
           <View style={styles.actionBox}>
-            <Text style={styles.actionBoxTitle}>Recommended Action</Text>
+            <Text style={styles.actionBoxTitle}>{t('recommendedAction')}</Text>
             <View style={styles.actionItem}>
               <FontAwesome5 name="check" size={13} color="#059669" style={{ marginRight: 8 }} />
               <Text style={styles.actionItemText}>Refer to PHC Doctor</Text>
@@ -522,8 +569,8 @@ export default function RegisterPatientScreen() {
                 {triageCategory === 'EMERGENCY'
                   ? 'Immediate ambulance dispatch'
                   : triageCategory === 'URGENT'
-                  ? 'Schedule within 24 hours'
-                  : 'Schedule next routine visit'}
+                    ? 'Schedule within 24 hours'
+                    : 'Schedule next routine visit'}
               </Text>
             </View>
             <View style={styles.actionItem}>
@@ -547,7 +594,7 @@ export default function RegisterPatientScreen() {
               });
             }}
           >
-            <Text style={styles.primaryBtnText}>Create Referral</Text>
+            <Text style={styles.primaryBtnText}>{t('makeReferral')}</Text>
           </TouchableOpacity>
 
           {/* Save to My Patients Button */}
@@ -556,7 +603,7 @@ export default function RegisterPatientScreen() {
             activeOpacity={0.85}
             onPress={() => router.replace('/(asha)/patients')}
           >
-            <Text style={styles.outlineBtnText}>Save to My Patients</Text>
+            <Text style={styles.outlineBtnText}>{t('saveToMyPatients')}</Text>
           </TouchableOpacity>
         </View>
       )}

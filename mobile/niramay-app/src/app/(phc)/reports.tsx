@@ -10,7 +10,7 @@ import { BACKEND_URL } from '../../lib/apiClient';
 
 export default function ReportsScreen() {
   const router = useRouter();
-  const { session } = useAuth();
+  const { session, t } = useAuth();
 
   const [expandedSection, setExpandedSection] = useState<string | null>('stats');
   const [patientCount, setPatientCount] = useState(124);
@@ -56,7 +56,7 @@ export default function ReportsScreen() {
         <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
           <FontAwesome5 name="arrow-left" size={16} color="#0F172A" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Reports</Text>
+        <Text style={styles.headerTitle}>{t('Reports') || 'Reports'}</Text>
         <View style={{ width: 36 }} />
       </View>
 
@@ -72,8 +72,8 @@ export default function ReportsScreen() {
               <FontAwesome5 name="users" size={18} color="#2563EB" />
             </View>
             <View>
-              <Text style={styles.cardTitle}>Patient Statistics</Text>
-              <Text style={styles.cardSub}>Demographics & registration trends</Text>
+              <Text style={styles.cardTitle}>{t('Patient Statistics') || 'Patient Statistics'}</Text>
+              <Text style={styles.cardSub}>{t('Demographics & registration trends') || 'Demographics & registration trends'}</Text>
             </View>
           </View>
           <FontAwesome5
@@ -88,7 +88,7 @@ export default function ReportsScreen() {
             <View style={styles.metricGrid}>
               <View style={styles.metricBox}>
                 <Text style={styles.metricValue}>{patientCount}</Text>
-                <Text style={styles.metricLabel}>Total Patients</Text>
+                <Text style={styles.metricLabel}>{t('Total Patients') || 'Total Patients'}</Text>
               </View>
               <View style={styles.metricBox}>
                 <Text style={[styles.metricValue, { color: '#059669' }]}>64%</Text>
@@ -119,8 +119,8 @@ export default function ReportsScreen() {
               <FontAwesome5 name="exchange-alt" size={18} color="#0D9488" />
             </View>
             <View>
-              <Text style={styles.cardTitle}>Referral Analytics</Text>
-              <Text style={styles.cardSub}>Inflow, urgency & turnaround</Text>
+              <Text style={styles.cardTitle}>{t('Referral Analytics') || 'Referral Analytics'}</Text>
+              <Text style={styles.cardSub}>{t('Inflow, urgency & turnaround') || 'Inflow, urgency & turnaround'}</Text>
             </View>
           </View>
           <FontAwesome5
@@ -139,11 +139,11 @@ export default function ReportsScreen() {
               </View>
               <View style={styles.metricBox}>
                 <Text style={[styles.metricValue, { color: '#DC2626' }]}>8</Text>
-                <Text style={styles.metricLabel}>Emergency</Text>
+                <Text style={styles.metricLabel}>{t('emergencyLabel') || 'Emergency'}</Text>
               </View>
               <View style={styles.metricBox}>
                 <Text style={[styles.metricValue, { color: '#D97706' }]}>14</Text>
-                <Text style={styles.metricLabel}>Urgent</Text>
+                <Text style={styles.metricLabel}>{t('urgentLabel') || 'Urgent'}</Text>
               </View>
               <View style={styles.metricBox}>
                 <Text style={[styles.metricValue, { color: '#059669' }]}>96%</Text>
@@ -166,8 +166,8 @@ export default function ReportsScreen() {
               <FontAwesome5 name="heartbeat" size={18} color="#9333EA" />
             </View>
             <View>
-              <Text style={styles.cardTitle}>Disease Trends</Text>
-              <Text style={styles.cardSub}>Top clinical complaints</Text>
+              <Text style={styles.cardTitle}>{t('Disease Trends') || 'Disease Trends'}</Text>
+              <Text style={styles.cardSub}>{t('Top clinical complaints') || 'Top clinical complaints'}</Text>
             </View>
           </View>
           <FontAwesome5
@@ -223,8 +223,8 @@ export default function ReportsScreen() {
               <FontAwesome5 name="file-invoice" size={18} color="#EA580C" />
             </View>
             <View>
-              <Text style={styles.cardTitle}>Monthly Reports</Text>
-              <Text style={styles.cardSub}>Facility audit & HMIS summary</Text>
+              <Text style={styles.cardTitle}>{t('Monthly Reports') || 'Monthly Reports'}</Text>
+              <Text style={styles.cardSub}>{t('Facility audit & HMIS summary') || 'Facility audit & HMIS summary'}</Text>
             </View>
           </View>
           <FontAwesome5

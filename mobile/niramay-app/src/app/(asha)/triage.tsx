@@ -1,11 +1,12 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, TextInput, ActivityIndicator, Alert } from 'react-native';
 import { useAuth } from '../../store/AuthContext';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { MASTER_SYMPTOMS, getCommonQuickSymptoms } from '../../constants/masterSymptoms';
 import { evaluateTriage, type TriageAssessment } from '../../utils/triageEngine';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { BACKEND_URL } from '../../lib/apiClient';
+import { enqueueTriagePersistence } from '../../lib/syncQueue';
 
 export default function TriageScreen() {
   const { t, language, user, session } = useAuth();
@@ -17,6 +18,8 @@ export default function TriageScreen() {
   const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
   const [assessment, setAssessment] = useState<TriageAssessment | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  // Stores the backend-issued triage record ID after assessment so handleAction can reuse it
+  const [triageRecordId, setTriageRecordId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!patient_id) return;
@@ -39,6 +42,15 @@ export default function TriageScreen() {
     })();
   }, [patient_id, session]);
 
+  // Reset symptom selection, assessment result and cached record id whenever the screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      setSelectedKeys([]);
+      setAssessment(null);
+      setTriageRecordId(null);
+    }, [])
+  );
+
   const commonQuickSymptoms = useMemo(() => getCommonQuickSymptoms(), []);
 
   const toggleSymptom = (key: string) => {
@@ -56,9 +68,47 @@ export default function TriageScreen() {
     setAssessment(null);
   };
 
-  const handleEvaluate = () => {
-    const result = evaluateTriage(selectedKeys);
-    setAssessment(result);
+  const handleEvaluate = async () => {
+    if (selectedKeys.length === 0 || !patient_id) return;
+    setIsSaving(true);
+    try {
+      const token = session?.access_token;
+      const headers: any = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      // Submit symptoms to the backend — its rule engine is the authoritative source of the category
+      const triageRes = await fetch(`${BACKEND_URL}/api/v1/triage/assess`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ patient_id, symptoms: selectedKeys }),
+      });
+
+      // Derive rich guidance/first-aid text locally (backend does not provide multilingual text)
+      const localResult = evaluateTriage(selectedKeys);
+
+      if (triageRes.ok) {
+        const triageData = await triageRes.json();
+        // Cache the record ID so handleAction can reuse it without a second POST
+        setTriageRecordId(triageData.id);
+        // Override the locally-computed urgency with the real backend category
+        setAssessment({ ...localResult, urgency: triageData.triage_category as typeof localResult.urgency });
+      } else {
+        // Backend unreachable — queue triage persistence and fall back to local engine
+        console.warn('triage backend unavailable, queueing offline triage');
+        await enqueueTriagePersistence({ patient_id, symptoms: selectedKeys });
+        setTriageRecordId(null);
+        setAssessment(localResult);
+      }
+    } catch {
+      // Network error — queue triage persistence and fall back to local engine
+      console.warn('triage network error, queueing offline triage');
+      await enqueueTriagePersistence({ patient_id, symptoms: selectedKeys });
+      const localResult = evaluateTriage(selectedKeys);
+      setTriageRecordId(null);
+      setAssessment(localResult);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const getSymptomLabel = (s: any) => {
@@ -73,18 +123,26 @@ export default function TriageScreen() {
       const headers: any = { 'Content-Type': 'application/json' };
       if (token) headers['Authorization'] = `Bearer ${token}`;
 
-      // 1. Submit triage assessment to backend
-      const triageRes = await fetch(`${BACKEND_URL}/api/v1/triage/assess`, {
-        method: 'POST', headers, body: JSON.stringify({ patient_id, symptoms: selectedKeys }),
-      });
-      if (!triageRes.ok) {
-        let msg = 'Triage submission failed';
-        try { const j = await triageRes.json(); if (j && j.detail) msg = j.detail; } catch {}
-        throw new Error(msg);
+      // Reuse the triage record already created by handleEvaluate.
+      // If unavailable (offline fallback path), create a new record or queue.
+      let resolvedTriageId = triageRecordId;
+      if (!resolvedTriageId) {
+        try {
+          const triageRes = await fetch(`${BACKEND_URL}/api/v1/triage/assess`, {
+            method: 'POST', headers, body: JSON.stringify({ patient_id, symptoms: selectedKeys }),
+          });
+          if (triageRes.ok) {
+            const triageData = await triageRes.json();
+            resolvedTriageId = triageData.id;
+          } else {
+            await enqueueTriagePersistence({ patient_id, symptoms: selectedKeys });
+          }
+        } catch {
+          await enqueueTriagePersistence({ patient_id, symptoms: selectedKeys });
+        }
       }
-      const triageData = await triageRes.json();
 
-      // 2. If action is consultation, create teleconsult room via backend and navigate to consultation screen
+      // If action is consultation, create teleconsult room via backend and navigate
       if (actionPath.includes('/consultation')) {
         const roomRes = await fetch(`${BACKEND_URL}/api/v1/teleconsult/room`, {
           method: 'POST', headers, body: JSON.stringify({ patient_id, referral_id: null, notes: '' }),
@@ -95,21 +153,20 @@ export default function TriageScreen() {
           throw new Error(msg);
         }
         const roomData = await roomRes.json();
-        // navigate to consultation with created room id
         router.push({ pathname: actionPath as any, params: { patient_id, consultation_id: roomData.id } });
         setIsSaving(false);
         return;
       }
 
-      // 3. If action is referral, route to referral screen (triage record created)
+      // If action is referral, route to referral screen with triage record id
       if (actionPath.includes('/referral')) {
-        router.push({ pathname: actionPath as any, params: { patient_id, triage_record_id: triageData.id } } as any);
+        router.push({ pathname: actionPath as any, params: { patient_id, triage_record_id: resolvedTriageId } } as any);
         setIsSaving(false);
         return;
       }
 
-      // Default: navigate to path with triage id
-      router.push({ pathname: actionPath as any, params: { patient_id, triage_record_id: triageData.id } } as any);
+      // Default
+      router.push({ pathname: actionPath as any, params: { patient_id, triage_record_id: resolvedTriageId } } as any);
     } catch (e: any) {
       Alert.alert(t('consultationErrorTitle') || 'Error', e?.message || 'Failed to submit triage');
     } finally {
@@ -189,11 +246,14 @@ export default function TriageScreen() {
       {/* Assess Button */}
       {!assessment && (
         <TouchableOpacity
-          style={[styles.assessBtn, selectedKeys.length === 0 && styles.assessBtnDisabled]}
-          disabled={selectedKeys.length === 0}
+          style={[styles.assessBtn, (selectedKeys.length === 0 || isSaving) && styles.assessBtnDisabled]}
+          disabled={selectedKeys.length === 0 || isSaving}
           onPress={handleEvaluate}
         >
-          <Text style={styles.assessBtnText}>{t('urgencyResult') || 'Assess Urgency'}</Text>
+          {isSaving
+            ? <ActivityIndicator color="#FFFFFF" />
+            : <Text style={styles.assessBtnText}>{t('urgencyResult') || 'Assess Urgency'}</Text>
+          }
         </TouchableOpacity>
       )}
 

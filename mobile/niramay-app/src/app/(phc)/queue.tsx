@@ -24,7 +24,7 @@ interface DoctorPatient {
 
 export default function PhcQueueScreen() {
   const router = useRouter();
-  const { session } = useAuth();
+  const { session, t } = useAuth();
 
   const [patients, setPatients] = useState<DoctorPatient[]>([]);
   const [activeTab, setActiveTab] = useState<'All' | 'Consulted' | 'Follow-ups'>('All');
@@ -145,7 +145,7 @@ export default function PhcQueueScreen() {
         <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
           <FontAwesome5 name="arrow-left" size={16} color="#0F172A" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>My Patients</Text>
+        <Text style={styles.headerTitle}>{t('myPatients') || 'My Patients'}</Text>
         <View style={{ width: 36 }} />
       </View>
 
@@ -154,7 +154,7 @@ export default function PhcQueueScreen() {
         <FontAwesome5 name="search" size={14} color="#94A3B8" style={{ marginRight: 10 }} />
         <TextInput
           style={styles.searchInput}
-          placeholder="Search patients..."
+          placeholder={t('phc.record.search') || 'Search patients...'}
           placeholderTextColor="#94A3B8"
           value={searchQuery}
           onChangeText={setSearchQuery}
@@ -175,7 +175,7 @@ export default function PhcQueueScreen() {
             onPress={() => setActiveTab(tab)}
           >
             <Text style={[styles.tabText, activeTab === tab && styles.tabTextActive]}>
-              {tab}
+              {tab === 'All' ? t('filterAll') || 'All' : tab === 'Consulted' ? t('Consulted') || 'Consulted' : t('followupTitle') || 'Follow-ups'}
             </Text>
           </TouchableOpacity>
         ))}
@@ -192,7 +192,7 @@ export default function PhcQueueScreen() {
         ) : filtered.length === 0 ? (
           <View style={styles.emptyState}>
             <FontAwesome5 name="users" size={32} color="#CBD5E1" />
-            <Text style={styles.emptyText}>No patients in this category</Text>
+            <Text style={styles.emptyText}>{t('noPatientsFound') || 'No patients in this category'}</Text>
           </View>
         ) : (
           filtered.map(patient => {

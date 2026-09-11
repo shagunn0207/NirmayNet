@@ -7,6 +7,7 @@ import { useAuth } from '../../store/AuthContext';
 import { BACKEND_URL } from '../../lib/apiClient';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
+import { getOfflinePatients } from '../../lib/syncQueue';
 
 interface Patient {
   id: string;
@@ -19,6 +20,7 @@ interface Patient {
   allergies?: string;
   risk?: 'Low' | 'Medium' | 'High';
   statusNote?: string;
+  triageCategory?: 'EMERGENCY' | 'URGENT' | 'ROUTINE';
   lastVisit?: string;
   nextFollowup?: string;
 }
@@ -55,7 +57,7 @@ const DEFAULT_PATIENTS: Patient[] = [
 ];
 
 export default function PatientsScreen() {
-  const { session } = useAuth();
+  const { session, t } = useAuth();
   const router = useRouter();
 
   const [patients, setPatients] = useState<Patient[]>(DEFAULT_PATIENTS);
@@ -71,6 +73,22 @@ export default function PatientsScreen() {
   const fetchPatients = async () => {
     setLoading(true);
     try {
+      const offlineList = await getOfflinePatients();
+      const offlinePatients: Patient[] = offlineList.map(p => ({
+        id: p.id,
+        name: `${p.name} (Offline)`,
+        age: p.age,
+        gender: p.gender,
+        phone: p.phone || '9876543210',
+        village: p.village || 'Chinchpada',
+        abha_id: p.abha_id,
+        allergies: p.allergies || 'None',
+        risk: 'Medium',
+        statusNote: 'Saved offline - syncing',
+        lastVisit: 'Today',
+        nextFollowup: 'Scheduled',
+      }));
+
       const token = session?.access_token;
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       if (token) headers['Authorization'] = `Bearer ${token}`;
@@ -78,7 +96,7 @@ export default function PatientsScreen() {
       const res = await fetch(`${BACKEND_URL}/api/v1/patients/`, { headers });
       if (res.ok) {
         const data = await res.json();
-        if (Array.isArray(data) && data.length > 0) {
+        if (Array.isArray(data)) {
           const apiPatients: Patient[] = data.map((p: any, idx: number) => ({
             id: String(p.id),
             name: p.name || 'Unnamed Patient',
@@ -93,8 +111,12 @@ export default function PatientsScreen() {
             lastVisit: '12 Sep 2026',
             nextFollowup: '19 Sep 2026',
           }));
-          setPatients(apiPatients);
+          setPatients([...offlinePatients, ...apiPatients]);
+          return;
         }
+      }
+      if (offlinePatients.length > 0) {
+        setPatients(offlinePatients);
       }
     } catch {
       // Keep DEFAULT_PATIENTS on fallback
@@ -146,7 +168,7 @@ export default function PatientsScreen() {
           <TouchableOpacity style={styles.roundBackBtn} onPress={() => setSelectedPatient(null)}>
             <FontAwesome5 name="arrow-left" size={16} color="#0F172A" />
           </TouchableOpacity>
-          <Text style={styles.topHeaderTitle}>Patient Profile</Text>
+          <Text style={styles.topHeaderTitle}>{t('patientProfile')}</Text>
           <View style={{ width: 36 }} />
         </View>
 
@@ -172,7 +194,7 @@ export default function PatientsScreen() {
               onPress={() => setProfileTab(tab)}
             >
               <Text style={[styles.profileTabText, profileTab === tab && styles.profileTabTextActive]}>
-                {tab}
+                {tab === 'Overview' ? t('overview') : tab === 'History' ? t('history') : t('followupTitle')}
               </Text>
             </TouchableOpacity>
           ))}
@@ -182,27 +204,27 @@ export default function PatientsScreen() {
         {profileTab === 'Overview' && (
           <View style={styles.detailsCard}>
             <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>Phone</Text>
+              <Text style={styles.detailLabel}>{t('Phone')}</Text>
               <Text style={styles.detailValue}>{selectedPatient.phone || 'Not provided'}</Text>
             </View>
             <View style={styles.detailDivider} />
 
             <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>Village</Text>
+              <Text style={styles.detailLabel}>{t('village')}</Text>
               <Text style={styles.detailValue}>{selectedPatient.village || 'Nandurbar'}</Text>
             </View>
             <View style={styles.detailDivider} />
 
             <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>Risk Level</Text>
+              <Text style={styles.detailLabel}>{t('riskLevel')}</Text>
               <View
                 style={[
                   styles.riskBadge,
                   selectedPatient.risk === 'High'
                     ? styles.riskBadgeHigh
                     : selectedPatient.risk === 'Medium'
-                    ? styles.riskBadgeMed
-                    : styles.riskBadgeLow,
+                      ? styles.riskBadgeMed
+                      : styles.riskBadgeLow,
                 ]}
               >
                 <Text
@@ -211,8 +233,8 @@ export default function PatientsScreen() {
                     selectedPatient.risk === 'High'
                       ? styles.riskTextHigh
                       : selectedPatient.risk === 'Medium'
-                      ? styles.riskTextMed
-                      : styles.riskTextLow,
+                        ? styles.riskTextMed
+                        : styles.riskTextLow,
                   ]}
                 >
                   {selectedPatient.risk || 'Low'}
@@ -222,13 +244,13 @@ export default function PatientsScreen() {
             <View style={styles.detailDivider} />
 
             <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>Last Visit</Text>
+              <Text style={styles.detailLabel}>{t('lastVisitLabel')}</Text>
               <Text style={styles.detailValue}>{selectedPatient.lastVisit || '12 Sep 2026'}</Text>
             </View>
             <View style={styles.detailDivider} />
 
             <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>Next Follow-up</Text>
+              <Text style={styles.detailLabel}>{t('nextFollowupLabel')}</Text>
               <Text style={styles.detailValue}>{selectedPatient.nextFollowup || '19 Sep 2026'}</Text>
             </View>
           </View>
@@ -275,7 +297,7 @@ export default function PatientsScreen() {
             }}
           >
             <FontAwesome5 name="calendar-check" size={14} color="#FFFFFF" style={{ marginRight: 6 }} />
-            <Text style={styles.actionHalfBtnText}>Add Follow-up</Text>
+            <Text style={styles.actionHalfBtnText}>{t('scheduleFollowup')}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -292,9 +314,25 @@ export default function PatientsScreen() {
             }}
           >
             <FontAwesome5 name="file-medical-alt" size={14} color="#FFFFFF" style={{ marginRight: 6 }} />
-            <Text style={styles.actionHalfBtnText}>Create Referral</Text>
+            <Text style={styles.actionHalfBtnText}>{t('makeReferral')}</Text>
           </TouchableOpacity>
         </View>
+
+        <TouchableOpacity
+          style={[styles.actionHalfBtn, { backgroundColor: '#0F766E', shadowColor: '#0F766E', marginTop: 10 }]}
+          activeOpacity={0.85}
+          onPress={() => {
+            router.push({
+              pathname: '/(asha)/consultation',
+              params: {
+                patient_id: selectedPatient.id,
+              },
+            });
+          }}
+        >
+          <FontAwesome5 name="video" size={14} color="#FFFFFF" style={{ marginRight: 8 }} />
+          <Text style={styles.actionHalfBtnText}>{t('startConsultBtn') || 'Start Teleconsultation'}</Text>
+        </TouchableOpacity>
       </ScrollView>
     );
   }
@@ -306,7 +344,7 @@ export default function PatientsScreen() {
     <View style={styles.container}>
       {/* Top Header */}
       <View style={styles.listHeader}>
-        <Text style={styles.listHeaderTitle}>My Patients</Text>
+        <Text style={styles.listHeaderTitle}>{t('myPatients')}</Text>
         <TouchableOpacity
           style={styles.addPatientMiniBtn}
           onPress={() => router.push('/(asha)/register')}
@@ -320,7 +358,7 @@ export default function PatientsScreen() {
         <FontAwesome5 name="search" size={14} color="#94A3B8" style={{ marginRight: 10 }} />
         <TextInput
           style={styles.searchInput}
-          placeholder="Search patients..."
+          placeholder={t('searchPlaceholder')}
           placeholderTextColor="#94A3B8"
           value={searchQuery}
           onChangeText={setSearchQuery}
@@ -341,7 +379,7 @@ export default function PatientsScreen() {
             onPress={() => setActiveTab(tab)}
           >
             <Text style={[styles.filterChipText, activeTab === tab && styles.filterChipTextActive]}>
-              {tab}
+              {tab === 'All' ? t('filterAll') : tab === 'High-Risk' ? t('filterHighRisk') : t('followupTitle')}
             </Text>
           </TouchableOpacity>
         ))}
@@ -358,7 +396,7 @@ export default function PatientsScreen() {
         ) : filteredPatients.length === 0 ? (
           <View style={styles.emptyWrap}>
             <FontAwesome5 name="user-slash" size={32} color="#CBD5E1" />
-            <Text style={styles.emptyTitle}>No patients found</Text>
+            <Text style={styles.emptyTitle}>{t('noPatientsFound')}</Text>
           </View>
         ) : (
           filteredPatients.map((patient) => {
@@ -379,8 +417,8 @@ export default function PatientsScreen() {
                         patient.risk === 'High'
                           ? '#FEE2E2'
                           : patient.risk === 'Medium'
-                          ? '#FEF3C7'
-                          : '#E0F2FE',
+                            ? '#FEF3C7'
+                            : '#E0F2FE',
                     },
                   ]}
                 >
@@ -392,8 +430,8 @@ export default function PatientsScreen() {
                           patient.risk === 'High'
                             ? '#DC2626'
                             : patient.risk === 'Medium'
-                            ? '#D97706'
-                            : '#0284C7',
+                              ? '#D97706'
+                              : '#0284C7',
                       },
                     ]}
                   >

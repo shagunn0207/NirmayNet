@@ -18,7 +18,7 @@ interface PatientItem {
 export default function PhcConsultationScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
-  const { session } = useAuth();
+  const { session, t } = useAuth();
 
   const [patients, setPatients] = useState<PatientItem[]>([
     { id: '11111111-1111-1111-1111-111111111111', name: 'Savitri Devi', age: 32, gender: 'Female' },
@@ -30,14 +30,38 @@ export default function PhcConsultationScreen() {
     (params.patientId as string) || '11111111-1111-1111-1111-111111111111'
   );
 
-  const [diagnosis, setDiagnosis] = useState('Acute viral fever with mild bronchospasm');
-  const [treatment, setTreatment] = useState('Supportive oral hydration, antipyretics and rest');
-  const [medicines, setMedicines] = useState('Paracetamol 500mg TDS x 3 days, Cetirizine 10mg OD x 5 days, ORS sachets');
-  const [nextVisitDate, setNextVisitDate] = useState('19/09/2026');
-  const [notes, setNotes] = useState('Patient to report immediately if breathing difficulty worsens.');
+  const [diagnosis, setDiagnosis] = useState('');
+  const [treatment, setTreatment] = useState('');
+  const [medicines, setMedicines] = useState('');
+  const [nextVisitDate, setNextVisitDate] = useState('');
+  const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(false);
   const [teleconsultLoading, setTeleconsultLoading] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
+
+  const [prevTs, setPrevTs] = useState(params.ts as string);
+
+  if (params.ts && params.ts !== prevTs) {
+    setPrevTs(params.ts as string);
+    if (params.patientId) {
+      setSelectedPatientId(params.patientId as string);
+    }
+    setDiagnosis('');
+    setTreatment('');
+    setMedicines('');
+    setNextVisitDate('');
+    setNotes('');
+    setSavedSuccess(false);
+  }
+
+  useEffect(() => {
+    setDiagnosis('');
+    setTreatment('');
+    setMedicines('');
+    setNextVisitDate('');
+    setNotes('');
+    setSavedSuccess(false);
+  }, [selectedPatientId]);
 
   useEffect(() => {
     (async () => {
@@ -56,7 +80,9 @@ export default function PhcConsultationScreen() {
               age: Number(p.age) || 30,
               gender: p.gender || 'Female',
             })));
-            if (!params.patientId) {
+            if (params.patientId && !selectedPatientId) {
+              setSelectedPatientId(params.patientId as string);
+            } else if (!selectedPatientId && data.length > 0) {
               setSelectedPatientId(String(data[0].id));
             }
           }
@@ -97,6 +123,32 @@ export default function PhcConsultationScreen() {
       setSavedSuccess(true);
     } catch {
       setSavedSuccess(true);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleEscalate = async () => {
+    setLoading(true);
+    try {
+      const token = session?.access_token;
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      await fetch(`${BACKEND_URL}/api/v1/referrals/`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          patient_id: selectedPatient.id,
+          reason: `[PHC DOCTOR ESCALATION] ${notes}`,
+          destination_hospital: "District Hospital Nandurbar",
+          priority: "Emergency",
+          status: "PENDING"
+        }),
+      });
+      Alert.alert('Escalated', 'Patient has been escalated to District Hospital.');
+    } catch {
+      Alert.alert('Error', 'Failed to escalate patient.');
     } finally {
       setLoading(false);
     }
@@ -150,7 +202,7 @@ export default function PhcConsultationScreen() {
           <FontAwesome5 name="arrow-left" size={16} color="#0F172A" />
         </TouchableOpacity>
         <View style={{ alignItems: 'center' }}>
-          <Text style={styles.headerTitle}>Consultation</Text>
+          <Text style={styles.headerTitle}>{t('phc.consultations') || 'Consultation'}</Text>
           <Text style={styles.headerSubtitle}>{selectedPatient?.name}</Text>
         </View>
         <TouchableOpacity style={styles.videoBtn} onPress={handleStartTeleconsult}>
@@ -163,8 +215,8 @@ export default function PhcConsultationScreen() {
         <View style={styles.successBanner}>
           <FontAwesome5 name="check-circle" size={18} color="#059669" style={{ marginRight: 10 }} />
           <View style={{ flex: 1 }}>
-            <Text style={styles.successTitle}>Consultation Saved</Text>
-            <Text style={styles.successSub}>Follow-up scheduled for {nextVisitDate}</Text>
+            <Text style={styles.successTitle}>{t('Consultation Saved') || 'Consultation Saved'}</Text>
+            <Text style={styles.successSub}>{t('Follow-up scheduled for') || 'Follow-up scheduled for'} {nextVisitDate}</Text>
           </View>
           <TouchableOpacity onPress={() => setSavedSuccess(false)}>
             <FontAwesome5 name="times" size={14} color="#059669" />
@@ -174,7 +226,7 @@ export default function PhcConsultationScreen() {
 
       {/* Patient Selector */}
       <View style={styles.selectorCard}>
-        <Text style={styles.selectorLabel}>Consulting Patient</Text>
+        <Text style={styles.selectorLabel}>{t('Consulting Patient') || 'Consulting Patient'}</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.patientScroll}>
           {patients.map(p => {
             const isSelected = p.id === selectedPatientId;
@@ -203,7 +255,7 @@ export default function PhcConsultationScreen() {
       <View style={styles.formCard}>
         {/* Diagnosis */}
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>Diagnosis *</Text>
+          <Text style={styles.label}>{t('Diagnosis *') || 'Diagnosis *'}</Text>
           <TextInput
             style={styles.input}
             placeholder="Enter clinical diagnosis"
@@ -215,7 +267,7 @@ export default function PhcConsultationScreen() {
 
         {/* Treatment Plan */}
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>Treatment</Text>
+          <Text style={styles.label}>{t('Treatment') || 'Treatment'}</Text>
           <TextInput
             style={[styles.input, { height: 60, textAlignVertical: 'top' }]}
             placeholder="Enter treatment plan"
@@ -228,7 +280,7 @@ export default function PhcConsultationScreen() {
 
         {/* Prescribed Medicines */}
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>Prescribed Medicines</Text>
+          <Text style={styles.label}>{t('Prescribed Medicines') || 'Prescribed Medicines'}</Text>
           <TextInput
             style={[styles.input, { height: 64, textAlignVertical: 'top' }]}
             placeholder="Add medicines & dosages"
@@ -241,7 +293,7 @@ export default function PhcConsultationScreen() {
 
         {/* Next Visit Date */}
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>Next Visit Date</Text>
+          <Text style={styles.label}>{t('Next Visit Date') || 'Next Visit Date'}</Text>
           <View style={styles.dateBox}>
             <TextInput
               style={styles.dateInput}
@@ -256,7 +308,7 @@ export default function PhcConsultationScreen() {
 
         {/* Notes */}
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>Notes</Text>
+          <Text style={styles.label}>{t('Notes') || 'Notes'}</Text>
           <TextInput
             style={[styles.input, { height: 52 }]}
             placeholder="Additional clinical notes"
@@ -276,7 +328,21 @@ export default function PhcConsultationScreen() {
           {loading ? (
             <ActivityIndicator color="#FFFFFF" />
           ) : (
-            <Text style={styles.primaryBtnText}>Save Consultation</Text>
+            <Text style={styles.primaryBtnText}>{t('Save Consultation') || 'Save Consultation'}</Text>
+          )}
+        </TouchableOpacity>
+
+        {/* Escalate Button */}
+        <TouchableOpacity
+          style={[styles.primaryBtn, { backgroundColor: '#DC2626', marginTop: 10 }]}
+          activeOpacity={0.85}
+          onPress={handleEscalate}
+          disabled={loading}
+        >
+          {loading ? (
+            <ActivityIndicator color="#FFFFFF" />
+          ) : (
+            <Text style={styles.primaryBtnText}>{t('Escalate to District Hospital') || 'Escalate to District Hospital'}</Text>
           )}
         </TouchableOpacity>
 
@@ -292,7 +358,7 @@ export default function PhcConsultationScreen() {
           ) : (
             <>
               <FontAwesome5 name="video" size={14} color="#2563EB" style={{ marginRight: 8 }} />
-              <Text style={styles.teleconsultText}>Live Teleconsult (Jitsi)</Text>
+              <Text style={styles.teleconsultText}>{t('Live Teleconsult (Jitsi)') || 'Live Teleconsult (Jitsi)'}</Text>
             </>
           )}
         </TouchableOpacity>

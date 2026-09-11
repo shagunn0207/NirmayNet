@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, Linking } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, Linking, Platform } from 'react-native';
 import { useAuth } from '../../store/AuthContext';
 import { FontAwesome5 } from '@expo/vector-icons';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { BACKEND_URL } from '../../lib/apiClient';
 
 export default function ConsultationScreen() {
@@ -20,7 +20,7 @@ export default function ConsultationScreen() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (callState !== 'connected') return;
+    if (callState !== 'connected' || consultation?.jitsi_url) return;
     const interval = setInterval(() => {
       setElapsed(e => {
         if (e >= 12) {
@@ -33,7 +33,18 @@ export default function ConsultationScreen() {
       });
     }, 1000);
     return () => clearInterval(interval);
-  }, [callState]);
+  }, [callState, consultation?.jitsi_url]);
+
+  // Reset call UI state whenever the screen comes into focus so no stale call is shown
+  useFocusEffect(
+    useCallback(() => {
+      setCallState('idle');
+      setMuted(false);
+      setElapsed(0);
+      setPatient(null);
+      setConsultation(null);
+    }, [])
+  );
 
   useEffect(() => {
     const loadPatient = async () => {
@@ -113,7 +124,7 @@ export default function ConsultationScreen() {
       setCallState('connected');
       setElapsed(0);
 
-      if (data?.jitsi_url) {
+      if (data?.jitsi_url && Platform.OS !== 'web') {
         await Linking.openURL(data.jitsi_url);
       }
     } catch (error: any) {
@@ -177,13 +188,21 @@ export default function ConsultationScreen() {
           </>
         )}
         {callState === 'connected' && (
-          <>
-            <Text style={{ fontSize: 64 }}>👨‍⚕️</Text>
-            <Text style={styles.doctorNameVideo}>{consultation?.room_id ? roomTitle : (t('doctorName') || 'Dr. Sharma')}</Text>
-            <View style={styles.selfPreview}>
-              <Text style={{ fontSize: 28 }}>👩</Text>
-            </View>
-          </>
+          Platform.OS === 'web' && consultation?.jitsi_url ? (
+            React.createElement('iframe', {
+              src: consultation.jitsi_url,
+              style: { width: '100%', height: '100%', border: 'none', borderRadius: 20 },
+              allow: 'camera; microphone; fullscreen; display-capture'
+            })
+          ) : (
+            <>
+              <Text style={{ fontSize: 64 }}>👨‍⚕️</Text>
+              <Text style={styles.doctorNameVideo}>{consultation?.room_id ? roomTitle : (t('doctorName') || 'Dr. Sharma')}</Text>
+              <View style={styles.selfPreview}>
+                <Text style={{ fontSize: 28 }}>👩</Text>
+              </View>
+            </>
+          )
         )}
         {(callState === 'lost' || callState === 'offline') && (
           <>

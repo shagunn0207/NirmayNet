@@ -34,16 +34,36 @@ export async function loginWithBackend(
   username: string,
   password: string
 ): Promise<BackendLoginResponse> {
-  const response = await fetch(`${BACKEND_URL}/api/v1/auth/login`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      username: username.trim(),
-      password: password.trim(),
-    }),
-  });
+  // Abort after 15 seconds so a bad/unreachable host fails fast instead of
+  // hanging silently for 60+ seconds.
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+  let response: Response;
+  try {
+    response = await fetch(`${BACKEND_URL}/api/v1/auth/login`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        username: username.trim(),
+        password: password.trim(),
+      }),
+      signal: controller.signal,
+    });
+  } catch (fetchErr: any) {
+    clearTimeout(timeoutId);
+    if (fetchErr?.name === 'AbortError') {
+      throw new Error('Request timed out. Check that the server is running and reachable.');
+    }
+    throw new Error(
+      fetchErr?.message
+        ? `Network error: ${fetchErr.message}`
+        : 'Network error. Check your connection and server address.'
+    );
+  }
+  clearTimeout(timeoutId);
 
   if (!response.ok) {
     let errorDetail = 'Login failed';

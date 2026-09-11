@@ -5,7 +5,7 @@ import { FontAwesome5 } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 
 export default function PhcProfileScreen() {
-  const { user, signOut } = useAuth();
+  const { user, signOut, t, language, setLanguage } = useAuth();
   const router = useRouter();
 
   const handleLogout = async () => {
@@ -33,7 +33,7 @@ export default function PhcProfileScreen() {
         <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
           <FontAwesome5 name="arrow-left" size={16} color="#0F172A" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Profile</Text>
+        <Text style={styles.headerTitle}>{t('phc.profile') || 'Profile'}</Text>
         <View style={{ width: 36 }} />
       </View>
 
@@ -43,38 +43,56 @@ export default function PhcProfileScreen() {
           <Text style={styles.avatarText}>D</Text>
         </View>
         <Text style={styles.roleTitle}>{doctorName}</Text>
-        <Text style={styles.roleSub}>PHC Doctor</Text>
+        <Text style={styles.roleSub}>{t('doctorPHC') || 'PHC Doctor'}</Text>
       </View>
 
       {/* Info List */}
       <View style={styles.infoCard}>
         <View style={styles.infoRow}>
-          <Text style={styles.infoLabel}>Employee ID</Text>
+          <Text style={styles.infoLabel}>{t('Employee ID') || 'Employee ID'}</Text>
           <Text style={styles.infoValue}>{employeeId}</Text>
         </View>
         <View style={styles.divider} />
 
         <View style={styles.infoRow}>
-          <Text style={styles.infoLabel}>Facility</Text>
+          <Text style={styles.infoLabel}>{t('Facility') || 'Facility'}</Text>
           <Text style={styles.infoValue}>{facility}</Text>
         </View>
         <View style={styles.divider} />
 
         <View style={styles.infoRow}>
-          <Text style={styles.infoLabel}>Phone</Text>
+          <Text style={styles.infoLabel}>{t('Phone') || 'Phone'}</Text>
           <Text style={styles.infoValue}>{phone}</Text>
         </View>
       </View>
 
       {/* Action Menu */}
       <View style={styles.menuCard}>
+        {/* Language Selector */}
+        <View style={styles.menuItem}>
+          <View style={styles.menuLeft}>
+            <FontAwesome5 name="language" size={16} color="#64748B" style={{ marginRight: 14 }} />
+            <Text style={styles.menuText}>{t('selectLanguage') || 'Select Language'}</Text>
+          </View>
+        </View>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 14 }}>
+          {['english', 'marathi', 'hindi', 'kannada'].map(l => (
+             <TouchableOpacity key={l} onPress={() => setLanguage(l as any)} style={[styles.langBtn, language === l && styles.langBtnActive]}>
+               <Text style={[styles.langBtnText, language === l && styles.langBtnTextActive]}>
+                 {l === 'english' ? 'English' : l === 'marathi' ? 'मराठी' : l === 'hindi' ? 'हिंदी' : 'ಕನ್ನಡ'}
+               </Text>
+             </TouchableOpacity>
+          ))}
+        </View>
+        <View style={styles.divider} />
+
         <TouchableOpacity
           style={styles.menuItem}
           onPress={() => Alert.alert('Settings', 'PHC Clinical Portal v2.1.0')}
         >
           <View style={styles.menuLeft}>
             <FontAwesome5 name="cog" size={16} color="#64748B" style={{ marginRight: 14 }} />
-            <Text style={styles.menuText}>Settings</Text>
+            <Text style={styles.menuText}>{t('Settings') || 'Settings'}</Text>
           </View>
           <FontAwesome5 name="chevron-right" size={14} color="#94A3B8" />
         </TouchableOpacity>
@@ -86,7 +104,7 @@ export default function PhcProfileScreen() {
         >
           <View style={styles.menuLeft}>
             <FontAwesome5 name="question-circle" size={16} color="#64748B" style={{ marginRight: 14 }} />
-            <Text style={styles.menuText}>Help & Support</Text>
+            <Text style={styles.menuText}>{t('Help & Support') || 'Help & Support'}</Text>
           </View>
           <FontAwesome5 name="chevron-right" size={14} color="#94A3B8" />
         </TouchableOpacity>
@@ -95,7 +113,7 @@ export default function PhcProfileScreen() {
         <TouchableOpacity style={styles.menuItem} onPress={handleLogout}>
           <View style={styles.menuLeft}>
             <FontAwesome5 name="sign-out-alt" size={16} color="#DC2626" style={{ marginRight: 14 }} />
-            <Text style={[styles.menuText, { color: '#DC2626', fontFamily: 'Inter_700Bold' }]}>Logout</Text>
+            <Text style={[styles.menuText, { color: '#DC2626', fontFamily: 'Inter_700Bold' }]}>{t('logoutBtn') || 'Logout'}</Text>
           </View>
         </TouchableOpacity>
       </View>
@@ -218,5 +236,25 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: 'Inter_600SemiBold',
     color: '#334155',
+  },
+  langBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    backgroundColor: '#F8FAFC',
+  },
+  langBtnActive: {
+    backgroundColor: '#2563EB',
+    borderColor: '#2563EB',
+  },
+  langBtnText: {
+    fontSize: 12,
+    fontFamily: 'Inter_600SemiBold',
+    color: '#475569',
+  },
+  langBtnTextActive: {
+    color: '#FFFFFF',
   },
 });

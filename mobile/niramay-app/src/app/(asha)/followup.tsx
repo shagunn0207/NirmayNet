@@ -7,6 +7,7 @@ import { useAuth } from '../../store/AuthContext';
 import { BACKEND_URL } from '../../lib/apiClient';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useRouter, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { enqueueFollowupCreation } from '../../lib/syncQueue';
 
 interface FollowupItem {
   id: string;
@@ -31,7 +32,7 @@ const CATEGORY_OPTIONS = [
 
 export default function FollowupsScreen() {
   const router = useRouter();
-  const { session } = useAuth();
+  const { session, t } = useAuth();
   const params = useLocalSearchParams();
 
   // Selected patient passed from patient profile or other navigation
@@ -144,7 +145,15 @@ export default function FollowupsScreen() {
 
   useFocusEffect(
     useCallback(() => {
+      // Refresh backend data
       fetchFollowups();
+      // Reset modal / schedule-form state so returning always shows a clean form
+      setShowScheduleModal(false);
+      setScheduleCategory('General Checkup');
+      setScheduleUrgency('ROUTINE');
+      setScheduleDate(new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0]);
+      setScheduleNotes('');
+      setSelectedFollowup(null);
     }, [session, filterPatientId])
   );
 
@@ -180,31 +189,54 @@ export default function FollowupsScreen() {
         notes: scheduleNotes.trim() || undefined,
       };
 
-      const res = await fetch(`${BACKEND_URL}/api/v1/followups/`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(payload),
-      });
+      let success = false;
+      try {
+        const res = await fetch(`${BACKEND_URL}/api/v1/followups/`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(payload),
+        });
 
-      if (res.ok) {
+        if (res.ok) {
+          setShowScheduleModal(false);
+          setScheduleNotes('');
+          Alert.alert(
+            'Follow-up Scheduled',
+            `Follow-up scheduled successfully for ${targetPatientName || 'the patient'}.`
+          );
+          await fetchFollowups();
+          success = true;
+        }
+      } catch {
+        // Network error / offline
+      }
+
+      if (!success) {
+        // Offline queue fallback
+        const tempFollowupId = `temp-fu-${Date.now()}`;
+        await enqueueFollowupCreation(payload, tempFollowupId);
         setShowScheduleModal(false);
         setScheduleNotes('');
+
+        const displayDate = new Date(scheduleDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+        const localItem: FollowupItem = {
+          id: tempFollowupId,
+          patientId: patientIdToUse,
+          patientName: targetPatientName || 'Patient',
+          subtitle: `Upcoming • ${scheduleCategory.trim() || 'General Checkup'} (Offline)`,
+          status: 'Upcoming',
+          date: displayDate,
+          notes: scheduleNotes.trim() || 'Follow-up health review',
+          category: scheduleCategory.trim() || 'General Checkup',
+        };
+        setFollowups(prev => [localItem, ...prev]);
         Alert.alert(
-          'Follow-up Scheduled',
-          `Follow-up scheduled successfully for ${targetPatientName || 'the patient'}.`
+          'Saved Offline',
+          `Follow-up saved locally for ${targetPatientName || 'the patient'} and will automatically sync once connectivity returns.`
         );
-        await fetchFollowups();
-      } else {
-        const errData = await res.json().catch(() => ({}));
-        let errMsg = 'Could not schedule follow-up. Please check patient ID.';
-        if (errData.detail) {
-          if (typeof errData.detail === 'string') errMsg = errData.detail;
-          else if (Array.isArray(errData.detail) && errData.detail[0]?.msg) errMsg = errData.detail[0].msg;
-        }
-        Alert.alert('Error', errMsg);
       }
     } catch {
-      Alert.alert('Network Error', 'Failed to connect to backend server. Please try again.');
+      Alert.alert('Error', 'Failed to schedule follow-up.');
     } finally {
       setSubmitting(false);
     }
@@ -249,7 +281,7 @@ export default function FollowupsScreen() {
         <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
           <FontAwesome5 name="arrow-left" size={16} color="#0F172A" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Follow-ups</Text>
+        <Text style={styles.headerTitle}>{t('followupTitle')}</Text>
         <TouchableOpacity
           style={styles.addMiniBtn}
           onPress={() => setShowScheduleModal(true)}
@@ -264,7 +296,7 @@ export default function FollowupsScreen() {
           <View style={styles.selectedPatientHeaderRow}>
             <View style={styles.selectedPatientBadge}>
               <FontAwesome5 name="user-check" size={11} color="#059669" style={{ marginRight: 5 }} />
-              <Text style={styles.selectedPatientBadgeText}>Selected Patient</Text>
+              <Text style={styles.selectedPatientBadgeText}>{t('selectedPatient')}</Text>
             </View>
             <TouchableOpacity
               style={styles.scheduleFollowupBtn}
@@ -272,7 +304,7 @@ export default function FollowupsScreen() {
               onPress={() => setShowScheduleModal(true)}
             >
               <FontAwesome5 name="calendar-plus" size={12} color="#FFFFFF" style={{ marginRight: 6 }} />
-              <Text style={styles.scheduleFollowupBtnText}>Add Follow-up</Text>
+              <Text style={styles.scheduleFollowupBtnText}>{t('scheduleFollowup')}</Text>
             </TouchableOpacity>
           </View>
           <Text style={styles.selectedPatientName}>{targetPatientName || 'Patient'}</Text>
@@ -282,7 +314,7 @@ export default function FollowupsScreen() {
               style={styles.clearFilterBtn}
               onPress={() => setFilterPatientId(undefined)}
             >
-              <Text style={styles.clearFilterText}>Showing patient follow-ups • Tap to view all</Text>
+              <Text style={styles.clearFilterText}>{t('showingPatientFollowups')}</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -297,7 +329,7 @@ export default function FollowupsScreen() {
             onPress={() => setActiveTab(tab)}
           >
             <Text style={[styles.tabText, activeTab === tab && styles.tabTextActive]}>
-              {tab}
+              {tab === 'Due Today' ? t('dueToday') : tab === 'Upcoming' ? t('upcoming') : t('completed')}
             </Text>
           </TouchableOpacity>
         ))}
@@ -314,14 +346,14 @@ export default function FollowupsScreen() {
         ) : filtered.length === 0 ? (
           <View style={styles.emptyState}>
             <FontAwesome5 name="calendar-check" size={32} color="#CBD5E1" />
-            <Text style={styles.emptyText}>No follow-ups in this tab</Text>
+            <Text style={styles.emptyText}>{t('noFollowups')}</Text>
             {targetPatientId && (
               <TouchableOpacity
                 style={styles.emptyScheduleBtn}
                 onPress={() => setShowScheduleModal(true)}
               >
                 <FontAwesome5 name="plus" size={12} color="#059669" style={{ marginRight: 6 }} />
-                <Text style={styles.emptyScheduleBtnText}>Schedule Follow-up for {targetPatientName || 'Patient'}</Text>
+                <Text style={styles.emptyScheduleBtnText}>{t('scheduleFollowupFor')} {targetPatientName || 'Patient'}</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -387,7 +419,7 @@ export default function FollowupsScreen() {
         <View style={styles.modalBg}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Schedule Follow-up</Text>
+              <Text style={styles.modalTitle}>{t('scheduleFollowupTitle')}</Text>
               <TouchableOpacity onPress={() => setShowScheduleModal(false)}>
                 <FontAwesome5 name="times" size={16} color="#64748B" />
               </TouchableOpacity>
@@ -401,14 +433,14 @@ export default function FollowupsScreen() {
                 </Text>
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.modalPatientLabel}>Patient</Text>
+                <Text style={styles.modalPatientLabel}>{t('patientLabel')}</Text>
                 <Text style={styles.modalPatientName}>{targetPatientName || 'Patient'}</Text>
                 <Text style={styles.modalPatientSub} numberOfLines={1}>ID: {targetPatientId || 'Not specified'}</Text>
               </View>
             </View>
 
             {/* Category Selector */}
-            <Text style={styles.fieldLabel}>Category</Text>
+            <Text style={styles.fieldLabel}>{t('categoryLabel')}</Text>
             <View style={styles.categoryChipsRow}>
               {CATEGORY_OPTIONS.slice(0, 4).map(cat => (
                 <TouchableOpacity
@@ -417,14 +449,14 @@ export default function FollowupsScreen() {
                   onPress={() => setScheduleCategory(cat)}
                 >
                   <Text style={[styles.categoryChipText, scheduleCategory === cat && styles.categoryChipTextActive]}>
-                    {cat}
+                    {t(cat) || cat}
                   </Text>
                 </TouchableOpacity>
               ))}
             </View>
 
             {/* Urgency Selector */}
-            <Text style={styles.fieldLabel}>Urgency</Text>
+            <Text style={styles.fieldLabel}>{t('priority')}</Text>
             <View style={styles.urgencyRow}>
               {(['ROUTINE', 'URGENT', 'EMERGENCY'] as const).map(u => (
                 <TouchableOpacity
@@ -447,14 +479,14 @@ export default function FollowupsScreen() {
                       scheduleUrgency === u && styles.urgencyChipTextActive,
                     ]}
                   >
-                    {u}
+                    {t(u) || u}
                   </Text>
                 </TouchableOpacity>
               ))}
             </View>
 
             {/* Scheduled Date Input */}
-            <Text style={styles.fieldLabel}>Follow-up Date (YYYY-MM-DD) *</Text>
+            <Text style={styles.fieldLabel}>{t('followupDateLabel')}</Text>
             <TextInput
               style={styles.modalInput}
               value={scheduleDate}
@@ -464,7 +496,7 @@ export default function FollowupsScreen() {
             />
 
             {/* Instructions / Notes */}
-            <Text style={styles.fieldLabel}>Instructions / Notes (Optional)</Text>
+            <Text style={styles.fieldLabel}>{t('instructionsOptional')}</Text>
             <TextInput
               style={[styles.modalInput, { height: 60, textAlignVertical: 'top' }]}
               value={scheduleNotes}
@@ -486,7 +518,7 @@ export default function FollowupsScreen() {
               ) : (
                 <>
                   <FontAwesome5 name="check" size={14} color="#FFFFFF" style={{ marginRight: 8 }} />
-                  <Text style={styles.completeBtnText}>Confirm Follow-up</Text>
+                  <Text style={styles.completeBtnText}>{t('confirmFollowup')}</Text>
                 </>
               )}
             </TouchableOpacity>
@@ -495,7 +527,7 @@ export default function FollowupsScreen() {
               style={styles.closeBtn}
               onPress={() => setShowScheduleModal(false)}
             >
-              <Text style={styles.closeBtnText}>Cancel</Text>
+              <Text style={styles.closeBtnText}>{t('cancelBtn')}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -509,7 +541,7 @@ export default function FollowupsScreen() {
           <View style={styles.modalBg}>
             <View style={styles.modalContent}>
               <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Follow-up Details</Text>
+                <Text style={styles.modalTitle}>{t('followupDetails')}</Text>
                 <TouchableOpacity onPress={() => setSelectedFollowup(null)}>
                   <FontAwesome5 name="times" size={16} color="#64748B" />
                 </TouchableOpacity>
@@ -519,7 +551,7 @@ export default function FollowupsScreen() {
               <Text style={styles.modalDate}>Scheduled: {selectedFollowup.date}</Text>
 
               <View style={styles.modalNotesBox}>
-                <Text style={styles.modalNotesLabel}>Instructions / Notes:</Text>
+                <Text style={styles.modalNotesLabel}>{t('instructionsNotes')}</Text>
                 <Text style={styles.modalNotesText}>{selectedFollowup.notes || 'Routine checkup'}</Text>
               </View>
 
@@ -529,7 +561,7 @@ export default function FollowupsScreen() {
                   onPress={() => markCompleted(selectedFollowup.id)}
                 >
                   <FontAwesome5 name="check" size={14} color="#FFFFFF" style={{ marginRight: 8 }} />
-                  <Text style={styles.completeBtnText}>Mark Completed</Text>
+                  <Text style={styles.completeBtnText}>{t('markCompleted')}</Text>
                 </TouchableOpacity>
               )}
 
@@ -537,7 +569,7 @@ export default function FollowupsScreen() {
                 style={styles.closeBtn}
                 onPress={() => setSelectedFollowup(null)}
               >
-                <Text style={styles.closeBtnText}>Close</Text>
+                <Text style={styles.closeBtnText}>{t('closeBtn')}</Text>
               </TouchableOpacity>
             </View>
           </View>

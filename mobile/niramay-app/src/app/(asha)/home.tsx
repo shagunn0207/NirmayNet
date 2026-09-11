@@ -18,7 +18,7 @@ interface TaskItem {
 }
 
 export default function AshaHomeScreen() {
-  const { user, session } = useAuth();
+  const { user, session, t } = useAuth();
   const router = useRouter();
 
   const [tasks, setTasks] = useState<TaskItem[]>([]);
@@ -288,7 +288,7 @@ export default function AshaHomeScreen() {
             <FontAwesome5 name="user-nurse" size={18} color="#059669" />
           </View>
           <View style={{ marginLeft: 12 }}>
-            <Text style={styles.greetingSub}>Good Morning,</Text>
+            <Text style={styles.greetingSub}>{t('goodMorning')}</Text>
             <Text style={styles.greetingName}>{displayName}!</Text>
           </View>
         </View>
@@ -310,8 +310,8 @@ export default function AshaHomeScreen() {
           <FontAwesome5 name="exclamation-triangle" size={18} color="#DC2626" />
         </View>
         <View style={styles.urgentTextGroup}>
-          <Text style={styles.urgentTitle}>{urgentCount} Urgent Referrals</Text>
-          <Text style={styles.urgentSub}>Require attention</Text>
+          <Text style={styles.urgentTitle}>{urgentCount} {t('urgentReferrals')}</Text>
+          <Text style={styles.urgentSub}>{t('requireAttention')}</Text>
         </View>
         <FontAwesome5 name="chevron-right" size={14} color="#DC2626" />
       </TouchableOpacity>
@@ -327,7 +327,7 @@ export default function AshaHomeScreen() {
           <View style={[styles.actionIconBadge, { backgroundColor: '#D1FAE5' }]}>
             <FontAwesome5 name="user-plus" size={20} color="#059669" />
           </View>
-          <Text style={styles.actionCardTitle}>New Patient</Text>
+          <Text style={styles.actionCardTitle}>{t('newPatient')}</Text>
         </TouchableOpacity>
 
         {/* Card 2: My Patients */}
@@ -339,7 +339,7 @@ export default function AshaHomeScreen() {
           <View style={[styles.actionIconBadge, { backgroundColor: '#DBEAFE' }]}>
             <FontAwesome5 name="users" size={20} color="#2563EB" />
           </View>
-          <Text style={styles.actionCardTitle}>My Patients</Text>
+          <Text style={styles.actionCardTitle}>{t('myPatients')}</Text>
         </TouchableOpacity>
 
         {/* Card 3: Follow-ups */}
@@ -351,7 +351,7 @@ export default function AshaHomeScreen() {
           <View style={[styles.actionIconBadge, { backgroundColor: '#FFEDD5' }]}>
             <FontAwesome5 name="calendar-check" size={20} color="#EA580C" />
           </View>
-          <Text style={styles.actionCardTitle}>Follow-ups</Text>
+          <Text style={styles.actionCardTitle}>{t('followupTitle')}</Text>
         </TouchableOpacity>
 
         {/* Card 4: Referrals */}
@@ -363,16 +363,16 @@ export default function AshaHomeScreen() {
           <View style={[styles.actionIconBadge, { backgroundColor: '#F3E8FF' }]}>
             <FontAwesome5 name="file-medical-alt" size={20} color="#9333EA" />
           </View>
-          <Text style={styles.actionCardTitle}>Referrals</Text>
+          <Text style={styles.actionCardTitle}>{t('phc.referrals')}</Text>
         </TouchableOpacity>
       </View>
 
       {/* ── Today's Tasks Section ── */}
       <View style={styles.sectionContainer}>
         <View style={styles.sectionHeaderRow}>
-          <Text style={styles.sectionTitle}>Today's Tasks</Text>
+          <Text style={styles.sectionTitle}>{t('todaysTasks')}</Text>
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            <Text style={styles.taskCounter}>{tasks.filter(t => !t.visited).length} remaining</Text>
+            <Text style={styles.taskCounter}>{tasks.filter(t => !t.visited).length} {t('remaining')}</Text>
             <TouchableOpacity
               style={styles.addTaskBtn}
               onPress={() => {
@@ -383,7 +383,7 @@ export default function AshaHomeScreen() {
               }}
             >
               <FontAwesome5 name="plus" size={11} color="#059669" />
-              <Text style={styles.addTaskBtnText}>Add</Text>
+              <Text style={styles.addTaskBtnText}>{t('add')}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -394,8 +394,8 @@ export default function AshaHomeScreen() {
               <View style={styles.emptyTasksIconCircle}>
                 <FontAwesome5 name="clipboard-check" size={18} color="#059669" />
               </View>
-              <Text style={styles.emptyTasksTitle}>No Reminders</Text>
-              <Text style={styles.emptyTasksSubtitle}>You have no pending tasks. Tap + Add to schedule one.</Text>
+              <Text style={styles.emptyTasksTitle}>{t('noReminders')}</Text>
+              <Text style={styles.emptyTasksSubtitle}>{t('noPendingTasks')}</Text>
             </View>
           ) : (
             tasks.map((task) => (
@@ -467,14 +467,14 @@ export default function AshaHomeScreen() {
         <View style={styles.modalBg}>
           <View style={styles.modalCard}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>New Reminder</Text>
+              <Text style={styles.modalTitle}>{t('newReminder')}</Text>
               <TouchableOpacity onPress={() => setShowAddModal(false)}>
                 <FontAwesome5 name="times" size={16} color="#64748B" />
               </TouchableOpacity>
             </View>
 
             {/* Title */}
-            <Text style={styles.modalLabel}>Reminder Title *</Text>
+            <Text style={styles.modalLabel}>{t('reminderTitle')}</Text>
             <TextInput
               style={styles.modalInput}
               placeholder="e.g. Visit Meena Bai for BP check"
@@ -484,7 +484,7 @@ export default function AshaHomeScreen() {
             />
 
             {/* Priority */}
-            <Text style={styles.modalLabel}>Priority</Text>
+            <Text style={styles.modalLabel}>{t('priority')}</Text>
             <View style={styles.prioritySelector}>
               <TouchableOpacity
                 accessibilityLabel="Priority Normal"
@@ -492,7 +492,7 @@ export default function AshaHomeScreen() {
                 onPress={() => setTaskUrgency('ROUTINE')}
               >
                 <Text style={[styles.priorityOptText, taskUrgency === 'ROUTINE' && styles.priorityOptTextActive]}>
-                  Normal
+                  {t('priorityNormal')}
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
@@ -501,13 +501,13 @@ export default function AshaHomeScreen() {
                 onPress={() => setTaskUrgency('URGENT')}
               >
                 <Text style={[styles.priorityOptText, taskUrgency === 'URGENT' && styles.priorityOptTextActive]}>
-                  Urgent
+                  {t('priorityUrgent')}
                 </Text>
               </TouchableOpacity>
             </View>
 
             {/* Due Date/Time */}
-            <Text style={styles.modalLabel}>Due Date / Time</Text>
+            <Text style={styles.modalLabel}>{t('dueDateTime')}</Text>
             <TextInput
               style={styles.modalInput}
               placeholder="e.g. Today • 2:00 PM"
@@ -527,7 +527,7 @@ export default function AshaHomeScreen() {
               {actionLoading ? (
                 <ActivityIndicator color="#FFFFFF" />
               ) : (
-                <Text style={styles.modalPrimaryBtnText}>Create Reminder</Text>
+                <Text style={styles.modalPrimaryBtnText}>{t('createReminder')}</Text>
               )}
             </TouchableOpacity>
           </View>
@@ -541,14 +541,14 @@ export default function AshaHomeScreen() {
         <View style={styles.modalBg}>
           <View style={styles.modalCard}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Edit Reminder</Text>
+              <Text style={styles.modalTitle}>{t('editReminder')}</Text>
               <TouchableOpacity onPress={() => setShowEditModal(false)}>
                 <FontAwesome5 name="times" size={16} color="#64748B" />
               </TouchableOpacity>
             </View>
 
             {/* Title */}
-            <Text style={styles.modalLabel}>Reminder Title</Text>
+            <Text style={styles.modalLabel}>{t('reminderTitle')}</Text>
             <TextInput
               style={styles.modalInput}
               value={taskTitle}
@@ -556,7 +556,7 @@ export default function AshaHomeScreen() {
             />
 
             {/* Priority */}
-            <Text style={styles.modalLabel}>Priority</Text>
+            <Text style={styles.modalLabel}>{t('priority')}</Text>
             <View style={styles.prioritySelector}>
               <TouchableOpacity
                 accessibilityLabel="Edit Priority Normal"
@@ -564,7 +564,7 @@ export default function AshaHomeScreen() {
                 onPress={() => setTaskUrgency('ROUTINE')}
               >
                 <Text style={[styles.priorityOptText, taskUrgency === 'ROUTINE' && styles.priorityOptTextActive]}>
-                  Normal
+                  {t('priorityNormal')}
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
@@ -573,13 +573,13 @@ export default function AshaHomeScreen() {
                 onPress={() => setTaskUrgency('URGENT')}
               >
                 <Text style={[styles.priorityOptText, taskUrgency === 'URGENT' && styles.priorityOptTextActive]}>
-                  Urgent
+                  {t('priorityUrgent')}
                 </Text>
               </TouchableOpacity>
             </View>
 
             {/* Due Date/Time */}
-            <Text style={styles.modalLabel}>Due Date / Time</Text>
+            <Text style={styles.modalLabel}>{t('dueDateTime')}</Text>
             <TextInput
               style={styles.modalInput}
               value={taskTime}
@@ -602,7 +602,7 @@ export default function AshaHomeScreen() {
                   style={{ marginRight: 6 }}
                 />
                 <Text style={[styles.statusToggleText, { color: selectedTask.visited ? '#D97706' : '#059669' }]}>
-                  {selectedTask.visited ? 'Mark Incomplete' : 'Mark Completed'}
+                  {selectedTask.visited ? t('markIncomplete') : t('markCompleted')}
                 </Text>
               </TouchableOpacity>
             )}
@@ -618,7 +618,7 @@ export default function AshaHomeScreen() {
               {actionLoading ? (
                 <ActivityIndicator color="#FFFFFF" />
               ) : (
-                <Text style={styles.modalPrimaryBtnText}>Save Changes</Text>
+                <Text style={styles.modalPrimaryBtnText}>{t('saveChanges')}</Text>
               )}
             </TouchableOpacity>
 
@@ -631,7 +631,7 @@ export default function AshaHomeScreen() {
               disabled={actionLoading}
             >
               <FontAwesome5 name="trash-alt" size={13} color="#DC2626" style={{ marginRight: 6 }} />
-              <Text style={styles.deleteBtnText}>Delete Reminder</Text>
+              <Text style={styles.deleteBtnText}>{t('deleteReminder')}</Text>
             </TouchableOpacity>
           </View>
         </View>

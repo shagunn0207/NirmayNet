@@ -7,6 +7,7 @@ import { useAuth } from '../../store/AuthContext';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { BACKEND_URL } from '../../lib/apiClient';
+import { enqueueReferralCreation, getOfflinePatients } from '../../lib/syncQueue';
 
 interface PatientOption {
   id: string;
@@ -49,7 +50,7 @@ const COMMON_REASONS = [
 export default function CreateReferralScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
-  const { session } = useAuth();
+  const { session, t } = useAuth();
 
   // Top Tab Navigation: 'create' | 'my_referrals'
   const [activeTab, setActiveTab] = useState<'create' | 'my_referrals'>(
@@ -94,6 +95,13 @@ export default function CreateReferralScreen() {
   // Fetch registered patients for selector & patient name resolution
   const fetchPatients = useCallback(async () => {
     try {
+      const offlineList = await getOfflinePatients();
+      const offlineOptions: PatientOption[] = offlineList.map(p => ({
+        id: p.id,
+        name: `${p.name} (Offline)`,
+        village: p.village,
+      }));
+
       const token = session?.access_token;
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       if (token) headers['Authorization'] = `Bearer ${token}`;
@@ -101,15 +109,26 @@ export default function CreateReferralScreen() {
       const res = await fetch(`${BACKEND_URL}/api/v1/patients/`, { headers });
       if (res.ok) {
         const data = await res.json();
-        if (Array.isArray(data) && data.length > 0) {
-          setPatients(data.map((p: any) => ({
+        if (Array.isArray(data)) {
+          const onlineOptions: PatientOption[] = data.map((p: any) => ({
             id: String(p.id),
             name: p.name,
             village: p.village,
-          })));
-          if (!params.patientId && !selectedPatientId) {
-            setSelectedPatientId(String(data[0].id));
+          }));
+          const combined = [...offlineOptions, ...onlineOptions];
+          if (combined.length > 0) {
+            setPatients(combined);
+            if (!params.patientId && !selectedPatientId) {
+              setSelectedPatientId(combined[0].id);
+            }
           }
+          return;
+        }
+      }
+      if (offlineOptions.length > 0) {
+        setPatients(offlineOptions);
+        if (!params.patientId && !selectedPatientId) {
+          setSelectedPatientId(offlineOptions[0].id);
         }
       }
     } catch {
@@ -174,8 +193,24 @@ export default function CreateReferralScreen() {
 
   useFocusEffect(
     useCallback(() => {
+      // Refresh referral list from backend
       fetchMyReferrals();
-    }, [fetchMyReferrals])
+      // Reset form & sent-confirmation state so returning always shows a fresh form
+      setReferralSent(false);
+      setSentCode('');
+      setSentReferralId(null);
+      setSentReferralStatus('PENDING');
+      setDispatchResult(null);
+      setDispatchError(null);
+      setCustomReason('');
+      setNotes('');
+      setSelectedReferralDetail(null);
+      setActiveTab(params.patientId ? 'create' : 'create');
+      setPriority((params.priority as any) || 'Normal');
+      if (params.patientId) {
+        setSelectedPatientId(params.patientId as string);
+      }
+    }, [fetchMyReferrals, params.patientId, params.priority])
   );
 
   // Poll sent referral live status from backend
@@ -231,25 +266,53 @@ export default function CreateReferralScreen() {
         reason: finalReason,
       };
 
-      const res = await fetch(`${BACKEND_URL}/api/v1/referrals/`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(payload),
-      });
+      let success = false;
+      try {
+        const res = await fetch(`${BACKEND_URL}/api/v1/referrals/`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(payload),
+        });
 
-      if (res.ok) {
-        const data = await res.json();
-        setSentCode(data.referral_code || 'NMN-' + new Date().getFullYear() + '-' + Math.floor(1000 + Math.random() * 9000));
-        setSentReferralId(data.id ? String(data.id) : null);
-        setSentReferralStatus(data.status || 'PENDING');
-        setReferralSent(true);
-        fetchMyReferrals();
-      } else {
-        const err = await res.json().catch(() => ({}));
-        Alert.alert('Error', err.detail || 'Failed to create referral on backend.');
+        if (res.ok) {
+          const data = await res.json();
+          setSentCode(data.referral_code || 'NMN-' + new Date().getFullYear() + '-' + Math.floor(1000 + Math.random() * 9000));
+          setSentReferralId(data.id ? String(data.id) : null);
+          setSentReferralStatus(data.status || 'PENDING');
+          setReferralSent(true);
+          success = true;
+          fetchMyReferrals();
+        }
+      } catch {
+        // Network error / offline
       }
-    } catch (e: any) {
-      Alert.alert('Network Error', 'Could not reach server. Please check your connection.');
+
+      if (!success) {
+        // Offline queue fallback
+        const offlineCode = `NMN-OFFLINE-${Math.floor(1000 + Math.random() * 9000)}`;
+        const tempRefId = `temp-ref-${Date.now()}`;
+        await enqueueReferralCreation(payload, tempRefId);
+        setSentCode(offlineCode);
+        setSentReferralId(tempRefId);
+        setSentReferralStatus('PENDING');
+        setReferralSent(true);
+        setMyReferrals(prev => [
+          {
+            id: tempRefId,
+            referral_code: offlineCode,
+            patient_id: selectedPatientId,
+            patient_name: patients.find(p => p.id === selectedPatientId)?.name || 'Patient',
+            destination_hospital: 'District Hospital Nandurbar',
+            reason: finalReason,
+            status: 'PENDING',
+            created_at: new Date().toISOString(),
+          },
+          ...prev,
+        ]);
+        Alert.alert('Saved Offline', 'Referral has been saved locally and will automatically sync once connectivity returns.');
+      }
+    } catch {
+      Alert.alert('Error', 'Could not create referral.');
     } finally {
       setLoading(false);
     }
@@ -416,7 +479,7 @@ export default function CreateReferralScreen() {
           <TouchableOpacity style={styles.backBtn} onPress={() => setSelectedReferralDetail(null)}>
             <FontAwesome5 name="arrow-left" size={16} color="#0F172A" />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Referral Status Feedback</Text>
+          <Text style={styles.headerTitle}>{t('referralStatusFeedback')}</Text>
           <TouchableOpacity
             style={styles.refreshBtnSmall}
             onPress={() => {
@@ -432,7 +495,7 @@ export default function CreateReferralScreen() {
           <View style={styles.detailHeaderRow}>
             <View>
               <Text style={styles.detailPatientName}>{selectedReferralDetail.patient_name}</Text>
-              <Text style={styles.detailCodeText}>Code: {selectedReferralDetail.referral_code}</Text>
+              <Text style={styles.detailCodeText}>{t('codeLabel')} {selectedReferralDetail.referral_code}</Text>
             </View>
             <View style={[styles.statusBadgeLarge, { backgroundColor: badge.bg }]}>
               <Text style={[styles.statusBadgeTextLarge, { color: badge.text }]}>
@@ -494,7 +557,7 @@ export default function CreateReferralScreen() {
         <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
           <FontAwesome5 name="arrow-left" size={16} color="#0F172A" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>ASHA Referrals</Text>
+        <Text style={styles.headerTitle}>{t('ashaReferrals')}</Text>
         <View style={{ width: 36 }} />
       </View>
 
@@ -514,7 +577,7 @@ export default function CreateReferralScreen() {
             style={{ marginRight: 6 }}
           />
           <Text style={[styles.tabSwitchText, activeTab === 'create' && styles.tabSwitchTextActive]}>
-            Create Referral
+            {t('makeReferral')}
           </Text>
         </TouchableOpacity>
 
@@ -532,7 +595,7 @@ export default function CreateReferralScreen() {
             style={{ marginRight: 6 }}
           />
           <Text style={[styles.tabSwitchText, activeTab === 'my_referrals' && styles.tabSwitchTextActive]}>
-            Sent Referrals ({myReferrals.length})
+            {t('sentReferrals')} ({myReferrals.length})
           </Text>
         </TouchableOpacity>
       </View>
@@ -545,15 +608,15 @@ export default function CreateReferralScreen() {
               <View style={styles.successIconBadge}>
                 <FontAwesome5 name="check-circle" size={40} color="#059669" />
               </View>
-              <Text style={styles.successTitle}>Referral Sent to Hospital</Text>
+              <Text style={styles.successTitle}>{t('referralSentSuccess')}</Text>
               <Text style={styles.successSub}>
-                Tracking ID: <Text style={{ fontFamily: 'Inter_700Bold', color: '#059669' }}>{sentCode}</Text>
+                {t('trackingIdLabel')} <Text style={{ fontFamily: 'Inter_700Bold', color: '#059669' }}>{sentCode}</Text>
               </Text>
 
               {/* Real Backend Status Display */}
               <View style={styles.liveStatusContainer}>
                 <View style={styles.liveStatusHeader}>
-                  <Text style={styles.liveStatusTitle}>Live Hospital Feedback:</Text>
+                  <Text style={styles.liveStatusTitle}>{t('liveHospitalFeedback')}</Text>
                   <TouchableOpacity
                     style={styles.refreshStatusBtn}
                     onPress={() => sentReferralId && checkLiveStatus(sentReferralId)}
@@ -564,7 +627,7 @@ export default function CreateReferralScreen() {
                     ) : (
                       <>
                         <FontAwesome5 name="sync-alt" size={11} color="#2563EB" style={{ marginRight: 4 }} />
-                        <Text style={styles.refreshStatusBtnText}>Refresh</Text>
+                        <Text style={styles.refreshStatusBtnText}>{t('refreshStatus')}</Text>
                       </>
                     )}
                   </TouchableOpacity>
@@ -584,9 +647,9 @@ export default function CreateReferralScreen() {
               </View>
 
               <Text style={styles.successDetails}>
-                Patient: {selectedPatientObj?.name}{'\n'}
-                Priority: {priority}{'\n'}
-                Destination: District Hospital Nandurbar
+                {t('patientLabel')} {selectedPatientObj?.name}{'\n'}
+                {t('priority')} {priority}{'\n'}
+                {t('destinationHospitalLabel')} District Hospital Nandurbar
               </Text>
 
               {/* Real Progression Timeline */}
@@ -598,7 +661,7 @@ export default function CreateReferralScreen() {
                   <View style={styles.emergencyBanner}>
                     <FontAwesome5 name="exclamation-circle" size={16} color="#DC2626" style={{ marginRight: 8 }} />
                     <Text style={styles.emergencyBannerText}>
-                      {priority === 'Emergency' ? 'Emergency detected' : 'Urgent referral'} — Ambulance may be needed
+                      {priority === 'Emergency' ? t('emergencyDetected') : t('urgentReferral')} {t('ambulanceMayBeNeeded')}
                     </Text>
                   </View>
 
@@ -622,7 +685,7 @@ export default function CreateReferralScreen() {
                       <>
                         <FontAwesome5 name="ambulance" size={18} color="#FFFFFF" style={{ marginRight: 10 }} />
                         <Text style={styles.ambulanceBtnText}>
-                          {sentReferralId ? '🚑 Call 108 Ambulance' : '108 (No referral ID)'}
+                          {sentReferralId ? `🚑 ${t('callAmbulance')}` : '108 (No referral ID)'}
                         </Text>
                       </>
                     )}
@@ -693,7 +756,7 @@ export default function CreateReferralScreen() {
                     fetchMyReferrals();
                   }}
                 >
-                  <Text style={styles.primaryBtnText}>View All Referrals</Text>
+                  <Text style={styles.primaryBtnText}>{t('viewAllReferrals')}</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
@@ -706,17 +769,17 @@ export default function CreateReferralScreen() {
                     router.replace('/(asha)/home');
                   }}
                 >
-                  <Text style={styles.primaryBtnText}>Back to Home</Text>
+                  <Text style={styles.primaryBtnText}>{t('backToHome')}</Text>
                 </TouchableOpacity>
               </View>
             </View>
           ) : (
             <View style={styles.card}>
-              <Text style={styles.sectionHeader}>Referral Details</Text>
+              <Text style={styles.sectionHeader}>{t('referralDetails')}</Text>
 
               {/* Patient Selector */}
               <View style={styles.inputGroup}>
-                <Text style={styles.label}>Patient</Text>
+                <Text style={styles.label}>{t('patientLabel')}</Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.patientScroll}>
                   {patients.map(p => {
                     const isSelected = p.id === selectedPatientId;
@@ -743,7 +806,7 @@ export default function CreateReferralScreen() {
 
               {/* Reason for Referral */}
               <View style={styles.inputGroup}>
-                <Text style={styles.label}>Reason for Referral</Text>
+                <Text style={styles.label}>{t('reasonForReferral')}</Text>
                 <View style={styles.reasonWrap}>
                   {COMMON_REASONS.map(reason => {
                     const isSelected = selectedReason === reason;
@@ -762,7 +825,7 @@ export default function CreateReferralScreen() {
                 </View>
                 <TextInput
                   style={[styles.input, { marginTop: 8 }]}
-                  placeholder="Or specify custom reason..."
+                  placeholder={t('customReasonPlaceholder')}
                   placeholderTextColor="#94A3B8"
                   value={customReason}
                   onChangeText={setCustomReason}
@@ -771,7 +834,7 @@ export default function CreateReferralScreen() {
 
               {/* Priority */}
               <View style={styles.inputGroup}>
-                <Text style={styles.label}>Priority</Text>
+                <Text style={styles.label}>{t('priority')}</Text>
                 <View style={styles.priorityRow}>
                   {(['Normal', 'Urgent', 'Emergency'] as const).map(pr => {
                     const isSelected = priority === pr;
@@ -795,7 +858,7 @@ export default function CreateReferralScreen() {
                             isSelected && styles.priorityChipTextActive,
                           ]}
                         >
-                          {pr}
+                          {t(pr) || pr}
                         </Text>
                       </TouchableOpacity>
                     );
@@ -805,10 +868,10 @@ export default function CreateReferralScreen() {
 
               {/* Notes */}
               <View style={styles.inputGroup}>
-                <Text style={styles.label}>Notes</Text>
+                <Text style={styles.label}>{t('notesOptional')}</Text>
                 <TextInput
                   style={[styles.input, { height: 74, textAlignVertical: 'top' }]}
-                  placeholder="Add notes for PHC doctor..."
+                  placeholder={t('notesPlaceholder')}
                   placeholderTextColor="#94A3B8"
                   multiline
                   value={notes}
@@ -826,7 +889,7 @@ export default function CreateReferralScreen() {
                 {loading ? (
                   <ActivityIndicator color="#FFFFFF" />
                 ) : (
-                  <Text style={styles.primaryBtnText}>Send Referral</Text>
+                  <Text style={styles.primaryBtnText}>{t('sendReferral')}</Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -842,13 +905,13 @@ export default function CreateReferralScreen() {
           ) : myReferrals.length === 0 ? (
             <View style={styles.emptyCard}>
               <FontAwesome5 name="inbox" size={36} color="#CBD5E1" style={{ marginBottom: 10 }} />
-              <Text style={styles.emptyCardTitle}>No Referrals Sent Yet</Text>
-              <Text style={styles.emptyCardSub}>Referrals you send to District Hospital will appear here with live status updates.</Text>
+              <Text style={styles.emptyCardTitle}>{t('noReferralsSent')}</Text>
+              <Text style={styles.emptyCardSub}>{t('referralsWillAppearHere')}</Text>
               <TouchableOpacity
                 style={[styles.primaryBtn, { marginTop: 16, paddingHorizontal: 20 }]}
                 onPress={() => setActiveTab('create')}
               >
-                <Text style={styles.primaryBtnText}>+ Create New Referral</Text>
+                <Text style={styles.primaryBtnText}>+ {t('createNewReferral')}</Text>
               </TouchableOpacity>
             </View>
           ) : (
@@ -868,7 +931,7 @@ export default function CreateReferralScreen() {
                   <View style={styles.cardTopRow}>
                     <View style={{ flex: 1 }}>
                       <Text style={styles.cardPatientName}>{item.patient_name}</Text>
-                      <Text style={styles.cardTrackingCode}>Code: {item.referral_code}</Text>
+                      <Text style={styles.cardTrackingCode}>{t('codeLabel')} {item.referral_code}</Text>
                     </View>
 
                     <View style={[styles.statusBadge, { backgroundColor: badge.bg }]}>

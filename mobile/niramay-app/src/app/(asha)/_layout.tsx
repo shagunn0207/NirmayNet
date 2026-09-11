@@ -1,8 +1,11 @@
 import { Tabs } from 'expo-router';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { Platform } from 'react-native';
+import { useAuth } from '../../store/AuthContext';
 
 export default function AshaLayout() {
+  const { t } = useAuth();
+
   return (
     <Tabs
       screenOptions={{
@@ -33,28 +36,28 @@ export default function AshaLayout() {
       <Tabs.Screen
         name="home"
         options={{
-          title: 'Home',
+          title: t('phc.home'),
           tabBarIcon: ({ color }) => <FontAwesome5 name="home" size={20} color={color} />,
         }}
       />
       <Tabs.Screen
         name="patients"
         options={{
-          title: 'Patients',
+          title: t('patientsTitle'),
           tabBarIcon: ({ color }) => <FontAwesome5 name="users" size={20} color={color} />,
         }}
       />
       <Tabs.Screen
         name="referral"
         options={{
-          title: 'Referrals',
+          title: t('phc.referrals'),
           tabBarIcon: ({ color }) => <FontAwesome5 name="share" size={19} color={color} />,
         }}
       />
       <Tabs.Screen
         name="profile"
         options={{
-          title: 'Profile',
+          title: t('phc.profile'),
           tabBarIcon: ({ color }) => <FontAwesome5 name="user" size={20} color={color} />,
         }}
       />

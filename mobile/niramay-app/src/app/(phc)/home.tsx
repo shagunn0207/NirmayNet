@@ -18,7 +18,7 @@ interface ScheduleItem {
 }
 
 export default function PhcHomeScreen() {
-  const { user, session } = useAuth();
+  const { user, session, t } = useAuth();
   const router = useRouter();
 
   const [refreshing, setRefreshing] = useState(false);
@@ -73,7 +73,7 @@ export default function PhcHomeScreen() {
     {
       id: 's-1',
       title: 'Patients today',
-      countText: `${patientsCount} Patients registered`,
+      countText: `${patientsCount} ${t('patientsTitle') || 'Patients'}`,
       icon: 'users',
       color: '#2563EB',
       bgColor: '#EFF6FF',
@@ -81,7 +81,7 @@ export default function PhcHomeScreen() {
     {
       id: 's-2',
       title: 'Referrals to review',
-      countText: `${pendingCount} Referrals to review`,
+      countText: `${pendingCount} ${t('phc.referrals') || 'Referrals'}`,
       icon: 'file-import',
       color: '#EA580C',
       bgColor: '#FFF7ED',
@@ -89,7 +89,7 @@ export default function PhcHomeScreen() {
     {
       id: 's-3',
       title: 'Follow-ups',
-      countText: `${followupsCount} In-progress / Follow-ups`,
+      countText: `${followupsCount} ${t('followupTitle') || 'Follow-ups'}`,
       icon: 'calendar-check',
       color: '#059669',
       bgColor: '#ECFDF5',
@@ -134,8 +134,8 @@ export default function PhcHomeScreen() {
           <FontAwesome5 name="bell" size={18} color="#2563EB" />
         </View>
         <View style={styles.alertTextGroup}>
-          <Text style={styles.alertTitle}>{pendingCount} New Referrals</Text>
-          <Text style={styles.alertSub}>Awaiting review</Text>
+          <Text style={styles.alertTitle}>{pendingCount} {t('phc.stats.pending') || 'Pending Referrals'}</Text>
+          <Text style={styles.alertSub}>{t('phc.consult.waiting') || 'Awaiting review'}</Text>
         </View>
         <FontAwesome5 name="chevron-right" size={14} color="#2563EB" />
       </TouchableOpacity>
@@ -151,7 +151,7 @@ export default function PhcHomeScreen() {
           <View style={[styles.actionIconBadge, { backgroundColor: '#CCFBF1' }]}>
             <FontAwesome5 name="file-medical-alt" size={20} color="#0D9488" />
           </View>
-          <Text style={styles.actionCardTitle}>Pending Referrals</Text>
+          <Text style={styles.actionCardTitle}>{t('phc.stats.pending') || 'Pending Referrals'}</Text>
         </TouchableOpacity>
 
         {/* Card 2: My Patients */}
@@ -163,7 +163,7 @@ export default function PhcHomeScreen() {
           <View style={[styles.actionIconBadge, { backgroundColor: '#DBEAFE' }]}>
             <FontAwesome5 name="users" size={20} color="#2563EB" />
           </View>
-          <Text style={styles.actionCardTitle}>My Patients</Text>
+          <Text style={styles.actionCardTitle}>{t('myPatients') || 'My Patients'}</Text>
         </TouchableOpacity>
 
         {/* Card 3: Consultations */}
@@ -175,7 +175,7 @@ export default function PhcHomeScreen() {
           <View style={[styles.actionIconBadge, { backgroundColor: '#FFEDD5' }]}>
             <FontAwesome5 name="stethoscope" size={20} color="#EA580C" />
           </View>
-          <Text style={styles.actionCardTitle}>Consultations</Text>
+          <Text style={styles.actionCardTitle}>{t('phc.consultations') || 'Consultations'}</Text>
         </TouchableOpacity>
 
         {/* Card 4: Reports */}
@@ -187,13 +187,13 @@ export default function PhcHomeScreen() {
           <View style={[styles.actionIconBadge, { backgroundColor: '#F3E8FF' }]}>
             <FontAwesome5 name="chart-bar" size={20} color="#9333EA" />
           </View>
-          <Text style={styles.actionCardTitle}>Reports</Text>
+          <Text style={styles.actionCardTitle}>{t('Reports') || 'Reports'}</Text>
         </TouchableOpacity>
       </View>
 
       {/* ── Today's Schedule Section ── */}
       <View style={styles.sectionContainer}>
-        <Text style={styles.sectionTitle}>Today's Schedule</Text>
+        <Text style={styles.sectionTitle}>{t('Today\'s Schedule') || 'Today\'s Schedule'}</Text>
 
         <View style={styles.scheduleList}>
           {scheduleItems.map(item => (

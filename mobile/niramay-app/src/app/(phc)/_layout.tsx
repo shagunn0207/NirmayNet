@@ -1,8 +1,10 @@
 import { Tabs } from 'expo-router';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { Platform } from 'react-native';
+import { useAuth } from '../../store/AuthContext';
 
 export default function PhcLayout() {
+  const { t } = useAuth();
   return (
     <Tabs
       screenOptions={{
@@ -33,28 +35,28 @@ export default function PhcLayout() {
       <Tabs.Screen
         name="home"
         options={{
-          title: 'Home',
+          title: t('phc.home') || 'Home',
           tabBarIcon: ({ color }) => <FontAwesome5 name="home" size={20} color={color} />,
         }}
       />
       <Tabs.Screen
         name="queue"
         options={{
-          title: 'Patients',
+          title: t('patientsTitle') || 'Patients',
           tabBarIcon: ({ color }) => <FontAwesome5 name="users" size={20} color={color} />,
         }}
       />
       <Tabs.Screen
         name="consultations"
         options={{
-          title: 'Consultations',
+          title: t('phc.consultations') || 'Consultations',
           tabBarIcon: ({ color }) => <FontAwesome5 name="stethoscope" size={20} color={color} />,
         }}
       />
       <Tabs.Screen
         name="profile"
         options={{
-          title: 'Profile',
+          title: t('phc.profile') || 'Profile',
           tabBarIcon: ({ color }) => <FontAwesome5 name="user-md" size={20} color={color} />,
         }}
       />

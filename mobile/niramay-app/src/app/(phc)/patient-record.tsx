@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   ActivityIndicator, RefreshControl
 } from 'react-native';
 import { FontAwesome5 } from '@expo/vector-icons';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { useAuth } from '../../store/AuthContext';
 import { BACKEND_URL } from '../../lib/apiClient';
 
@@ -32,7 +32,7 @@ interface ReferralRecordData {
 export default function PhcPatientRecordScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
-  const { session } = useAuth();
+  const { session, t } = useAuth();
 
   const patientId = (params.patientId as string) || '';
   const initialName = (params.name as string) || 'Patient';
@@ -84,10 +84,45 @@ export default function PhcPatientRecordScreen() {
     fetchPatientData();
   }, [patientId, session]);
 
+  // Reset tab and refresh data each time the screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      setActiveTab('Overview');
+      fetchPatientData();
+    }, [patientId, session])
+  );
+
   const onRefresh = async () => {
     setRefreshing(true);
     await fetchPatientData();
     setRefreshing(false);
+  };
+
+  const handleEscalate = async () => {
+    setLoading(true);
+    try {
+      const token = session?.access_token;
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      await fetch(`${BACKEND_URL}/api/v1/referrals/`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          patient_id: patientId,
+          reason: `[PHC DOCTOR ESCALATION] Need specialist review for ${displayName}`,
+          destination_hospital: "District Hospital Nandurbar",
+          priority: "Emergency",
+          status: "PENDING"
+        }),
+      });
+      // Optionally show an alert
+      router.back();
+    } catch {
+      // ignore
+    } finally {
+      setLoading(false);
+    }
   };
 
   const displayName = patient?.name || initialName;
@@ -120,7 +155,7 @@ export default function PhcPatientRecordScreen() {
         <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
           <FontAwesome5 name="arrow-left" size={16} color="#0F172A" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Patient Records</Text>
+        <Text style={styles.headerTitle}>{t('phc.record.title') || 'Patient Records'}</Text>
         <View style={{ width: 36 }} />
       </View>
 
@@ -142,7 +177,7 @@ export default function PhcPatientRecordScreen() {
             onPress={() => setActiveTab(tab)}
           >
             <Text style={[styles.tabText, activeTab === tab && styles.tabTextActive]}>
-              {tab}
+              {tab === 'Overview' ? t('Overview') || 'Overview' : tab === 'Consultations' ? t('phc.consultations') || 'Consultations' : t('phc.referrals') || 'Referrals'}
             </Text>
           </TouchableOpacity>
         ))}
@@ -162,8 +197,8 @@ export default function PhcPatientRecordScreen() {
           ) : (
             <>
               <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>Allergies</Text>
-                <Text style={styles.detailValue}>None reported</Text>
+                <Text style={styles.detailLabel}>{t('Allergies') || 'Allergies'}</Text>
+                <Text style={styles.detailValue}>{t('None reported') || 'None reported'}</Text>
               </View>
               <View style={styles.divider} />
             </>
@@ -176,7 +211,7 @@ export default function PhcPatientRecordScreen() {
           <View style={styles.divider} />
 
           <View style={styles.detailRow}>
-            <Text style={styles.detailLabel}>Total Referrals</Text>
+            <Text style={styles.detailLabel}>{t('Total Referrals') || 'Total Referrals'}</Text>
             <Text style={[styles.detailValue, { color: '#2563EB', fontWeight: 'bold' }]}>
               {referrals.length} referral{referrals.length === 1 ? '' : 's'}
             </Text>
@@ -184,13 +219,13 @@ export default function PhcPatientRecordScreen() {
           <View style={styles.divider} />
 
           <View style={styles.detailRow}>
-            <Text style={styles.detailLabel}>Registration Date</Text>
+            <Text style={styles.detailLabel}>{t('Registration Date') || 'Registration Date'}</Text>
             <Text style={styles.detailValue}>{regDate}</Text>
           </View>
           <View style={styles.divider} />
 
           <View style={styles.detailRow}>
-            <Text style={styles.detailLabel}>Village & Phone</Text>
+            <Text style={styles.detailLabel}>{t('Village & Phone') || 'Village & Phone'}</Text>
             <Text style={styles.detailValue}>{displayVillage} • {displayPhone}</Text>
           </View>
         </View>
@@ -200,7 +235,7 @@ export default function PhcPatientRecordScreen() {
       {activeTab === 'Consultations' && (
         <View style={styles.detailsCard}>
           {referrals.length === 0 ? (
-            <Text style={styles.emptyText}>No clinical consultation or triage records found.</Text>
+            <Text style={styles.emptyText}>{t('No clinical consultation or triage records found.') || 'No clinical consultation or triage records found.'}</Text>
           ) : (
             referrals.map((r, idx) => {
               const dateStr = new Date(r.created_at).toLocaleDateString('en-IN', {
@@ -227,7 +262,7 @@ export default function PhcPatientRecordScreen() {
       {activeTab === 'Referrals' && (
         <View style={styles.detailsCard}>
           {referrals.length === 0 ? (
-            <Text style={styles.emptyText}>No referral history recorded for this patient.</Text>
+            <Text style={styles.emptyText}>{t('No referral history recorded for this patient.') || 'No referral history recorded for this patient.'}</Text>
           ) : (
             referrals.map((r, idx) => {
               const dateStr = new Date(r.created_at).toLocaleDateString('en-IN', {
@@ -258,21 +293,33 @@ export default function PhcPatientRecordScreen() {
       )}
 
       {/* Bottom Action Button */}
-      <TouchableOpacity
-        style={styles.primaryBtn}
-        activeOpacity={0.85}
-        onPress={() => {
-          router.push({
-            pathname: '/(phc)/consultations',
-            params: {
-              patientId,
-              patientName: displayName,
-            },
-          });
-        }}
-      >
-        <Text style={styles.primaryBtnText}>Start Consultation</Text>
-      </TouchableOpacity>
+      <View style={{ flexDirection: 'column', gap: 10 }}>
+        <TouchableOpacity
+          style={styles.primaryBtn}
+          activeOpacity={0.85}
+          onPress={() => {
+            router.push({
+              pathname: '/(phc)/consultations',
+              params: {
+                patientId,
+                patientName: displayName,
+                ts: Date.now(),
+              },
+            });
+          }}
+        >
+          <Text style={styles.primaryBtnText}>{t('startConsultation') || 'Start Consultation'}</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.primaryBtn, { backgroundColor: '#DC2626' }]}
+          activeOpacity={0.85}
+          onPress={handleEscalate}
+          disabled={loading}
+        >
+          <Text style={styles.primaryBtnText}>{t('Escalate to District Hospital') || 'Escalate to District Hospital'}</Text>
+        </TouchableOpacity>
+      </View>
     </ScrollView>
   );
 }
