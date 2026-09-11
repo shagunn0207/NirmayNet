@@ -178,5 +178,29 @@
     "village": "Chinchpada",
     "facility_name": "Chinchpada Sub-Center",
     "created_at": "2026-09-10T08:42:05.508484+00:00"
+  },
+  {
+    "id": "28570627-d723-4ed7-9f17-75f523e5d56b",
+    "username": "dr_sanjay",
+    "name": "Dr. Sanjay Mehta",
+    "email": "dr_sanjay@nirmay.net",
+    "phone": null,
+    "hashed_password": "123456",
+    "role": "ADMIN",
+    "village": "Chinchpada",
+    "facility_name": "PHC Dhadgaon",
+    "created_at": "2026-09-11T10:00:12.660999+00:00"
+  },
+  {
+    "id": "cd9e396c-8a6d-40a6-9594-38407d64bca9",
+    "username": "dho_arvind",
+    "name": "Dr. Arvind Patil",
+    "email": "dho_arvind@nirmay.net",
+    "phone": null,
+    "hashed_password": "123456",
+    "role": "DHO",
+    "village": "Chinchpada",
+    "facility_name": "DHO Office",
+    "created_at": "2026-09-11T10:00:12.671483+00:00"
   }
 ]

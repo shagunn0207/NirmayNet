@@ -19,6 +19,7 @@ def get_supabase_client() -> Optional[Client]:
             "SUPABASE_URL or SUPABASE_KEY is using default placeholder credentials. "
             "Database connections will fail until valid credentials are provided in backend/.env."
         )
+        return None
 
     try:
         return create_client(url, key)

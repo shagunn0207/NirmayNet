@@ -24,6 +24,13 @@ import {
   INITIAL_PHC_METRICS,
 } from "../lib/healthcareData";
 
+export interface UserAccount {
+  id: string;
+  username: string;
+  name?: string;
+  role: string;
+}
+
 export interface FacilityStatus {
   icuBedsAvailable: number;
   icuTotal: number;
@@ -63,6 +70,11 @@ interface ToastMessage {
 interface HealthcareContextType {
   currentRole: UserRole;
   setCurrentRole: (role: UserRole) => void;
+  isLoggedIn: boolean;
+  currentUser: UserAccount | null;
+  authToken: string | null;
+  login: (userData: any, token: string) => void;
+  logout: () => void;
 
   patients: PatientRecord[];
   selectedPatient: PatientRecord | null;
@@ -141,6 +153,42 @@ export const HealthcareProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
   const [currentRole, setCurrentRole] = useState<UserRole>("phc-doctor");
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [currentUser, setCurrentUser] = useState<UserAccount | null>(null);
+  const [authToken, setAuthToken] = useState<string | null>(null);
+
+  useEffect(() => {
+    try {
+      const sess = localStorage.getItem('niramaynet_web_session');
+      if (sess) {
+        const parsed = JSON.parse(sess);
+        setIsLoggedIn(true);
+        setCurrentUser(parsed.user);
+        setAuthToken(parsed.token);
+        if (parsed.user.role === 'HOSPITAL') setCurrentRole('district-hospital');
+        else if (parsed.user.role === 'DHO') setCurrentRole('dho');
+        else setCurrentRole('phc-doctor');
+      }
+    } catch {}
+  }, []);
+
+  const login = (userData: any, token: string) => {
+    setIsLoggedIn(true);
+    setCurrentUser(userData);
+    setAuthToken(token);
+    localStorage.setItem('niramaynet_web_session', JSON.stringify({ user: userData, token }));
+    if (userData.role === 'HOSPITAL') setCurrentRole('district-hospital');
+    else if (userData.role === 'DHO') setCurrentRole('dho');
+    else setCurrentRole('phc-doctor');
+  };
+
+  const logout = () => {
+    setIsLoggedIn(false);
+    setCurrentUser(null);
+    setAuthToken(null);
+    localStorage.removeItem('niramaynet_web_session');
+    if (typeof window !== 'undefined') window.location.href = '/';
+  };
   const [patients, setPatients] = useState<PatientRecord[]>(INITIAL_PATIENTS);
   const [selectedPatient, setSelectedPatient] = useState<PatientRecord | null>(
     INITIAL_PATIENTS[0]
@@ -222,21 +270,16 @@ export const HealthcareProvider: React.FC<{ children: React.ReactNode }> = ({
     const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000/api/v1";
 
     try {
-      // 1. Authenticate with Hospital credentials to get a token with HOSPITAL role
-      const loginRes = await fetch(`${API_BASE}/auth/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: "HOSPITAL_NAND_001", password: "hospital2024" }),
-      });
-
-      if (!loginRes.ok) return;
-      const loginData = await loginRes.json();
-      const token = loginData?.access_token;
-      if (!token) return;
+      let tokenToUse = authToken;
+      if (!tokenToUse) {
+        const sess = localStorage.getItem('niramaynet_web_session');
+        if (sess) tokenToUse = JSON.parse(sess).token;
+      }
+      if (!tokenToUse) return;
 
       // 2. Fetch queue items from GET /api/v1/queue/hospital
       const queueRes = await fetch(`${API_BASE}/queue/hospital`, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { Authorization: `Bearer ${tokenToUse}` },
       });
 
       if (!queueRes.ok) return;
@@ -504,20 +547,15 @@ export const HealthcareProvider: React.FC<{ children: React.ReactNode }> = ({
       const targetRef = hospitalReferrals.find((r) => r.id === id || r.realReferralId === id);
       const uuidToUse = targetRef?.realReferralId || id;
 
-      // 1. Authenticate with Hospital credentials
-      const loginRes = await fetch(`${API_BASE}/auth/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: "HOSPITAL_NAND_001", password: "hospital2024" }),
-      });
-
-      if (!loginRes.ok) {
+      let tokenToUse = authToken;
+      if (!tokenToUse) {
+        const sess = localStorage.getItem('niramaynet_web_session');
+        if (sess) tokenToUse = JSON.parse(sess).token;
+      }
+      if (!tokenToUse) {
         showToast("Action Failed", "Authentication failed with backend", "error");
         return;
       }
-
-      const loginData = await loginRes.json();
-      const token = loginData?.access_token;
 
       let endpointAction = "";
       if (status === "PATIENT ARRIVED") endpointAction = "arrive";
@@ -529,7 +567,7 @@ export const HealthcareProvider: React.FC<{ children: React.ReactNode }> = ({
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
+            Authorization: `Bearer ${tokenToUse}`,
           },
         });
 
@@ -720,6 +758,11 @@ export const HealthcareProvider: React.FC<{ children: React.ReactNode }> = ({
       value={{
         currentRole,
         setCurrentRole,
+        isLoggedIn,
+        currentUser,
+        authToken,
+        login,
+        logout,
         patients,
         selectedPatient,
         setSelectedPatient,
