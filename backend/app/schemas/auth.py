@@ -28,6 +28,11 @@ class RegisterRequest(BaseModel):
     facility_name: Optional[str] = None
 
 
+class ProfileUpdateRequest(BaseModel):
+    name: Optional[str] = None
+    phone: Optional[str] = None
+    facility_name: Optional[str] = None
+
 class UserOut(BaseModel):
     id: UUID
     name: str

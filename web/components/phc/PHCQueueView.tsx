@@ -121,18 +121,18 @@ export const PHCQueueView: React.FC<PHCQueueViewProps> = ({
       </div>
 
       {/* Queue Table */}
-      <div className="overflow-x-auto rounded-xl border border-slate-200">
-        <table className="w-full text-left border-collapse text-xs">
+      <div className="overflow-x-auto rounded-2xl border border-slate-200 shadow-sm bg-white">
+        <table className="w-full text-left border-collapse text-sm">
           <thead>
-            <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase tracking-wider text-[11px]">
-              <th className="py-3 px-4">Token</th>
-              <th className="py-3 px-4">Patient Details</th>
-              <th className="py-3 px-4">Priority & Triage</th>
-              <th className="py-3 px-4">Reason for Visit</th>
-              <th className="py-3 px-4">Vitals Summary</th>
-              <th className="py-3 px-4">Wait Time</th>
-              <th className="py-3 px-4">Status</th>
-              <th className="py-3 px-4 text-right">Actions</th>
+            <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-500 font-extrabold uppercase tracking-widest text-[10px]">
+              <th className="py-4 px-5">Token</th>
+              <th className="py-4 px-5">Patient Details</th>
+              <th className="py-4 px-5">Priority & Triage</th>
+              <th className="py-4 px-5">Reason for Visit</th>
+              <th className="py-4 px-5">Vitals Summary</th>
+              <th className="py-4 px-5">Wait Time</th>
+              <th className="py-4 px-5">Status</th>
+              <th className="py-4 px-5 text-right">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -148,22 +148,22 @@ export const PHCQueueView: React.FC<PHCQueueViewProps> = ({
                 return (
                   <tr
                     key={p.id}
-                    className={`hover:bg-slate-50/80 transition-colors ${
-                      isEmergency ? "bg-red-50/40 font-medium" : ""
+                    className={`hover:bg-slate-50/80 transition-colors group ${
+                      isEmergency ? "bg-red-50/30" : ""
                     }`}
                   >
                     {/* Token */}
-                    <td className="py-3.5 px-4 font-black text-slate-900 whitespace-nowrap">
-                      <span className="inline-block px-2.5 py-1 rounded-md bg-slate-100 border border-slate-300">
+                    <td className="py-4 px-5 font-black text-slate-900 whitespace-nowrap">
+                      <span className="inline-flex items-center justify-center min-w-[3rem] px-2.5 py-1.5 rounded-lg bg-slate-100 border border-slate-200 text-xs">
                         {p.token || "OPD"}
                       </span>
                     </td>
 
                     {/* Patient Details */}
-                    <td className="py-3.5 px-4">
+                    <td className="py-4 px-5">
                       <div>
                         <div className="font-extrabold text-slate-900 text-sm">{p.name}</div>
-                        <div className="text-slate-500 text-[11px] flex items-center gap-1.5 mt-0.5">
+                        <div className="text-slate-500 text-xs flex items-center gap-1.5 mt-0.5 font-medium">
                           <span>{p.age}y · {p.sex}</span>
                           <span>·</span>
                           <span className="flex items-center gap-0.5">
@@ -175,38 +175,38 @@ export const PHCQueueView: React.FC<PHCQueueViewProps> = ({
                     </td>
 
                     {/* Priority */}
-                    <td className="py-3.5 px-4 whitespace-nowrap">
-                      <UrgencyBadge priority={p.triagePriority} />
+                    <td className="py-4 px-5 whitespace-nowrap">
+                      <UrgencyBadge priority={p.triagePriority} size="sm" />
                     </td>
 
                     {/* Reason */}
-                    <td className="py-3.5 px-4 text-slate-800 max-w-xs truncate">
-                      <span className="font-medium">{p.visitReason}</span>
+                    <td className="py-4 px-5 text-slate-800 max-w-xs truncate text-xs">
+                      <span className="font-bold">{p.visitReason}</span>
                       {p.riskCategory && (
-                        <span className="block text-[10px] text-teal-700 font-bold">
+                        <span className="block text-[10px] text-teal-700 font-bold mt-0.5">
                           Risk: {p.riskCategory}
                         </span>
                       )}
                     </td>
 
                     {/* Vitals */}
-                    <td className="py-3.5 px-4 whitespace-nowrap text-slate-700 text-[11px]">
-                      <div>BP: <strong className={isEmergency ? "text-red-700" : ""}>{p.vitals.bp}</strong></div>
-                      <div>SpO2: <strong>{p.vitals.spo2}%</strong> · PR: {p.vitals.pulse}</div>
+                    <td className="py-4 px-5 whitespace-nowrap text-slate-700 text-xs">
+                      <div>BP: <strong className={isEmergency ? "text-red-700" : "text-slate-900"}>{p.vitals.bp}</strong></div>
+                      <div>SpO2: <strong className="text-slate-900">{p.vitals.spo2}%</strong> · PR: {p.vitals.pulse}</div>
                     </td>
 
                     {/* Wait Time */}
-                    <td className="py-3.5 px-4 whitespace-nowrap text-slate-500">
-                      <span className="flex items-center gap-1">
+                    <td className="py-4 px-5 whitespace-nowrap text-slate-500 text-xs font-bold">
+                      <span className="flex items-center gap-1.5 bg-slate-50 px-2 py-1 rounded-md border border-slate-100 w-fit">
                         <Clock className="w-3.5 h-3.5 text-slate-400" />
                         {p.waitTimeMinutes} mins
                       </span>
                     </td>
 
                     {/* Status */}
-                    <td className="py-3.5 px-4 whitespace-nowrap">
+                    <td className="py-4 px-5 whitespace-nowrap">
                       <span
-                        className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                        className={`inline-block px-2.5 py-1 rounded-full text-[10px] font-bold ${
                           p.currentStatus === "Completed"
                             ? "bg-emerald-100 text-emerald-800"
                             : p.currentStatus === "In Consultation"
@@ -221,12 +221,12 @@ export const PHCQueueView: React.FC<PHCQueueViewProps> = ({
                     </td>
 
                     {/* Actions */}
-                    <td className="py-3.5 px-4 text-right whitespace-nowrap">
-                      <div className="flex items-center justify-end gap-1.5">
+                    <td className="py-4 px-5 text-right whitespace-nowrap">
+                      <div className="flex items-center justify-end gap-2">
                         <button
                           type="button"
                           onClick={() => onOpenConsultation(p.id)}
-                          className="px-2.5 py-1.5 bg-teal-700 hover:bg-teal-800 text-white rounded-lg font-bold text-xs flex items-center gap-1 shadow-xs transition-colors"
+                          className="px-3 py-2 bg-teal-700 hover:bg-teal-800 text-white rounded-xl font-bold text-xs flex items-center gap-1.5 shadow-xs transition-colors"
                           title="Start / Continue Clinical Consultation"
                         >
                           <Stethoscope className="w-3.5 h-3.5" />
@@ -235,18 +235,18 @@ export const PHCQueueView: React.FC<PHCQueueViewProps> = ({
                         <button
                           type="button"
                           onClick={() => onOpenReferralModal(p.id)}
-                          className="px-2 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-bold text-xs transition-colors"
+                          className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition-colors"
                           title="Refer to District Hospital"
                         >
-                          <Send className="w-3.5 h-3.5 text-red-600" />
+                          <Send className="w-4 h-4 text-red-600" />
                         </button>
                         <button
                           type="button"
                           onClick={() => onViewRecord(p.id)}
-                          className="px-2 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-bold text-xs transition-colors"
+                          className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition-colors"
                           title="View Complete Health History"
                         >
-                          <FileText className="w-3.5 h-3.5 text-slate-600" />
+                          <FileText className="w-4 h-4 text-slate-600" />
                         </button>
                       </div>
                     </td>

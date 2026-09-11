@@ -24,7 +24,7 @@ import {
 } from "lucide-react";
 
 export default function DHOPage() {
-  const { phcMetrics, medicines, followups } = useHealthcare();
+  const { phcMetrics, medicines, followups, currentUser } = useHealthcare();
   const [activeTab, setActiveTab] = useState<string>("overview");
 
   const criticalPhcCount = phcMetrics.filter((p) => p.status === "Critical" || p.status === "Alert").length;
@@ -85,8 +85,8 @@ export default function DHOPage() {
 
   return (
     <PortalLayout
-      roleTitle="District Health Administration"
-      facilityName="District Health Office (DHO), Nandurbar"
+      roleTitle={currentUser?.name || "District Health Officer"}
+      facilityName={(currentUser as any)?.facility_name || "District Health Office (DHO), Nandurbar"}
       tabs={tabs}
       activeTab={activeTab}
       onTabChange={(tabId) => setActiveTab(tabId)}

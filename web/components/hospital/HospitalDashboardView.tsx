@@ -181,8 +181,8 @@ export const HospitalDashboardView: React.FC<HospitalDashboardViewProps> = ({
         </div>
       )}
 
-      {/* KPI Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5">
+      {/* KPI Cards Grid */}
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-4 2xl:grid-cols-8 gap-4">
         {kpis.map((kpi, idx) => {
           const Icon = kpi.icon;
           return (
@@ -206,10 +206,10 @@ export const HospitalDashboardView: React.FC<HospitalDashboardViewProps> = ({
         })}
       </div>
 
-      {/* Two-Column Middle Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Left Column: Incoming PHC Referrals Table */}
-        <div className="lg:col-span-7 bg-white border border-slate-200 rounded-2xl p-5 shadow-xs flex flex-col">
+      {/* Two-Column Quick Views */}
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
+        {/* Left Column: Critical Inbound Referrals */}
+        <div className="xl:col-span-7 bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex flex-col">
           <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
             <div>
               <h3 className="text-base font-extrabold text-slate-900">
@@ -266,8 +266,8 @@ export const HospitalDashboardView: React.FC<HospitalDashboardViewProps> = ({
           </div>
         </div>
 
-        {/* Right Column: Specialist Roster & Facility Quick Status */}
-        <div className="lg:col-span-5 flex flex-col gap-6">
+        {/* Right Column: Facility Status & Resources */}
+        <div className="xl:col-span-5 flex flex-col gap-6">
           {/* Specialists Roster Summary */}
           <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-3">

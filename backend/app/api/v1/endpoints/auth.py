@@ -255,3 +255,41 @@ def get_me(current_user: UserOut = Depends(get_current_user)):
     Requires Bearer JWT token in Authorization header.
     """
     return current_user
+
+@router.put("/profile", response_model=UserOut, summary="Update user profile")
+def update_profile(request: __import__('app.schemas.auth', fromlist=['ProfileUpdateRequest']).ProfileUpdateRequest, current_user: UserOut = Depends(get_current_user)):
+    user_id_str = str(current_user.id)
+    updated = False
+    
+    # 1. Update in-memory
+    for u in _in_memory_users:
+        if u.get("id") == user_id_str:
+            if request.name is not None:
+                u["name"] = request.name
+            if request.phone is not None:
+                u["phone"] = request.phone
+            if request.facility_name is not None:
+                u["facility_name"] = request.facility_name
+            current_user.name = u["name"]
+            current_user.phone = u.get("phone")
+            current_user.facility_name = u.get("facility_name")
+            updated = True
+            break
+            
+    if updated:
+        _save_in_memory_users()
+        
+    # 2. Update in Supabase if available
+    if supabase is not None:
+        try:
+            update_data = {}
+            if request.name is not None: update_data["name"] = request.name
+            if request.phone is not None: update_data["phone"] = request.phone
+            if request.facility_name is not None: update_data["facility_name"] = request.facility_name
+            
+            if update_data:
+                supabase.table("users").update(update_data).eq("id", user_id_str).execute()
+        except Exception:
+            pass
+            
+    return current_user

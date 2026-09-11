@@ -75,6 +75,7 @@ interface HealthcareContextType {
   authToken: string | null;
   login: (userData: any, token: string) => void;
   logout: () => void;
+  updateProfile: (updates: Partial<UserOut>) => Promise<void>;
 
   patients: PatientRecord[];
   selectedPatient: PatientRecord | null;
@@ -189,6 +190,34 @@ export const HealthcareProvider: React.FC<{ children: React.ReactNode }> = ({
     localStorage.removeItem('niramaynet_web_session');
     if (typeof window !== 'undefined') window.location.href = '/';
   };
+
+  const updateProfile = async (updates: Partial<UserOut>) => {
+    if (!authToken || !currentUser) throw new Error("Not authenticated");
+
+    try {
+      const res = await fetch("http://127.0.0.1:8000/api/v1/auth/profile", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${authToken}`
+        },
+        body: JSON.stringify(updates),
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.detail || "Failed to update profile");
+      }
+
+      const updatedUser = await res.json();
+      setCurrentUser(updatedUser);
+      localStorage.setItem('niramaynet_web_session', JSON.stringify({ user: updatedUser, token: authToken }));
+    } catch (error) {
+      console.error("Profile update error:", error);
+      throw error;
+    }
+  };
+
   const [patients, setPatients] = useState<PatientRecord[]>(INITIAL_PATIENTS);
   const [selectedPatient, setSelectedPatient] = useState<PatientRecord | null>(
     INITIAL_PATIENTS[0]
@@ -763,6 +792,7 @@ export const HealthcareProvider: React.FC<{ children: React.ReactNode }> = ({
         authToken,
         login,
         logout,
+        updateProfile,
         patients,
         selectedPatient,
         setSelectedPatient,

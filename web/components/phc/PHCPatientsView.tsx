@@ -3,22 +3,17 @@
 import React, { useState } from "react";
 import { useHealthcare } from "@/context/HealthcareContext";
 import { UrgencyBadge } from "@/components/common/Badge";
+import { PatientRecordModal } from "./PatientRecordModal";
 import {
   Search,
   Filter,
-  User,
-  MapPin,
-  Phone,
-  Calendar,
-  FileText,
-  Clock,
-  HeartPulse,
-  Stethoscope,
-  Send,
-  ShieldAlert,
-  ChevronRight,
+  MoreHorizontal,
+  ChevronDown,
+  Download,
+  Users,
   Activity,
   CheckCircle2,
+  AlertTriangle,
 } from "lucide-react";
 
 interface PHCPatientsViewProps {
@@ -30,340 +25,280 @@ export const PHCPatientsView: React.FC<PHCPatientsViewProps> = ({
   onOpenConsultation,
   onOpenReferralModal,
 }) => {
-  const { patients, setSelectedPatient } = useHealthcare();
+  const { patients } = useHealthcare();
 
   const [search, setSearch] = useState("");
-  const [riskFilter, setRiskFilter] = useState<string>("ALL");
-  const [statusFilter, setStatusFilter] = useState<string>("ALL");
-  const [selectedPatientId, setSelectedPatientId] = useState<string>(
-    patients[0]?.id || "P-101"
-  );
+  const [priorityFilter, setPriorityFilter] = useState<string>("All Status");
+  const [genderFilter, setGenderFilter] = useState<string>("All Gender");
+  const [ageFilter, setAgeFilter] = useState<string>("All Ages");
+  
+  const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
+  const [isRecordModalOpen, setIsRecordModalOpen] = useState(false);
 
   const filteredPatients = patients.filter((p) => {
+    // Text search
     const matchesSearch =
       p.name.toLowerCase().includes(search.toLowerCase()) ||
       p.village.toLowerCase().includes(search.toLowerCase()) ||
       p.abhaId.includes(search) ||
       (p.token && p.token.toLowerCase().includes(search.toLowerCase()));
 
-    const matchesRisk =
-      riskFilter === "ALL" ||
-      (riskFilter === "ROUTINE" && !p.riskCategory) ||
-      p.riskCategory === riskFilter;
+    // Priority filter
+    const matchesPriority =
+      priorityFilter === "All Status" ||
+      (priorityFilter === "Emergency" && p.triagePriority === "EMERGENCY") ||
+      (priorityFilter === "Urgent" && p.triagePriority === "URGENT") ||
+      (priorityFilter === "Routine" && p.triagePriority === "ROUTINE");
 
-    const matchesStatus =
-      statusFilter === "ALL" || p.currentStatus === statusFilter;
+    // Gender filter
+    const matchesGender =
+      genderFilter === "All Gender" || p.sex === genderFilter;
 
-    return matchesSearch && matchesRisk && matchesStatus;
+    // Age filter
+    let matchesAge = true;
+    if (ageFilter === "0-18") matchesAge = p.age <= 18;
+    else if (ageFilter === "19-40") matchesAge = p.age > 18 && p.age <= 40;
+    else if (ageFilter === "41-60") matchesAge = p.age > 40 && p.age <= 60;
+    else if (ageFilter === "60+") matchesAge = p.age > 60;
+
+    return matchesSearch && matchesPriority && matchesGender && matchesAge;
   });
 
-  const selectedPatient =
-    patients.find((p) => p.id === selectedPatientId) || patients[0];
-
-  const handleSelectPatient = (id: string) => {
+  const handleViewRecord = (id: string) => {
     setSelectedPatientId(id);
-    const p = patients.find((pt) => pt.id === id);
-    if (p) setSelectedPatient(p);
+    setIsRecordModalOpen(true);
   };
 
+  const selectedPatient = patients.find((p) => p.id === selectedPatientId) || null;
+
+  // Metrics
+  const totalCount = patients.length;
+  const routineCount = patients.filter(p => p.triagePriority === "ROUTINE").length;
+  const urgentCount = patients.filter(p => p.triagePriority === "URGENT").length;
+  const emergencyCount = patients.filter(p => p.triagePriority === "EMERGENCY").length;
+
   return (
-    <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs flex flex-col gap-5">
-      {/* Header & Search */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
-        <div>
-          <div className="flex items-center gap-2">
-            <h2 className="text-lg font-extrabold text-slate-900">
-              PHC Master Patient Directory & Clinical Records
-            </h2>
-            <span className="px-2.5 py-0.5 rounded-full text-xs font-black bg-teal-100 text-teal-900">
-              {patients.length} Registered Patients
-            </span>
+    <div className="flex flex-col gap-6 h-full">
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        {/* Total */}
+        <div className="bg-white rounded-3xl p-6 flex items-center justify-between">
+          <div>
+            <div className="text-4xl font-black text-slate-900">{totalCount}</div>
+            <div className="text-sm text-slate-500 font-medium mt-1">Total patients</div>
           </div>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Longitudinal Electronic Health Records (EHR) linking ASHA home visits, PHC consultations, and Hospital transfers
-          </p>
+          <div className="w-14 h-14 rounded-2xl bg-slate-50 text-slate-400 flex items-center justify-center">
+            <Users className="w-6 h-6" />
+          </div>
         </div>
-
-        <div className="relative w-full sm:w-72">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input
-            type="text"
-            placeholder="Search name, ABHA, village, token..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-slate-200 focus:outline-hidden focus:ring-2 focus:ring-teal-500 bg-slate-50 font-medium"
-          />
+        {/* Routine */}
+        <div className="bg-white rounded-3xl p-6 flex items-center justify-between">
+          <div>
+            <div className="text-4xl font-black text-slate-900">{routineCount}</div>
+            <div className="text-sm text-slate-500 font-medium mt-1">Routine patients</div>
+          </div>
+          <div className="w-14 h-14 rounded-2xl bg-slate-50 text-emerald-500 flex items-center justify-center">
+            <CheckCircle2 className="w-6 h-6" />
+          </div>
         </div>
-      </div>
-
-      {/* Filter Tabs */}
-      <div className="flex flex-wrap items-center justify-between gap-3 text-xs">
-        {/* Risk Filter */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
-          <span className="font-bold text-slate-500 flex items-center gap-1 shrink-0">
-            <Filter className="w-3.5 h-3.5" /> Clinical Cohort:
-          </span>
-          {(["ALL", "Maternal", "Child", "Diabetes", "Hypertension", "ROUTINE"] as const).map(
-            (cat) => (
-              <button
-                key={cat}
-                type="button"
-                onClick={() => setRiskFilter(cat)}
-                className={`px-3 py-1 rounded-lg font-bold transition-colors ${
-                  riskFilter === cat
-                    ? "bg-teal-700 text-white shadow-2xs"
-                    : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-                }`}
-              >
-                {cat === "ALL" ? "All Cohorts" : cat}
-              </button>
-            )
-          )}
+        {/* Urgent */}
+        <div className="bg-white rounded-3xl p-6 flex items-center justify-between">
+          <div>
+            <div className="text-4xl font-black text-slate-900">{urgentCount}</div>
+            <div className="text-sm text-slate-500 font-medium mt-1">Urgent patients</div>
+          </div>
+          <div className="w-14 h-14 rounded-2xl bg-slate-50 text-amber-500 flex items-center justify-center">
+            <Activity className="w-6 h-6" />
+          </div>
         </div>
-
-        {/* Status Filter */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
-          <span className="font-bold text-slate-500 shrink-0">Status:</span>
-          {(["ALL", "Waiting", "In Consultation", "Completed", "Referred to DH"] as const).map(
-            (st) => (
-              <button
-                key={st}
-                type="button"
-                onClick={() => setStatusFilter(st)}
-                className={`px-2.5 py-1 rounded-lg font-bold transition-colors text-[11px] ${
-                  statusFilter === st
-                    ? "bg-slate-800 text-white"
-                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                }`}
-              >
-                {st}
-              </button>
-            )
-          )}
+        {/* Emergency */}
+        <div className="bg-white rounded-3xl p-6 flex items-center justify-between">
+          <div>
+            <div className="text-4xl font-black text-slate-900">{emergencyCount}</div>
+            <div className="text-sm text-slate-500 font-medium mt-1">Emergency patients</div>
+          </div>
+          <div className="w-14 h-14 rounded-2xl bg-slate-50 text-red-500 flex items-center justify-center">
+            <AlertTriangle className="w-6 h-6" />
+          </div>
         </div>
       </div>
 
-      {/* Two-Pane Layout: List (Left) + Detail Profile (Right) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Left Pane: Patient Cards List */}
-        <div className="lg:col-span-5 flex flex-col gap-2.5 max-h-[750px] overflow-y-auto pr-1">
-          {filteredPatients.length === 0 ? (
-            <div className="text-center py-12 text-slate-400 text-xs">
-              No patients match the search or filter criteria.
-            </div>
-          ) : (
-            filteredPatients.map((p) => {
-              const isSelected = selectedPatient && selectedPatient.id === p.id;
-              const isEmergency = p.triagePriority === "EMERGENCY";
+      {/* Main Table Area */}
+      <div className="bg-white rounded-3xl overflow-hidden pt-2 flex flex-col flex-1 min-h-0 shadow-[0_2px_10px_rgb(0,0,0,0.02)]">
+        {/* Toolbar */}
+        <div className="p-4 sm:p-6 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          <div className="relative w-full lg:w-80">
+            <Search className="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Search patient..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full pl-11 pr-4 py-3 text-sm rounded-full bg-slate-50 focus:outline-hidden focus:bg-slate-100 font-medium transition-all"
+            />
+          </div>
 
-              return (
-                <div
-                  key={p.id}
-                  onClick={() => handleSelectPatient(p.id)}
-                  className={`p-3.5 rounded-xl border cursor-pointer transition-all text-xs flex flex-col gap-1.5 ${
-                    isSelected
-                      ? "border-teal-700 bg-teal-50/60 shadow-xs ring-2 ring-teal-500/20"
-                      : isEmergency
-                      ? "border-red-200 bg-red-50/20 hover:border-red-400"
-                      : "border-slate-200 hover:border-slate-300 bg-white"
-                  }`}
+          <div className="flex flex-wrap items-center gap-4">
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-1.5 text-slate-500">
+                <Filter className="w-4 h-4" />
+                <span className="text-sm font-bold">Filter</span>
+              </div>
+              
+              {/* Gender Filter */}
+              <div className="relative">
+                <select
+                  value={genderFilter}
+                  onChange={(e) => setGenderFilter(e.target.value)}
+                  className="appearance-none bg-slate-50 hover:bg-slate-100 rounded-full pl-4 pr-9 py-2 text-sm font-bold text-slate-700 cursor-pointer focus:outline-hidden transition-colors"
                 >
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <span className="font-black text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded text-[10px]">
-                        {p.token}
-                      </span>
-                      <span className="font-extrabold text-slate-900 text-sm">
-                        {p.name}
-                      </span>
-                    </div>
-                    <UrgencyBadge priority={p.triagePriority} size="sm" />
-                  </div>
+                  <option value="All Gender">All Gender</option>
+                  <option value="Male">Male</option>
+                  <option value="Female">Female</option>
+                </select>
+                <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+              </div>
 
-                  <p className="text-slate-600 font-medium truncate">
-                    {p.visitReason}
-                  </p>
+              {/* Age Filter */}
+              <div className="relative">
+                <select
+                  value={ageFilter}
+                  onChange={(e) => setAgeFilter(e.target.value)}
+                  className="appearance-none bg-slate-50 hover:bg-slate-100 rounded-full pl-4 pr-9 py-2 text-sm font-bold text-slate-700 cursor-pointer focus:outline-hidden transition-colors"
+                >
+                  <option value="All Ages">All Ages</option>
+                  <option value="0-18">0-18</option>
+                  <option value="19-40">19-40</option>
+                  <option value="41-60">41-60</option>
+                  <option value="60+">60+</option>
+                </select>
+                <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+              </div>
 
-                  <div className="flex items-center justify-between text-[11px] text-slate-500 pt-1 border-t border-slate-100">
-                    <span>{p.age}y · {p.sex} · {p.village}</span>
-                    <span
-                      className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                        p.currentStatus === "Completed"
-                          ? "bg-emerald-100 text-emerald-800"
-                          : p.currentStatus === "In Consultation"
-                          ? "bg-teal-100 text-teal-800 animate-pulse"
-                          : p.currentStatus === "Referred to DH"
-                          ? "bg-purple-100 text-purple-800"
-                          : "bg-amber-100 text-amber-800"
-                      }`}
-                    >
-                      {p.currentStatus}
-                    </span>
-                  </div>
-                </div>
-              );
-            })
-          )}
+              {/* Status/Priority Filter */}
+              <div className="relative">
+                <select
+                  value={priorityFilter}
+                  onChange={(e) => setPriorityFilter(e.target.value)}
+                  className="appearance-none bg-slate-50 hover:bg-slate-100 rounded-full pl-4 pr-9 py-2 text-sm font-bold text-slate-700 cursor-pointer focus:outline-hidden transition-colors"
+                >
+                  <option value="All Status">All Status</option>
+                  <option value="Routine">Routine</option>
+                  <option value="Urgent">Urgent</option>
+                  <option value="Emergency">Emergency</option>
+                </select>
+                <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+              </div>
+            </div>
+          </div>
         </div>
 
-        {/* Right Pane: Comprehensive Patient Health Record */}
-        {selectedPatient ? (
-          <div className="lg:col-span-7 bg-slate-50/80 border border-slate-200 rounded-2xl p-5 flex flex-col gap-5 text-xs">
-            {/* Patient Header Card */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200">
-              <div className="flex items-start gap-3">
-                <div className="w-12 h-12 rounded-2xl bg-teal-100 text-teal-900 font-black text-xl flex items-center justify-center shrink-0">
-                  {selectedPatient.sex === "Female" ? "👩" : "👨"}
-                </div>
-                <div>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <h3 className="text-lg font-black text-slate-900">
-                      {selectedPatient.name}
-                    </h3>
-                    <UrgencyBadge priority={selectedPatient.triagePriority} />
-                    {selectedPatient.riskCategory && (
-                      <span className="px-2 py-0.5 rounded-md bg-purple-100 text-purple-900 text-[10px] font-bold">
-                        {selectedPatient.riskCategory} High-Risk
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2 text-[11px] text-slate-500 mt-1 flex-wrap">
-                    <span>{selectedPatient.age} yrs · {selectedPatient.sex}</span>
-                    <span>·</span>
-                    <span>Blood: <strong>{selectedPatient.bloodGroup}</strong></span>
-                    <span>·</span>
-                    <span className="flex items-center gap-1">
-                      <MapPin className="w-3 h-3 text-slate-400" />
-                      {selectedPatient.village}
-                    </span>
-                    <span>·</span>
-                    <span>ABHA ID: <strong>{selectedPatient.abhaId}</strong></span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="flex items-center gap-2 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => onOpenConsultation(selectedPatient.id)}
-                  className="px-3.5 py-2 bg-teal-700 hover:bg-teal-800 text-white rounded-xl font-bold shadow-xs transition-colors flex items-center gap-1.5"
-                >
-                  <Stethoscope className="w-4 h-4" />
-                  <span>Start Consultation</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onOpenReferralModal(selectedPatient.id)}
-                  className="px-3.5 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold shadow-xs transition-colors flex items-center gap-1.5"
-                >
-                  <Send className="w-4 h-4" />
-                  <span>Refer DH</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Current Vitals Card */}
-            <div className="bg-white p-4 rounded-xl border border-slate-200">
-              <span className="text-[10px] uppercase font-bold text-slate-400 block mb-2">
-                Recorded Vitals (Current Visit)
-              </span>
-              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-center text-[11px]">
-                <div className="p-2 bg-slate-50 rounded-lg">
-                  <span className="text-[9px] uppercase text-slate-400 block font-bold">BP</span>
-                  <span className="font-extrabold text-slate-900 text-xs">
-                    {selectedPatient.vitals.bp}
-                  </span>
-                </div>
-                <div className="p-2 bg-slate-50 rounded-lg">
-                  <span className="text-[9px] uppercase text-slate-400 block font-bold">Pulse</span>
-                  <span className="font-extrabold text-slate-900 text-xs">
-                    {selectedPatient.vitals.pulse} bpm
-                  </span>
-                </div>
-                <div className="p-2 bg-slate-50 rounded-lg">
-                  <span className="text-[9px] uppercase text-slate-400 block font-bold">SpO2</span>
-                  <span className="font-extrabold text-slate-900 text-xs">
-                    {selectedPatient.vitals.spo2}%
-                  </span>
-                </div>
-                <div className="p-2 bg-slate-50 rounded-lg">
-                  <span className="text-[9px] uppercase text-slate-400 block font-bold">Temp</span>
-                  <span className="font-extrabold text-slate-900 text-xs">
-                    {selectedPatient.vitals.temp}
-                  </span>
-                </div>
-                <div className="p-2 bg-slate-50 rounded-lg">
-                  <span className="text-[9px] uppercase text-slate-400 block font-bold">Weight / Hb</span>
-                  <span className="font-extrabold text-slate-900 text-xs">
-                    {selectedPatient.vitals.weight}kg {selectedPatient.vitals.hb ? `/ ${selectedPatient.vitals.hb}` : ""}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* ASHA Field Intake Notes */}
-            {selectedPatient.ashaNotes && (
-              <div className="bg-amber-50/80 border border-amber-200 rounded-xl p-4">
-                <span className="text-[10px] uppercase font-black tracking-wide text-amber-900 block mb-1">
-                  ASHA Field Health Worker Notes
-                </span>
-                <p className="text-amber-950 italic leading-relaxed">
-                  &quot;{selectedPatient.ashaNotes}&quot;
-                </p>
-              </div>
-            )}
-
-            {/* Medical History & Chronic Conditions */}
-            <div className="bg-white p-4 rounded-xl border border-slate-200">
-              <span className="text-[10px] uppercase font-bold text-slate-400 block mb-2">
-                Medical History & Allergies
-              </span>
-              <ul className="space-y-1.5">
-                {selectedPatient.medicalHistory.map((h, idx) => (
-                  <li key={idx} className="flex items-start gap-2 text-slate-700">
-                    <span className="w-1.5 h-1.5 rounded-full bg-teal-600 mt-1.5 shrink-0" />
-                    <span>{h}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-
-            {/* Consultation History */}
-            <div className="bg-white p-4 rounded-xl border border-slate-200">
-              <span className="text-[10px] uppercase font-bold text-slate-400 block mb-2">
-                Past PHC Consultations & Prescriptions ({selectedPatient.consultationHistory.length})
-              </span>
-              {selectedPatient.consultationHistory.length === 0 ? (
-                <p className="text-slate-400 italic">No previous consultations on record.</p>
+        {/* Table */}
+        <div className="overflow-x-auto overflow-y-auto flex-1 px-2 sm:px-6 pb-6">
+          <table className="w-full text-left border-collapse whitespace-nowrap">
+            <thead>
+              <tr className="border-b border-slate-100 text-slate-400 text-xs font-bold capitalize">
+                <th className="px-6 py-4 w-10">
+                  <input type="checkbox" className="rounded text-teal-600 focus:ring-teal-500 w-4 h-4 border-slate-300" />
+                </th>
+                <th className="px-4 py-4">Name</th>
+                <th className="px-4 py-4">Last Visit</th>
+                <th className="px-4 py-4">Age</th>
+                <th className="px-4 py-4">Village</th>
+                <th className="px-4 py-4">Gender</th>
+                <th className="px-4 py-4">Diagnosis / Reason</th>
+                <th className="px-4 py-4">Status</th>
+                <th className="px-4 py-4 text-center">Action</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 text-sm">
+              {filteredPatients.length === 0 ? (
+                <tr>
+                  <td colSpan={9} className="px-6 py-12 text-center text-slate-500 font-medium">
+                    No patients match the selected filters.
+                  </td>
+                </tr>
               ) : (
-                <div className="space-y-3">
-                  {selectedPatient.consultationHistory.map((c, idx) => (
-                    <div key={idx} className="p-3 bg-slate-50 rounded-lg border border-slate-100 text-xs">
-                      <div className="flex items-center justify-between text-slate-500 text-[11px] mb-1">
-                        <span className="font-bold text-slate-800">{c.date}</span>
-                        <span>{c.doctor} · {c.facility}</span>
-                      </div>
-                      <p className="font-extrabold text-slate-900 mb-1">{c.assessment}</p>
-                      <p className="text-slate-600 mb-2">{c.notes}</p>
-                      <div className="flex flex-wrap gap-1">
-                        {c.prescription.map((rx, rIdx) => (
-                          <span
-                            key={rIdx}
-                            className="px-2 py-0.5 rounded bg-white border border-slate-200 text-slate-700 font-medium text-[11px]"
-                          >
-                            {rx}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                filteredPatients.map((p) => {
+                  return (
+                    <tr 
+                      key={p.id} 
+                      className="hover:bg-slate-50/50 transition-colors group cursor-pointer border-b border-slate-50 last:border-0"
+                      onClick={() => handleViewRecord(p.id)}
+                    >
+                      <td className="px-6 py-5" onClick={(e) => e.stopPropagation()}>
+                        <div className="w-5 h-5 rounded border border-slate-200 flex items-center justify-center bg-slate-50 group-hover:border-teal-400 transition-colors"></div>
+                      </td>
+                      <td className="px-4 py-5">
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 rounded-full bg-slate-50 flex items-center justify-center text-lg shrink-0">
+                            {p.sex === "Female" ? "👩" : "👨"}
+                          </div>
+                          <span className="font-extrabold text-slate-800">{p.name}</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-5 font-bold text-slate-500">
+                        {p.consultationHistory[0]?.date || "10-04-2025"}
+                      </td>
+                      <td className="px-4 py-5 font-bold text-slate-500">{p.age}</td>
+                      <td className="px-4 py-5 font-bold text-slate-500">{p.village}</td>
+                      <td className="px-4 py-5 font-bold text-slate-500">{p.sex}</td>
+                      <td className="px-4 py-5 font-bold text-slate-700 truncate max-w-[200px]">
+                        {p.visitReason}
+                      </td>
+                      <td className="px-4 py-5">
+                        <UrgencyBadge priority={p.triagePriority} size="sm" />
+                      </td>
+                      <td className="px-4 py-5 text-center" onClick={(e) => e.stopPropagation()}>
+                        <div className="relative inline-block group/menu">
+                          <button className="p-2 text-slate-300 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors">
+                            <MoreHorizontal className="w-5 h-5" />
+                          </button>
+                          {/* Dropdown Menu */}
+                          <div className="absolute right-0 top-full mt-1 w-48 bg-white border border-slate-100 rounded-2xl shadow-xl opacity-0 invisible group-hover/menu:opacity-100 group-hover/menu:visible transition-all z-10 overflow-hidden text-left p-1">
+                            <button
+                              onClick={() => {
+                                setIsRecordModalOpen(false);
+                                onOpenConsultation(p.id);
+                              }}
+                              className="w-full px-4 py-2.5 text-sm font-bold text-slate-600 hover:text-slate-900 hover:bg-slate-50 rounded-xl text-left transition-colors"
+                            >
+                              Start Consultation
+                            </button>
+                            <button
+                              onClick={() => handleViewRecord(p.id)}
+                              className="w-full px-4 py-2.5 text-sm font-bold text-slate-600 hover:text-slate-900 hover:bg-slate-50 rounded-xl text-left transition-colors mt-0.5"
+                            >
+                              View Record
+                            </button>
+                            <button
+                              onClick={() => {
+                                setIsRecordModalOpen(false);
+                                onOpenReferralModal(p.id);
+                              }}
+                              className="w-full px-4 py-2.5 text-sm font-bold text-red-600 hover:bg-red-50 rounded-xl text-left transition-colors mt-0.5"
+                            >
+                              Refer to Hospital
+                            </button>
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
-            </div>
-          </div>
-        ) : null}
+            </tbody>
+          </table>
+        </div>
       </div>
+
+      <PatientRecordModal 
+        isOpen={isRecordModalOpen}
+        onClose={() => setIsRecordModalOpen(false)}
+        patient={selectedPatient}
+        onOpenConsultation={onOpenConsultation}
+        onOpenReferralModal={onOpenReferralModal}
+      />
     </div>
   );
 };

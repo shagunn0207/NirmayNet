@@ -1,5 +1,6 @@
 import logging
 from typing import Optional
+# pyrefly: ignore [missing-import]
 from supabase import create_client, Client
 from app.core.config import settings
 

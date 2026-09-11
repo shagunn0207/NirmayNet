@@ -39,6 +39,7 @@ export default function PHCDoctorPortalPage() {
     followups,
     selectedPatient,
     setSelectedPatient,
+    currentUser,
   } = useHealthcare();
 
   const [activeTab, setActiveTab] = useState<string>("dashboard");
@@ -146,8 +147,8 @@ export default function PHCDoctorPortalPage() {
 
   return (
     <PortalLayout
-      roleTitle="PHC Doctor Portal"
-      facilityName="Dhadgaon Primary Health Centre"
+      roleTitle={currentUser?.name || "PHC Doctor Portal"}
+      facilityName={currentUser?.facility_name || "Dhadgaon Primary Health Centre"}
       tabs={tabs}
       activeTab={activeTab}
       onTabChange={(tabId) => setActiveTab(tabId)}
@@ -157,28 +158,6 @@ export default function PHCDoctorPortalPage() {
             <h1 className="text-xl font-black text-slate-900">
               {tabs.find((t) => t.id === activeTab)?.label || "PHC Doctor Dashboard"}
             </h1>
-            <p className="text-xs text-slate-500 font-medium">
-              Medical Officer: Dr. Sanjay Mehta, MBBS, DCH · Akrani Block
-            </p>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setActiveTab("emergency")}
-              className="px-3 py-2 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5"
-            >
-              <AlertOctagon className="w-4 h-4 text-red-600 animate-pulse" />
-              <span>{emergencyCount} Emergencies</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => handleOpenReferralModal()}
-              className="px-3.5 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold shadow-xs transition-colors flex items-center gap-1.5"
-            >
-              <Ambulance className="w-4 h-4" />
-              <span className="hidden sm:inline">Emergency Referral</span>
-            </button>
           </div>
         </div>
       }

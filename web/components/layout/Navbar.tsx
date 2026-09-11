@@ -15,16 +15,21 @@ import {
   Activity,
   ChevronRight,
   ShieldAlert,
+  LogOut,
+  User,
 } from "lucide-react";
+import { ProfileEditModal } from "../profile/ProfileEditModal";
 
 interface NavbarProps {
   onToggleSidebar?: () => void;
   isSidebarOpen?: boolean;
+  hideBrandOnDesktop?: boolean;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
   onToggleSidebar,
   isSidebarOpen,
+  hideBrandOnDesktop = false,
 }) => {
   const pathname = usePathname();
   const {
@@ -32,9 +37,13 @@ export const Navbar: React.FC<NavbarProps> = ({
     ashaReferrals,
     currentRole,
     isLoggedIn,
+    currentUser,
     setCurrentRole,
     logout,
+    updateProfile,
   } = useHealthcare();
+
+  const [isProfileModalOpen, setIsProfileModalOpen] = React.useState(false);
 
   const emergencyCount = hospitalReferrals.filter(
     (r) => r.priority === "EMERGENCY" && r.status !== "COMPLETED"
@@ -92,7 +101,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               </button>
             )}
 
-            <Link href="/" className="flex items-center gap-2.5 group">
+            <Link href="/" className={`flex items-center gap-2.5 group ${hideBrandOnDesktop ? 'lg:hidden' : ''}`}>
               <div className="w-10 h-10 rounded-xl bg-teal-600 text-white flex items-center justify-center font-black text-xl shadow-md group-hover:bg-teal-700 transition-colors">
                 <Activity className="w-6 h-6" />
               </div>
@@ -135,21 +144,22 @@ export const Navbar: React.FC<NavbarProps> = ({
 
             {/* Quick Profile Pill */}
             {isLoggedIn && (
-            <div className="flex items-center gap-2 pl-3 border-l border-slate-200 text-xs">
-              <div className="w-8 h-8 rounded-full bg-slate-200 border border-slate-300 flex items-center justify-center font-bold text-slate-700">
-                👨‍⚕️
-              </div>
-              <div className="hidden sm:block">
-                <p className="font-bold text-slate-800 leading-tight">
-                  {currentRole === 'phc-doctor' ? 'PHC Doctor' : currentRole === 'district-hospital' ? 'District Hospital' : 'DHO'}
-                </p>
-              </div>
+            <div className="flex items-center gap-1 sm:gap-2 pl-2 sm:pl-3 border-l border-slate-200 text-xs">
               <button
-                onClick={logout}
-                className="ml-2 text-rose-600 hover:text-rose-700 font-bold bg-rose-50 hover:bg-rose-100 px-3 py-1.5 rounded-lg transition-colors"
+                onClick={() => setIsProfileModalOpen(true)}
+                className="flex items-center gap-2 hover:bg-slate-50 p-1 rounded-lg transition-colors group cursor-pointer"
+                title="Edit Profile"
               >
-                Logout
+                <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-slate-200 border border-slate-300 flex items-center justify-center font-bold text-slate-700 group-hover:border-teal-400 group-hover:bg-teal-50 transition-colors">
+                  <User className="w-4 h-4" />
+                </div>
+                <div className="hidden lg:block text-left">
+                  <p className="font-bold text-slate-800 leading-tight">
+                    {currentUser?.name || (currentRole === 'phc-doctor' ? 'PHC Doctor' : currentRole === 'district-hospital' ? 'District Hospital' : 'DHO')}
+                  </p>
+                </div>
               </button>
+
             </div>
             )}
           </div>
@@ -158,6 +168,16 @@ export const Navbar: React.FC<NavbarProps> = ({
         {/* Mobile Sub-Role Bar */}
         
       </div>
+
+      {isLoggedIn && (
+        <ProfileEditModal
+          isOpen={isProfileModalOpen}
+          onClose={() => setIsProfileModalOpen(false)}
+          currentUser={currentUser}
+          onSave={updateProfile}
+          onLogout={logout}
+        />
+      )}
     </header>
   );
 };

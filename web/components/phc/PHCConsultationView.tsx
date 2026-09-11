@@ -37,12 +37,12 @@ export const PHCConsultationView: React.FC<PHCConsultationViewProps> = ({
   const patient = patients.find((p) => p.id === patientId) || patients[0];
 
   const [assessment, setAssessment] = useState(
-    patient.triagePriority === "EMERGENCY"
+    patient?.triagePriority === "EMERGENCY"
       ? "Acute Severe Pre-eclampsia with impending eclampsia symptoms. Elevated BP 160/105 with organ stress."
       : "Clinical evaluation for ongoing symptoms."
   );
   const [clinicalNotes, setClinicalNotes] = useState(
-    patient.triagePriority === "EMERGENCY"
+    patient?.triagePriority === "EMERGENCY"
       ? "Patient administered initial oral Labetalol 100mg. Reflexes hyperactive. Urgently stabilized for transit to District Hospital Nandurbar."
       : "Patient examined in general OPD. Vitals stable. Advised diet and hydration."
   );
@@ -79,15 +79,23 @@ export const PHCConsultationView: React.FC<PHCConsultationViewProps> = ({
     if (onFinishConsultation) onFinishConsultation();
   };
 
-  const isEmergency = patient.triagePriority === "EMERGENCY";
+  if (!patient) {
+    return (
+      <div className="flex items-center justify-center p-12 text-slate-400 bg-white rounded-3xl min-h-[50vh]">
+        Select a patient to begin consultation.
+      </div>
+    );
+  }
+
+  const isEmergency = patient?.triagePriority === "EMERGENCY";
 
   return (
     <div className="flex flex-col gap-6">
       {/* Patient Header Card */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs">
+      <div className="bg-white  rounded-3xl p-5 ">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-100">
           <div className="flex items-start gap-4">
-            <div className="w-14 h-14 rounded-2xl bg-teal-50 border border-teal-200 text-teal-800 flex items-center justify-center font-black text-2xl shrink-0">
+            <div className="w-14 h-14 rounded-3xl bg-teal-50 border border-teal-200 text-teal-800 flex items-center justify-center font-black text-2xl shrink-0">
               {patient.sex === "Female" ? "👩" : "👨"}
             </div>
             <div>
@@ -122,7 +130,7 @@ export const PHCConsultationView: React.FC<PHCConsultationViewProps> = ({
             <button
               type="button"
               onClick={() => onOpenReferralModal(patient.id)}
-              className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold shadow-xs transition-colors flex items-center gap-1.5"
+              className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold  transition-colors flex items-center gap-1.5"
             >
               <Send className="w-3.5 h-3.5" />
               <span>Refer to District Hospital</span>
@@ -165,7 +173,7 @@ export const PHCConsultationView: React.FC<PHCConsultationViewProps> = ({
         <div className="lg:col-span-5 flex flex-col gap-6">
           {/* ASHA Field Intake */}
           {patient.ashaNotes && (
-            <div className="bg-amber-50/70 border border-amber-200 rounded-2xl p-4 shadow-xs">
+            <div className="bg-amber-50/70 border border-amber-200 rounded-3xl p-4 ">
               <div className="flex items-center gap-2 mb-2">
                 <span className="text-xs font-black uppercase text-amber-900 tracking-wide">
                   ASHA Field Health Worker Notes
@@ -178,7 +186,7 @@ export const PHCConsultationView: React.FC<PHCConsultationViewProps> = ({
           )}
 
           {/* Medical History */}
-          <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs">
+          <div className="bg-white  rounded-3xl p-5 ">
             <h3 className="text-sm font-extrabold text-slate-900 mb-3 flex items-center gap-2">
               <FileText className="w-4 h-4 text-teal-700" />
               <span>Medical History & Chronic Conditions</span>
@@ -194,7 +202,7 @@ export const PHCConsultationView: React.FC<PHCConsultationViewProps> = ({
           </div>
 
           {/* Previous Consultations History */}
-          <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs flex-1">
+          <div className="bg-white  rounded-3xl p-5  flex-1">
             <h3 className="text-sm font-extrabold text-slate-900 mb-3 flex items-center gap-2">
               <Clock className="w-4 h-4 text-teal-700" />
               <span>Previous Consultations</span>
@@ -213,7 +221,7 @@ export const PHCConsultationView: React.FC<PHCConsultationViewProps> = ({
                     <p className="text-slate-600 mb-2">{c.notes}</p>
                     <div className="flex flex-wrap gap-1">
                       {c.prescription.map((rx, rIdx) => (
-                        <span key={rIdx} className="px-2 py-0.5 bg-white border border-slate-200 rounded text-[11px] text-slate-700">
+                        <span key={rIdx} className="px-2 py-0.5 bg-white  rounded text-[11px] text-slate-700">
                           {rx}
                         </span>
                       ))}
@@ -226,7 +234,7 @@ export const PHCConsultationView: React.FC<PHCConsultationViewProps> = ({
         </div>
 
         {/* Right Column: Active Consultation & Prescription Form */}
-        <div className="lg:col-span-7 bg-white border border-slate-200 rounded-2xl p-5 shadow-xs">
+        <div className="lg:col-span-7 bg-white  rounded-3xl p-5 ">
           <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
             <div>
               <h2 className="text-base font-extrabold text-slate-900">Current Visit Consultation</h2>
@@ -264,7 +272,7 @@ export const PHCConsultationView: React.FC<PHCConsultationViewProps> = ({
                 value={assessment}
                 onChange={(e) => setAssessment(e.target.value)}
                 placeholder="E.g., Severe Pre-Eclampsia at 32 weeks with imminent eclampsia..."
-                className="w-full p-2.5 rounded-xl border border-slate-200 focus:outline-hidden focus:ring-2 focus:ring-teal-500 bg-slate-50 text-slate-900 font-medium"
+                className="w-full p-2.5 rounded-xl  focus:outline-hidden focus:ring-2 focus:ring-teal-500 bg-slate-50 text-slate-900 font-medium"
               />
             </div>
 
@@ -278,7 +286,7 @@ export const PHCConsultationView: React.FC<PHCConsultationViewProps> = ({
                 value={clinicalNotes}
                 onChange={(e) => setClinicalNotes(e.target.value)}
                 placeholder="Examination findings, response to initial management, stabilization protocol..."
-                className="w-full p-2.5 rounded-xl border border-slate-200 focus:outline-hidden focus:ring-2 focus:ring-teal-500 bg-slate-50 text-slate-900"
+                className="w-full p-2.5 rounded-xl  focus:outline-hidden focus:ring-2 focus:ring-teal-500 bg-slate-50 text-slate-900"
               />
             </div>
 
@@ -296,7 +304,7 @@ export const PHCConsultationView: React.FC<PHCConsultationViewProps> = ({
                 {prescriptions.map((rx, idx) => (
                   <div
                     key={idx}
-                    className="flex items-center justify-between p-2.5 bg-slate-50 rounded-xl border border-slate-200 gap-2"
+                    className="flex items-center justify-between p-2.5 bg-slate-50 rounded-xl  gap-2"
                   >
                     <span className="font-semibold text-slate-800 truncate">{rx}</span>
                     <button
@@ -317,7 +325,7 @@ export const PHCConsultationView: React.FC<PHCConsultationViewProps> = ({
                   placeholder="Enter medicine, dosage, and duration (e.g., Tab Paracetamol 500mg TDS x 3d)..."
                   value={newMed}
                   onChange={(e) => setNewMed(e.target.value)}
-                  className="flex-1 p-2 rounded-xl border border-slate-200 text-xs bg-slate-50"
+                  className="flex-1 p-2 rounded-xl  text-xs bg-slate-50"
                   onKeyDown={(e) => {
                     if (e.key === "Enter") {
                       e.preventDefault();
@@ -402,7 +410,7 @@ export const PHCConsultationView: React.FC<PHCConsultationViewProps> = ({
 
               <button
                 type="submit"
-                className="px-6 py-2.5 bg-teal-700 hover:bg-teal-800 text-white rounded-xl font-bold text-sm shadow-xs flex items-center gap-2 transition-colors"
+                className="px-6 py-2.5 bg-teal-700 hover:bg-teal-800 text-white rounded-xl font-bold text-sm  flex items-center gap-2 transition-colors"
               >
                 <Save className="w-4 h-4" />
                 <span>Save Consultation & Complete Visit</span>

@@ -22,7 +22,7 @@ import {
 } from "lucide-react";
 
 export default function DistrictHospitalPage() {
-  const { hospitalReferrals, specialists, facilityStatus } = useHealthcare();
+  const { hospitalReferrals, specialists, facilityStatus, currentUser } = useHealthcare();
   const [activeTab, setActiveTab] = useState<string>("dashboard");
   const [selectedReferralId, setSelectedReferralId] = useState<string | null>(null);
 
@@ -97,8 +97,8 @@ export default function DistrictHospitalPage() {
 
   return (
     <PortalLayout
-      roleTitle="District Hospital Portal"
-      facilityName="District Civil Hospital, Nandurbar"
+      roleTitle={currentUser?.name || "District Hospital Portal"}
+      facilityName={currentUser?.facility_name || "District Civil Hospital, Nandurbar"}
       tabs={tabs}
       activeTab={activeTab}
       onTabChange={(tabId) => setActiveTab(tabId)}

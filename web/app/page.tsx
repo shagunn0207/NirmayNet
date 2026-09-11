@@ -19,6 +19,7 @@ export default function RootHomePage() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   
   const [error, setError] = useState("");
@@ -61,13 +62,24 @@ export default function RootHomePage() {
           const data = await res.json().catch(() => ({}));
           throw new Error(data.detail || "Invalid credentials. Please try again.");
         }
-        
         const data = await res.json();
         login(data.user || { username, role: selectedRole }, data.access_token);
-        
       } else {
         // Signup Flow
-        if (password !== confirmPassword) throw new Error("Passwords do not match");
+        if (password !== confirmPassword) {
+          throw new Error("Passwords do not match");
+        }
+        
+        // Strict Input Validation
+        const nameRegex = /^[A-Za-z\s.\-]+$/;
+        if (!nameRegex.test(name)) {
+          throw new Error("Name must contain only letters, spaces, dots or hyphens.");
+        }
+
+        const phoneRegex = /^[0-9]{10}$/;
+        if (phone && !phoneRegex.test(phone)) {
+          throw new Error("Phone number must be exactly 10 digits.");
+        }
         
         const res = await fetch(`${API_BASE}/auth/register`, {
           method: "POST",
@@ -76,6 +88,7 @@ export default function RootHomePage() {
             username,
             password,
             name,
+            phone,
             role: selectedRole,
             fullName: name
           }),
@@ -225,17 +238,36 @@ export default function RootHomePage() {
 
               <form onSubmit={handleSubmit} className="space-y-4">
                 {!isLogin && (
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Full Name / Facility</label>
-                    <input
-                      type="text"
-                      required
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      className="w-full px-4 py-3.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-teal-500/50 focus:border-teal-500 transition-all font-medium text-slate-800"
-                      placeholder="E.g. Dr. Sanjay Mehta"
-                    />
-                  </div>
+                  <>
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Full Name / Facility</label>
+                      <input
+                        type="text"
+                        required
+                        value={name}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (val === "" || /^[A-Za-z\s.\-]+$/.test(val)) setName(val);
+                        }}
+                        className="w-full px-4 py-3.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500/50 focus:border-teal-500 transition-all font-medium text-slate-800"
+                        placeholder="E.g. Dr. Sanjay Mehta"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Phone Number</label>
+                      <input
+                        type="tel"
+                        required
+                        value={phone}
+                        onChange={(e) => {
+                          const val = e.target.value.replace(/[^0-9]/g, '');
+                          if (val.length <= 10) setPhone(val);
+                        }}
+                        className="w-full px-4 py-3.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500/50 focus:border-teal-500 transition-all font-medium text-slate-800"
+                        placeholder="10-digit mobile number"
+                      />
+                    </div>
+                  </>
                 )}
 
                 <div>
@@ -257,7 +289,7 @@ export default function RootHomePage() {
                     required
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="w-full px-4 py-3.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-teal-500/50 focus:border-teal-500 transition-all font-medium text-slate-800"
+                    className="w-full px-4 py-3.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500/50 focus:border-teal-500 transition-all font-medium text-slate-800"
                     placeholder="Enter your password"
                   />
                 </div>

@@ -147,7 +147,7 @@ export const DHOOverviewView: React.FC<DHOOverviewViewProps> = ({
       )}
 
       {/* KPI Cards Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5">
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-4 2xl:grid-cols-8 gap-4">
         {kpis.map((kpi, idx) => {
           const Icon = kpi.icon;
           return (
@@ -171,10 +171,10 @@ export const DHOOverviewView: React.FC<DHOOverviewViewProps> = ({
         })}
       </div>
 
-      {/* Analytics Visualizers (Charts & Overview Cards) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Left Visualizer: Referral Volume & Transit Flow Chart */}
-        <div className="lg:col-span-7 bg-white border border-slate-200 rounded-2xl p-5 shadow-xs flex flex-col">
+      {/* Two-Column Overview */}
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
+        {/* Left Column: PHC Network Status */}
+        <div className="xl:col-span-7 bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex flex-col">
           <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
             <div>
               <h3 className="text-base font-extrabold text-slate-900">
@@ -226,8 +226,8 @@ export const DHOOverviewView: React.FC<DHOOverviewViewProps> = ({
           </div>
         </div>
 
-        {/* Right Visualizer: Quality & Access Indicators */}
-        <div className="lg:col-span-5 bg-white border border-slate-200 rounded-2xl p-5 shadow-xs flex flex-col justify-between gap-4">
+        {/* Right Column: Key Alerts */}
+        <div className="xl:col-span-5 bg-white border border-slate-200 rounded-2xl p-5 shadow-xs flex flex-col justify-between gap-4">
           <div>
             <div className="pb-3 border-b border-slate-100 mb-3">
               <h3 className="text-base font-extrabold text-slate-900">

@@ -4,17 +4,13 @@ import React from "react";
 import { useHealthcare } from "@/context/HealthcareContext";
 import { UrgencyBadge } from "@/components/common/Badge";
 import {
-  Users,
-  Clock,
   AlertOctagon,
-  Send,
-  Calendar,
-  FlaskConical,
-  Stethoscope,
-  ChevronRight,
-  Ambulance,
   HeartPulse,
+  Send,
   Pill,
+  Clock,
+  ArrowRight,
+  Stethoscope,
 } from "lucide-react";
 
 interface PHCDashboardViewProps {
@@ -28,325 +24,187 @@ export const PHCDashboardView: React.FC<PHCDashboardViewProps> = ({
   onOpenConsultation,
   onOpenReferralModal,
 }) => {
-  const {
-    patients,
-    ashaReferrals,
-    hospitalReferrals,
-    medicines,
-    diagnosticOrders,
-    followups,
-  } = useHealthcare();
+  const { patients, ashaReferrals } = useHealthcare();
 
   const waitingPatients = patients.filter((p) => p.currentStatus === "Waiting");
   const emergencyCases = patients.filter(
-    (p) => p.triagePriority === "EMERGENCY" && p.currentStatus !== "Completed"
+    (p) => (p.triagePriority === "EMERGENCY" || p.triagePriority === "URGENT") && p.currentStatus !== "Completed"
   );
   const pendingAsha = ashaReferrals.filter((r) => r.status === "Pending Review");
-  const pendingHospitalReferrals = hospitalReferrals.filter(
-    (r) => r.status !== "COMPLETED"
-  );
-  const pendingLabTests = diagnosticOrders.filter((d) => d.status === "Pending");
-  const upcomingFollowups = followups.filter((f) => f.status === "Upcoming" || f.status === "Missed");
-  const lowStockCount = medicines.filter((m) => m.status !== "In Stock").length;
-
-  const kpis = [
-    {
-      title: "OPD Patients Today",
-      value: "184",
-      sub: "+14% vs avg",
-      icon: Users,
-      color: "border-teal-200 bg-teal-50/50 text-teal-900",
-      accent: "text-teal-700",
-    },
-    {
-      title: "Patients in Queue",
-      value: waitingPatients.length.toString(),
-      sub: "Avg wait: 18 min",
-      icon: Clock,
-      color: "border-sky-200 bg-sky-50/50 text-sky-900",
-      accent: "text-sky-700",
-      onClick: () => onNavigateTab("queue"),
-    },
-    {
-      title: "Urgent / Emergency",
-      value: emergencyCases.length.toString(),
-      sub: "Immediate triage",
-      icon: AlertOctagon,
-      color: "border-red-200 bg-red-50 text-red-900",
-      accent: "text-red-600 font-extrabold",
-      urgent: emergencyCases.length > 0,
-      onClick: () => onNavigateTab("queue"),
-    },
-    {
-      title: "ASHA Inbound Alerts",
-      value: pendingAsha.length.toString(),
-      sub: "Field referrals pending",
-      icon: HeartPulse,
-      color: "border-amber-200 bg-amber-50 text-amber-900",
-      accent: "text-amber-700 font-bold",
-      onClick: () => onNavigateTab("asha-inbox"),
-    },
-    {
-      title: "Active DH Referrals",
-      value: pendingHospitalReferrals.length.toString(),
-      sub: "In transit / admitted",
-      icon: Send,
-      color: "border-indigo-200 bg-indigo-50/50 text-indigo-900",
-      accent: "text-indigo-700",
-      onClick: () => onNavigateTab("referrals"),
-    },
-    {
-      title: "Pending Diagnostics",
-      value: pendingLabTests.length.toString(),
-      sub: "PHC laboratory tests",
-      icon: FlaskConical,
-      color: "border-purple-200 bg-purple-50/50 text-purple-900",
-      accent: "text-purple-700",
-      onClick: () => onNavigateTab("diagnostics"),
-    },
-    {
-      title: "Follow-ups Due",
-      value: upcomingFollowups.length.toString(),
-      sub: "Maternal & NCD cohort",
-      icon: Calendar,
-      color: "border-emerald-200 bg-emerald-50/50 text-emerald-900",
-      accent: "text-emerald-700",
-      onClick: () => onNavigateTab("followups"),
-    },
-    {
-      title: "Medicines Low/Out",
-      value: lowStockCount.toString(),
-      sub: "Supply indent needed",
-      icon: Pill,
-      color: "border-orange-200 bg-orange-50/50 text-orange-900",
-      accent: "text-orange-700",
-      onClick: () => onNavigateTab("inventory"),
-    },
-  ];
-
-  const criticalCase = emergencyCases[0];
 
   return (
-    <div className="flex flex-col gap-6">
-      {/* Critical Emergency Banner */}
-      {criticalCase && (
-        <div className="bg-red-50 border-2 border-red-300 rounded-2xl p-4 sm:p-5 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-pulse-subtle">
-          <div className="flex items-start gap-3.5">
-            <div className="w-10 h-10 rounded-xl bg-red-600 text-white flex items-center justify-center shrink-0 shadow-sm mt-0.5">
-              <AlertOctagon className="w-6 h-6 animate-pulse" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-xs font-black uppercase tracking-wider bg-red-600 text-white px-2 py-0.5 rounded">
-                  Critical Emergency Case
-                </span>
-                <span className="text-sm font-bold text-red-950">
-                  {criticalCase.name} ({criticalCase.age}y, {criticalCase.sex}) · {criticalCase.village}
-                </span>
-                <span className="text-xs font-semibold text-red-800 bg-red-100 px-2 py-0.5 rounded">
-                  Token: {criticalCase.token}
-                </span>
-              </div>
-              <p className="text-xs text-red-900 mt-1 font-medium leading-relaxed">
-                <strong>Symptoms:</strong> {criticalCase.symptoms?.join(", ")} |{" "}
-                <strong>Vitals:</strong> BP {criticalCase.vitals.bp} mmHg · Pulse {criticalCase.vitals.pulse} bpm · SpO2 {criticalCase.vitals.spo2}% · Hb {criticalCase.vitals.hb || "N/A"}
-              </p>
-            </div>
+    <div className="flex flex-col gap-6 h-full">
+      {/* Quick Actions Bar */}
+      <div className="flex flex-col sm:flex-row items-center justify-between bg-slate-900 rounded-3xl p-4 sm:px-6 sm:py-4 text-white shadow-md">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center">
+            <Stethoscope className="w-5 h-5 text-emerald-400" />
           </div>
-
-          <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
-            <button
-              type="button"
-              onClick={() => onOpenConsultation(criticalCase.id)}
-              className="flex-1 sm:flex-none px-4 py-2 bg-red-700 hover:bg-red-800 text-white rounded-xl text-xs font-black shadow-sm transition-all flex items-center justify-center gap-1.5"
-            >
-              <Stethoscope className="w-4 h-4" />
-              <span>Attend Case</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => onOpenReferralModal(criticalCase.id)}
-              className="flex-1 sm:flex-none px-4 py-2 bg-white border border-red-300 text-red-800 hover:bg-red-100 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5"
-            >
-              <Ambulance className="w-4 h-4 text-red-600" />
-              <span>108 Referral</span>
-            </button>
+          <div>
+            <h2 className="text-sm font-bold">Ready for Consultations</h2>
+            <p className="text-xs text-slate-400">Currently serving the OPD Queue</p>
           </div>
         </div>
-      )}
-
-      {/* KPI Cards Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5">
-        {kpis.map((kpi, idx) => {
-          const Icon = kpi.icon;
-          return (
-            <div
-              key={idx}
-              onClick={kpi.onClick}
-              className={`border rounded-2xl p-3.5 sm:p-4 transition-all ${kpi.color} ${
-                kpi.onClick ? "cursor-pointer hover:shadow-md hover:scale-[1.01]" : ""
-              }`}
-            >
-              <div className="flex items-center justify-between gap-2 mb-2">
-                <span className="text-xs font-bold truncate opacity-85">{kpi.title}</span>
-                <Icon className="w-4 h-4 shrink-0 opacity-75" />
-              </div>
-              <div className="flex items-baseline gap-2">
-                <span className="text-2xl sm:text-3xl font-black">{kpi.value}</span>
-                <span className={`text-[11px] truncate ${kpi.accent}`}>{kpi.sub}</span>
-              </div>
-            </div>
-          );
-        })}
+        <div className="flex items-center gap-3 mt-4 sm:mt-0 w-full sm:w-auto">
+          <button
+            onClick={() => onNavigateTab("inventory")}
+            className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-xs font-bold rounded-xl transition-colors"
+          >
+            <Pill className="w-4 h-4 text-slate-300" />
+            <span>Drug Indent</span>
+          </button>
+          <button
+            onClick={() => onOpenReferralModal()}
+            className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-xs font-bold rounded-xl transition-colors"
+          >
+            <Send className="w-4 h-4" />
+            <span>Refer to DH</span>
+          </button>
+        </div>
       </div>
 
-      {/* Two-Column Quick Views */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Left Column: Patient Queue Preview */}
-        <div className="lg:col-span-7 bg-white border border-slate-200 rounded-2xl p-5 shadow-xs flex flex-col">
-          <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
-            <div>
-              <h3 className="text-base font-extrabold text-slate-900">Current OPD Queue</h3>
-              <p className="text-xs text-slate-500">Patients waiting in OPD registration</p>
-            </div>
-            <button
-              type="button"
-              onClick={() => onNavigateTab("queue")}
-              className="text-xs font-bold text-teal-700 hover:text-teal-800 flex items-center gap-1"
-            >
-              <span>View Full Queue ({waitingPatients.length})</span>
-              <ChevronRight className="w-3.5 h-3.5" />
-            </button>
-          </div>
-
-          <div className="flex flex-col gap-2.5">
-            {waitingPatients.slice(0, 4).map((p) => (
-              <div
-                key={p.id}
-                className="flex items-center justify-between p-3 rounded-xl border border-slate-100 hover:border-slate-300 hover:bg-slate-50/70 transition-all gap-3"
-              >
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-10 h-10 rounded-lg bg-teal-50 text-teal-800 font-extrabold text-sm flex items-center justify-center shrink-0 border border-teal-200">
-                    {p.token || "OPD"}
+      {/* Critical Alerts (Only shows if there are alerts) */}
+      {(emergencyCases.length > 0 || pendingAsha.length > 0) && (
+        <div className="flex flex-col gap-3">
+          <h3 className="text-xs font-extrabold text-slate-400 uppercase tracking-wider">Critical Alerts</h3>
+          <div className="flex flex-col gap-3">
+            {emergencyCases.map((patient) => {
+              const isUrgent = patient.triagePriority === "URGENT";
+              return (
+              <div key={patient.id} className={`${isUrgent ? 'bg-amber-50 border-amber-200' : 'bg-red-50 border-red-200'} border rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4`}>
+                <div className="flex items-center gap-4">
+                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${isUrgent ? 'bg-amber-100' : 'bg-red-100'}`}>
+                    <AlertOctagon className={`w-6 h-6 ${isUrgent ? 'text-amber-600' : 'text-red-600 animate-pulse'}`} />
                   </div>
-                  <div className="min-w-0">
+                  <div>
                     <div className="flex items-center gap-2">
-                      <span className="text-sm font-bold text-slate-900 truncate">
-                        {p.name}
-                      </span>
-                      <UrgencyBadge priority={p.triagePriority} size="sm" />
+                      <span className="text-sm font-bold text-slate-900">{patient.name}</span>
+                      <UrgencyBadge priority={patient.triagePriority} />
                     </div>
-                    <p className="text-xs text-slate-500 truncate">
-                      {p.age}y · {p.sex} · {p.village} — {p.visitReason}
-                    </p>
+                    <p className={`text-xs font-medium mt-0.5 ${isUrgent ? 'text-amber-900' : 'text-red-900'}`}>{patient.visitReason}</p>
                   </div>
                 </div>
+                <button
+                  onClick={() => onNavigateTab("emergency")}
+                  className={`px-4 py-2 bg-white border hover:bg-opacity-50 rounded-xl text-xs font-bold transition-colors whitespace-nowrap self-stretch sm:self-auto ${isUrgent ? 'text-amber-700 border-amber-200 hover:bg-amber-50' : 'text-red-700 border-red-200 hover:bg-red-50'}`}
+                >
+                  View in Emergency Bay
+                </button>
+              </div>
+            )})}
 
-                <div className="flex items-center gap-2 shrink-0">
-                  <span className="text-xs font-semibold text-slate-400 hidden sm:inline">
-                    Wait: {p.waitTimeMinutes}m
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => onOpenConsultation(p.id)}
-                    className="px-3 py-1.5 bg-teal-700 hover:bg-teal-800 text-white rounded-lg text-xs font-bold transition-colors"
-                  >
-                    Consult
-                  </button>
+            {pendingAsha.map((referral) => (
+              <div key={referral.id} className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-xl bg-amber-100 flex items-center justify-center shrink-0">
+                    <HeartPulse className="w-6 h-6 text-amber-600" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-bold text-slate-900">{referral.patientName}</span>
+                      <span className="px-2 py-0.5 bg-amber-200/50 text-amber-800 text-[10px] font-bold rounded-md">ASHA Field Alert</span>
+                    </div>
+                    <p className="text-xs text-amber-900 font-medium mt-0.5">{referral.reason} (Referred by {referral.ashaName})</p>
+                  </div>
                 </div>
+                <button
+                  onClick={() => onNavigateTab("asha-inbox")}
+                  className="px-4 py-2 bg-white text-amber-700 border border-amber-200 hover:bg-amber-100 rounded-xl text-xs font-bold transition-colors whitespace-nowrap self-stretch sm:self-auto"
+                >
+                  Review Alert
+                </button>
               </div>
             ))}
           </div>
         </div>
+      )}
 
-        {/* Right Column: ASHA Field Referrals & Rapid Transfer */}
-        <div className="lg:col-span-5 flex flex-col gap-6">
-          {/* ASHA Inbox Summary */}
-          <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-3">
-              <div>
-                <h3 className="text-base font-extrabold text-slate-900">ASHA Referral Inbox</h3>
-                <p className="text-xs text-slate-500">Transfers sent by village health workers</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => onNavigateTab("asha-inbox")}
-                className="text-xs font-bold text-teal-700 hover:text-teal-800 flex items-center gap-1"
-              >
-                <span>All ({pendingAsha.length})</span>
-                <ChevronRight className="w-3.5 h-3.5" />
-              </button>
-            </div>
+      {/* Main Table Area: Live OPD Queue */}
+      <div className="bg-white rounded-3xl overflow-hidden pt-2 flex flex-col flex-1 min-h-0 shadow-[0_2px_10px_rgb(0,0,0,0.02)]">
+        {/* Toolbar */}
+        <div className="p-4 sm:p-6 flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-100">
+          <div>
+            <h3 className="text-lg font-black text-slate-900">Live OPD Queue</h3>
+            <p className="text-xs font-medium text-slate-500 mt-0.5">{waitingPatients.length} patients currently waiting</p>
+          </div>
+          <button
+            onClick={() => onNavigateTab("queue")}
+            className="flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-slate-900 transition-colors"
+          >
+            <span>View Full Queue Details</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
 
-            <div className="flex flex-col gap-2.5">
-              {pendingAsha.length === 0 ? (
-                <p className="text-xs text-slate-500 text-center py-4">No pending ASHA referrals</p>
+        {/* Table */}
+        <div className="overflow-x-auto overflow-y-auto flex-1 px-2 sm:px-6 pb-6">
+          <table className="w-full text-left border-collapse whitespace-nowrap">
+            <thead>
+              <tr className="border-b border-slate-100 text-slate-400 text-xs font-bold capitalize">
+                <th className="px-6 py-4 w-10">Token</th>
+                <th className="px-6 py-4">Patient</th>
+                <th className="px-6 py-4">Visit Reason</th>
+                <th className="px-6 py-4">Wait Time</th>
+                <th className="px-6 py-4 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {waitingPatients.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="px-6 py-12 text-center text-slate-500 text-sm">
+                    No patients waiting in queue.
+                  </td>
+                </tr>
               ) : (
-                pendingAsha.map((ref) => (
-                  <div
-                    key={ref.id}
-                    className="p-3 rounded-xl border border-amber-200 bg-amber-50/40 flex flex-col gap-1.5"
+                waitingPatients.map((patient) => (
+                  <tr
+                    key={patient.id}
+                    className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors group"
                   >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-xs font-bold text-slate-900">
-                        {ref.patientName} ({ref.age}y, {ref.sex})
+                    <td className="px-6 py-4">
+                      <span className="text-slate-700 font-black text-sm bg-slate-100 px-2 py-1 rounded-lg">
+                        {patient.token}
                       </span>
-                      <UrgencyBadge priority={ref.urgency} size="sm" />
-                    </div>
-                    <p className="text-xs text-slate-600 line-clamp-2">
-                      <strong>ASHA:</strong> {ref.ashaName} ({ref.subCentre}) — {ref.referralReason}
-                    </p>
-                    <div className="flex items-center justify-between pt-1 border-t border-amber-100 text-[11px] text-slate-500">
-                      <span>BP: {ref.vitals?.bp} · SpO2: {ref.vitals?.spo2}%</span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex flex-col">
+                        <span className="font-bold text-slate-900 text-sm flex items-center gap-2">
+                          {patient.name}
+                          {patient.triagePriority === "URGENT" && (
+                            <UrgencyBadge priority="URGENT" />
+                          )}
+                        </span>
+                        <span className="text-xs text-slate-500 mt-0.5">
+                          {patient.age} yrs · {patient.sex} · ABHA: {patient.abhaId}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="text-xs font-bold text-slate-700 truncate max-w-[250px] inline-block">
+                        {patient.visitReason}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-1.5 text-xs font-bold text-amber-600">
+                        <Clock className="w-3.5 h-3.5" />
+                        <span>{patient.waitTimeMinutes} mins</span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 text-right">
                       <button
                         type="button"
-                        onClick={() => onNavigateTab("asha-inbox")}
-                        className="text-teal-700 font-bold hover:underline"
+                        onClick={() => onOpenConsultation(patient.id)}
+                        className="px-4 py-2 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 font-bold text-xs rounded-xl transition-colors inline-flex items-center gap-1.5"
                       >
-                        Review & Accept →
+                        <Stethoscope className="w-3.5 h-3.5" />
+                        <span>Examine</span>
                       </button>
-                    </div>
-                  </div>
+                    </td>
+                  </tr>
                 ))
               )}
-            </div>
-          </div>
-
-          {/* Quick Actions Card */}
-          <div className="bg-gradient-to-br from-teal-800 to-slate-900 text-white rounded-2xl p-5 shadow-sm">
-            <h4 className="text-sm font-black tracking-wide uppercase text-teal-300 mb-1">
-              Quick Operations
-            </h4>
-            <p className="text-xs text-slate-300 mb-4 leading-relaxed">
-              Fast actions for patient dispatch, emergency referral to District Hospital, and supply indents.
-            </p>
-
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => onOpenReferralModal()}
-                className="p-2.5 bg-white/10 hover:bg-white/20 border border-white/15 rounded-xl text-left transition-colors"
-              >
-                <div className="text-xs font-bold text-white flex items-center gap-1.5">
-                  <Ambulance className="w-4 h-4 text-amber-300" />
-                  <span>Refer to DH</span>
-                </div>
-                <div className="text-[10px] text-slate-300 mt-0.5">108 Emergency dispatch</div>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => onNavigateTab("inventory")}
-                className="p-2.5 bg-white/10 hover:bg-white/20 border border-white/15 rounded-xl text-left transition-colors"
-              >
-                <div className="text-xs font-bold text-white flex items-center gap-1.5">
-                  <Pill className="w-4 h-4 text-emerald-300" />
-                  <span>Drug Indent</span>
-                </div>
-                <div className="text-[10px] text-slate-300 mt-0.5">Request low stock</div>
-              </button>
-            </div>
-          </div>
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
