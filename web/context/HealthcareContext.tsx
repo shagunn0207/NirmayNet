@@ -86,9 +86,10 @@ interface HealthcareContextType {
   authToken: string | null;
   login: (userData: any, token: string) => void;
   logout: () => void;
-  updateProfile: (updates: Partial<UserOut>) => Promise<void>;
+  updateProfile: (updates: Partial<UserAccount>) => Promise<void>;
 
   patients: PatientRecord[];
+  addPatient: (patientData: Omit<PatientRecord, "id">) => PatientRecord;
   selectedPatient: PatientRecord | null;
   setSelectedPatient: (patient: PatientRecord | null) => void;
   updatePatientConsultation: (
@@ -202,7 +203,7 @@ export const HealthcareProvider: React.FC<{ children: React.ReactNode }> = ({
     if (typeof window !== 'undefined') window.location.href = '/';
   };
 
-  const updateProfile = async (updates: Partial<UserOut>) => {
+  const updateProfile = async (updates: Partial<UserAccount>) => {
     if (!authToken || !currentUser) throw new Error("Not authenticated");
 
     try {
@@ -231,8 +232,19 @@ export const HealthcareProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const [patients, setPatients] = useState<PatientRecord[]>(INITIAL_PATIENTS);
   const [selectedPatient, setSelectedPatient] = useState<PatientRecord | null>(
-    INITIAL_PATIENTS[0]
+    null
   );
+
+  const addPatient = (patientData: Omit<PatientRecord, "id">) => {
+    const newPatient: PatientRecord = {
+      ...patientData,
+      id: `P-${patients.length + 101}`, // Mock ID generation
+    };
+    setPatients((prev) => [newPatient, ...prev]);
+    showToast("Registration Complete", `${newPatient.name} has been registered successfully.`, "success");
+    return newPatient;
+  };
+
   const [ashaReferrals, setAshaReferrals] =
     useState<AshaReferral[]>(INITIAL_ASHA_REFERRALS);
   const [hospitalReferrals, setHospitalReferrals] = useState<
@@ -805,6 +817,7 @@ export const HealthcareProvider: React.FC<{ children: React.ReactNode }> = ({
         logout,
         updateProfile,
         patients,
+        addPatient,
         selectedPatient,
         setSelectedPatient,
         updatePatientConsultation,

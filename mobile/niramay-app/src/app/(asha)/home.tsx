@@ -1,789 +1,1026 @@
-import React, { useState, useCallback, useEffect } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, TextInput, Modal, KeyboardAvoidingView, Platform } from 'react-native';
+import React, { useState, useCallback } from 'react';
+import {
+  View, Text, ScrollView, TouchableOpacity, StyleSheet,
+  ActivityIndicator, RefreshControl, TextInput, Modal, Alert
+} from 'react-native';
 import { useAuth } from '../../store/AuthContext';
-import { FontAwesome5, Ionicons, MaterialIcons } from '@expo/vector-icons';
+import { FontAwesome5 } from '@expo/vector-icons';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { BACKEND_URL } from '../../lib/apiClient';
 
-// Dummy data for UX porting
-const DUMMY_TASKS = [
-  { id: '1', title: 'Check on Radha', visited: false, urgency: 'URGENT', category: 'General' },
-  { id: '2', title: 'ANC Follow-up', visited: false, urgency: 'ROUTINE', category: 'ANC' },
-  { id: '3', title: 'Vaccination Camp', visited: true, urgency: 'ROUTINE', category: 'General' },
-];
+interface TaskItem {
+  id: string;
+  title: string;
+  category: string;
+  urgency: 'URGENT' | 'ROUTINE' | 'EMERGENCY';
+  visited: boolean;
+  time?: string;
+}
 
-export default function HomeScreen() {
-  const { t, user, session } = useAuth();
+export default function AshaHomeScreen() {
+  const { user, session } = useAuth();
   const router = useRouter();
 
-  const [tasks, setTasks] = useState(DUMMY_TASKS);
-  const [reminderFilter, setReminderFilter] = useState<'today' | 'scheduled' | 'all' | 'completed'>('today');
-  const [showFilterModal, setShowFilterModal] = useState(false);
-  const [isAddingTask, setIsAddingTask] = useState(false);
-  const [newTaskTitle, setNewTaskTitle] = useState('');
-  const [isNewTaskUrgent, setIsNewTaskUrgent] = useState(false);
-  const [networkStatus, setNetworkStatus] = useState('offline');
+  const [tasks, setTasks] = useState<TaskItem[]>([]);
+  const [refreshing, setRefreshing] = useState(false);
+  const [urgentCount, setUrgentCount] = useState(2);
 
-  // On native platforms use the router's focus effect; on web fallback to useEffect
-  if (Platform.OS === 'web') {
-    useEffect(() => {
-      fetchTasks();
-      // No realtime channels for backend; poll/refresh on focus
-    }, [user, session]);
-  } else {
-    useFocusEffect(
-      useCallback(() => {
-        fetchTasks();
-        // No realtime channels for backend; poll/refresh on focus
-      }, [user, session])
-    );
-  }
+  // Modal States
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [selectedTask, setSelectedTask] = useState<TaskItem | null>(null);
 
+  // Form States (Add/Edit)
+  const [taskTitle, setTaskTitle] = useState('');
+  const [taskUrgency, setTaskUrgency] = useState<'URGENT' | 'ROUTINE'>('ROUTINE');
+  const [taskTime, setTaskTime] = useState('Today • 2:00 PM');
+  const [actionLoading, setActionLoading] = useState(false);
+
+  // ── Fetch Reminders from Backend ───────────────────────────────────────────
   const fetchTasks = async () => {
-    if (!user) return;
-    setNetworkStatus('syncing');
     try {
-      // Fetch tasks from backend API
       const token = session?.access_token;
-      const headers: any = { 'Content-Type': 'application/json' };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
+      if (!token) return;
 
-      const res = await fetch(`${BACKEND_URL}/api/v1/tasks/`, { headers });
-      if (!res.ok) throw new Error('Failed to fetch tasks');
-      const data = await res.json();
-      // Map backend TaskOut to local shape
-      const backendTasks = Array.isArray(data) ? data.map((t: any) => ({
-        id: t.id,
-        title: t.title,
-        visited: Boolean(t.visited),
-        urgency: t.urgency || 'ROUTINE',
-        category: t.category || 'General',
-      })) : [];
+      const res = await fetch(`${BACKEND_URL}/api/v1/tasks/`, {
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+      });
 
-      setTasks([...DUMMY_TASKS, ...backendTasks]);
-      setNetworkStatus('synced');
-    } catch (e) {
-      console.warn('fetchTasks error', e);
-      setNetworkStatus('offline');
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          const apiTasks: TaskItem[] = data.map((t: any) => ({
+            id: String(t.id),
+            title: t.title || 'Reminder',
+            category: t.category || 'Today',
+            urgency: (t.urgency === 'URGENT' ? 'URGENT' : 'ROUTINE') as 'URGENT' | 'ROUTINE',
+            visited: Boolean(t.visited),
+            time: t.category || 'Today',
+          }));
+
+          setTasks(apiTasks);
+          const count = apiTasks.filter(t => t.urgency === 'URGENT' && !t.visited).length;
+          if (count > 0) {
+            setUrgentCount(count);
+          }
+        }
+      }
+    } catch {
+      // Keep state on network issue
     }
   };
 
-  const filteredReminders = tasks.filter(task => {
-    if (reminderFilter === 'completed') return task.visited;
-    if (reminderFilter === 'today') return !task.visited && (task.urgency === 'EMERGENCY' || task.title.toLowerCase().includes('anc') || !task.category);
-    if (reminderFilter === 'scheduled') return !task.visited && task.urgency === 'URGENT';
-    return true; // 'all'
-  });
+  useFocusEffect(
+    useCallback(() => {
+      fetchTasks();
+    }, [session?.access_token])
+  );
 
-  const handleCreateTask = () => {
-    if (!newTaskTitle.trim()) return;
-    (async () => {
-      const token = session?.access_token;
-      const headers: any = { 'Content-Type': 'application/json' };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await fetchTasks();
+    setRefreshing(false);
+  };
 
+  // ── Mark Complete / Incomplete ─────────────────────────────────────────────
+  const toggleTask = async (id: string, currentVisited: boolean) => {
+    const nextVisited = !currentVisited;
+
+    // Optimistic UI update
+    setTasks(prev =>
+      prev.map(t => (t.id === id ? { ...t, visited: nextVisited } : t))
+    );
+
+    const token = session?.access_token;
+    if (token) {
       try {
-        const res = await fetch(`${BACKEND_URL}/api/v1/tasks/`, {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({ title: newTaskTitle.trim(), category: 'General', urgency: isNewTaskUrgent ? 'URGENT' : 'ROUTINE' }),
+        const res = await fetch(`${BACKEND_URL}/api/v1/tasks/${id}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ visited: nextVisited }),
         });
-        if (res.ok) {
-          const created = await res.json();
-          setTasks(prev => [{
-            id: created.id,
-            title: created.title,
-            visited: Boolean(created.visited),
-            urgency: created.urgency || 'ROUTINE',
-            category: created.category || 'General',
-          }, ...prev]);
-        } else {
-          // fallback to local-only
-          setTasks(prev => [{ id: Date.now().toString(), title: newTaskTitle, visited: false, urgency: isNewTaskUrgent ? 'URGENT' : 'ROUTINE', category: 'General' }, ...prev]);
+        if (!res.ok) {
+          // Revert on failure
+          setTasks(prev =>
+            prev.map(t => (t.id === id ? { ...t, visited: currentVisited } : t))
+          );
         }
-      } catch (err) {
-        setTasks(prev => [{ id: Date.now().toString(), title: newTaskTitle, visited: false, urgency: isNewTaskUrgent ? 'URGENT' : 'ROUTINE', category: 'General' }, ...prev]);
-      } finally {
-        setNewTaskTitle('');
-        setIsNewTaskUrgent(false);
-        setIsAddingTask(false);
+      } catch {
+        // Revert on failure
+        setTasks(prev =>
+          prev.map(t => (t.id === id ? { ...t, visited: currentVisited } : t))
+        );
       }
-    })();
+    }
   };
 
-  const toggleTask = (id: string) => {
-    setTasks(prev => prev.map(t => t.id === id ? { ...t, visited: !t.visited } : t));
-    (async () => {
-      const token = session?.access_token;
-      const headers: any = { 'Content-Type': 'application/json' };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
+  // ── Create Reminder (POST /api/v1/tasks/) ──────────────────────────────────
+  const handleCreateTask = async () => {
+    if (!taskTitle.trim()) {
+      Alert.alert('Required', 'Please enter a reminder title.');
+      return;
+    }
 
-      // Only patch backend if this looks like a backend task id
-      if (typeof id === 'string' && id.length > 8) {
-        try {
-          await fetch(`${BACKEND_URL}/api/v1/tasks/${id}`, {
-            method: 'PATCH',
-            headers,
-            body: JSON.stringify({ visited: true }),
-          });
-        } catch (err) {
-          console.warn('toggleTask patch failed', err);
-        }
+    const token = session?.access_token;
+    if (!token) {
+      Alert.alert('Error', 'Authentication required.');
+      return;
+    }
+
+    setActionLoading(true);
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/v1/tasks/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          title: taskTitle.trim(),
+          category: taskTime.trim() || 'Today',
+          urgency: taskUrgency,
+        }),
+      });
+
+      if (res.ok) {
+        const created = await res.json();
+        const newTask: TaskItem = {
+          id: String(created.id),
+          title: created.title,
+          category: created.category,
+          urgency: created.urgency === 'URGENT' ? 'URGENT' : 'ROUTINE',
+          visited: Boolean(created.visited),
+          time: created.category || 'Today',
+        };
+        setTasks(prev => [newTask, ...prev]);
+        setShowAddModal(false);
+        setTaskTitle('');
+        setTaskUrgency('ROUTINE');
+        setTaskTime('Today • 2:00 PM');
+      } else {
+        const err = await res.json().catch(() => ({}));
+        Alert.alert('Error', err.detail || 'Failed to create reminder.');
       }
-    })();
+    } catch {
+      Alert.alert('Error', 'Network error. Please try again.');
+    } finally {
+      setActionLoading(false);
+    }
   };
 
-  const toggleTaskUrgent = (id: string) => {
-    setTasks(prev => prev.map(t => t.id === id ? { ...t, urgency: t.urgency === 'URGENT' ? 'ROUTINE' : 'URGENT' } : t));
-    (async () => {
-      const token = session?.access_token;
-      const headers: any = { 'Content-Type': 'application/json' };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-      if (typeof id === 'string' && id.length > 8) {
-        try {
-          // toggle urgency server-side
-          const task = tasks.find(t => t.id === id);
-          const next = task?.urgency === 'URGENT' ? 'ROUTINE' : 'URGENT';
-          await fetch(`${BACKEND_URL}/api/v1/tasks/${id}`, {
-            method: 'PATCH', headers, body: JSON.stringify({ urgency: next }),
-          });
-        } catch (err) {
-          console.warn('toggleTaskUrgent patch failed', err);
-        }
+  // ── Edit Reminder (PATCH /api/v1/tasks/{id}) ───────────────────────────────
+  const handleUpdateTask = async () => {
+    if (!selectedTask || !taskTitle.trim()) return;
+
+    const token = session?.access_token;
+    if (!token) {
+      Alert.alert('Error', 'Authentication required.');
+      return;
+    }
+
+    setActionLoading(true);
+    try {
+      const dueDateTime = taskTime.trim() || 'Today';
+
+      const res = await fetch(`${BACKEND_URL}/api/v1/tasks/${selectedTask.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          title: taskTitle.trim(),
+          category: dueDateTime,
+          urgency: taskUrgency,
+        }),
+      });
+
+      if (res.ok) {
+        const updated = await res.json();
+        setTasks(prev =>
+          prev.map(t =>
+            t.id === selectedTask.id
+              ? {
+                  ...t,
+                  title: updated.title,
+                  category: updated.category,
+                  urgency: updated.urgency === 'URGENT' ? 'URGENT' : 'ROUTINE',
+                  time: updated.category,
+                }
+              : t
+          )
+        );
+        setShowEditModal(false);
+        setSelectedTask(null);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        Alert.alert('Error', err.detail || 'Failed to update reminder.');
       }
-    })();
+    } catch {
+      Alert.alert('Error', 'Network error. Please try again.');
+    } finally {
+      setActionLoading(false);
+    }
   };
 
-  const deleteTaskItem = (id: string) => {
-    setTasks(prev => prev.filter(t => t.id !== id));
-    (async () => {
-      const token = session?.access_token;
-      const headers: any = { 'Content-Type': 'application/json' };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-      if (typeof id === 'string' && id.length > 8) {
-        try {
-          await fetch(`${BACKEND_URL}/api/v1/tasks/${id}`, { method: 'DELETE', headers });
-        } catch (err) {
-          console.warn('deleteTaskItem failed', err);
-        }
+  // ── Delete Reminder (DELETE /api/v1/tasks/{id}) ────────────────────────────
+  const handleDeleteTask = async () => {
+    if (!selectedTask) return;
+
+    const token = session?.access_token;
+    if (!token) {
+      Alert.alert('Error', 'Authentication required.');
+      return;
+    }
+
+    setActionLoading(true);
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/v1/tasks/${selectedTask.id}`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (res.status === 204 || res.ok) {
+        setTasks(prev => prev.filter(t => t.id !== selectedTask.id));
+        setShowEditModal(false);
+        setSelectedTask(null);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        Alert.alert('Error', err.detail || 'Failed to delete reminder.');
       }
-    })();
+    } catch {
+      Alert.alert('Error', 'Network error. Please try again.');
+    } finally {
+      setActionLoading(false);
+    }
   };
 
-  const urgentReminders = tasks.filter(t => !t.visited && (t.urgency === 'URGENT' || t.urgency === 'EMERGENCY'));
+  // ── Open Edit Modal for a Task ─────────────────────────────────────────────
+  const openEditModal = (task: TaskItem) => {
+    setSelectedTask(task);
+    setTaskTitle(task.title);
+    setTaskUrgency(task.urgency === 'URGENT' ? 'URGENT' : 'ROUTINE');
+    setTaskTime(task.time || task.category || 'Today');
+    setShowEditModal(true);
+  };
+
+  const displayName = user?.name?.split(' ')[0] || 'ASHA';
 
   return (
-    <KeyboardAvoidingView 
-      style={{ flex: 1 }} 
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.content}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#059669']} />}
+      showsVerticalScrollIndicator={false}
     >
-      <ScrollView style={styles.container}>
-        {/* Welcome Banner */}
-      <View style={styles.banner}>
-        <View>
-          <Text style={styles.greetingPrefix}>{t('greeting') || 'Welcome,'}</Text>
-          <Text style={styles.greetingName}>{user?.email?.split('@')[0] || t('ashaWorkerName') || 'Asha Worker'}</Text>
+      {/* ── Top Header Bar ── */}
+      <View style={styles.headerBar}>
+        <View style={styles.headerLeft}>
+          <View style={styles.avatarMini}>
+            <FontAwesome5 name="user-nurse" size={18} color="#059669" />
+          </View>
+          <View style={{ marginLeft: 12 }}>
+            <Text style={styles.greetingSub}>Good Morning,</Text>
+            <Text style={styles.greetingName}>{displayName}!</Text>
+          </View>
         </View>
-        <View style={styles.avatar}>
-          <Text style={styles.avatarText}>👩‍⚕️</Text>
-        </View>
-      </View>
-
-      {/* Primary actions */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>{t('tasks') || 'Tasks'}</Text>
-        
-        <TouchableOpacity style={styles.actionCard} onPress={() => router.push('/(asha)/register' as any)}>
-          <View style={styles.actionIconBg}>
-            <FontAwesome5 name="user-plus" size={20} color="#0F766E" />
-          </View>
-          <View style={styles.actionTextContainer}>
-            <Text style={styles.actionLabel}>{t('newPatient') || 'New Patient'}</Text>
-            <Text style={styles.actionSubLabel}>{t('newPatientSub') || 'Register a new patient'}</Text>
-          </View>
-          <FontAwesome5 name="chevron-right" size={16} color="#94A3B8" />
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.actionCard} onPress={() => router.push('/(asha)/patients')}>
-          <View style={styles.actionIconBg}>
-            <FontAwesome5 name="users" size={20} color="#0F766E" />
-          </View>
-          <View style={styles.actionTextContainer}>
-            <Text style={styles.actionLabel}>{t('myPatients') || 'My Patients'}</Text>
-            <Text style={styles.actionSubLabel}>{t('registeredPatients') || 'Registered patients'}</Text>
-          </View>
-          <FontAwesome5 name="chevron-right" size={16} color="#94A3B8" />
-        </TouchableOpacity>
-
-        <TouchableOpacity style={[styles.actionCard, styles.emphasizedCard]} onPress={() => router.push('/(asha)/consultation' as any)}>
-          <View style={styles.emphasizedIconBg}>
-            <FontAwesome5 name="video" size={20} color="#FFFFFF" />
-          </View>
-          <View style={styles.actionTextContainer}>
-            <Text style={styles.actionLabel}>{t('startConsultation') || 'Start Consultation'}</Text>
-            <Text style={styles.actionSubLabel}>{t('startConsultationSub') || 'Video consultation with PHC'}</Text>
-          </View>
-          <FontAwesome5 name="chevron-right" size={16} color="#94A3B8" />
-        </TouchableOpacity>
-      </View>
-
-      {/* Reminders Layout Section */}
-      <View style={styles.section}>
-        <View style={styles.headerRow}>
-          <View style={styles.headerLeft}>
-            <Text style={styles.sectionTitle}>🔔 {t('reminders') || 'Reminders'}</Text>
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>{filteredReminders.length}</Text>
-            </View>
-          </View>
-          
-          <TouchableOpacity 
-            style={[styles.syncBtn, networkStatus === 'offline' && styles.offlineBtn]}
-            onPress={() => {
-              setNetworkStatus('syncing');
-              setTimeout(() => setNetworkStatus('synced'), 1500);
-            }}
-          >
-            <Text style={[styles.syncBtnText, networkStatus === 'offline' && styles.offlineBtnText]}>
-              {networkStatus === 'offline' ? '📶 ' + (t('syncWhenOnline') || 'Sync when online') : networkStatus === 'syncing' ? '🔄 Syncing…' : '☁️ ' + (t('syncNow') || 'Sync Now')}
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Dropdown Filter */}
-        <TouchableOpacity 
-          style={styles.dropdownButton} 
-          onPress={() => setShowFilterModal(true)}
+        <TouchableOpacity
+          style={styles.profileBtn}
+          onPress={() => router.push('/(asha)/profile')}
         >
-          <Text style={styles.dropdownButtonText}>
-            {reminderFilter === 'today' ? '📅 ' + (t('filterToday') || 'Today') :
-             reminderFilter === 'scheduled' ? '🗓️ ' + (t('filterScheduled') || 'Scheduled') :
-             reminderFilter === 'completed' ? '✅ ' + (t('filterCompleted') || 'Completed') :
-             '📋 ' + (t('filterAll') || 'All')}
-          </Text>
-          <FontAwesome5 name="chevron-down" size={12} color="#0F766E" />
+          <FontAwesome5 name="user-circle" size={28} color="#64748B" />
+        </TouchableOpacity>
+      </View>
+
+      {/* ── Urgent Referrals Card ── */}
+      <TouchableOpacity
+        style={styles.urgentBanner}
+        activeOpacity={0.85}
+        onPress={() => router.push('/(asha)/referral')}
+      >
+        <View style={styles.urgentIconCircle}>
+          <FontAwesome5 name="exclamation-triangle" size={18} color="#DC2626" />
+        </View>
+        <View style={styles.urgentTextGroup}>
+          <Text style={styles.urgentTitle}>{urgentCount} Urgent Referrals</Text>
+          <Text style={styles.urgentSub}>Require attention</Text>
+        </View>
+        <FontAwesome5 name="chevron-right" size={14} color="#DC2626" />
+      </TouchableOpacity>
+
+      {/* ── 2x2 Quick Action Cards ── */}
+      <View style={styles.actionGrid}>
+        {/* Card 1: New Patient */}
+        <TouchableOpacity
+          style={[styles.actionCard, styles.actionCardGreen]}
+          activeOpacity={0.85}
+          onPress={() => router.push('/(asha)/register')}
+        >
+          <View style={[styles.actionIconBadge, { backgroundColor: '#D1FAE5' }]}>
+            <FontAwesome5 name="user-plus" size={20} color="#059669" />
+          </View>
+          <Text style={styles.actionCardTitle}>New Patient</Text>
         </TouchableOpacity>
 
-        <Modal visible={showFilterModal} transparent animationType="fade">
-          <TouchableOpacity style={styles.modalOverlay} onPress={() => setShowFilterModal(false)}>
-            <View style={styles.modalContent}>
-              {[
-                { key: 'today', icon: '📅', label: t('filterToday') || 'Today', count: tasks.filter(t => !t.visited && (t.urgency === 'EMERGENCY' || t.title.toLowerCase().includes('anc') || !t.category)).length },
-                { key: 'scheduled', icon: '🗓️', label: t('filterScheduled') || 'Scheduled', count: tasks.filter(t => !t.visited && t.id !== 'T1').length },
-                { key: 'all', icon: '📋', label: t('filterAll') || 'All', count: tasks.length },
-                { key: 'completed', icon: '✅', label: t('filterCompleted') || 'Completed', count: tasks.filter(t => t.visited).length },
-              ].map(b => (
-                <TouchableOpacity
-                  key={b.key}
-                  style={[styles.dropdownItem, reminderFilter === b.key && styles.dropdownItemActive]}
-                  onPress={() => { setReminderFilter(b.key as any); setShowFilterModal(false); }}
-                >
-                  <Text style={[styles.dropdownItemText, reminderFilter === b.key && styles.dropdownItemTextActive]}>
-                    {b.icon} {b.label}
-                  </Text>
-                  <View style={styles.dropdownBadge}>
-                    <Text style={styles.dropdownBadgeText}>{b.count}</Text>
-                  </View>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </TouchableOpacity>
-        </Modal>
+        {/* Card 2: My Patients */}
+        <TouchableOpacity
+          style={[styles.actionCard, styles.actionCardBlue]}
+          activeOpacity={0.85}
+          onPress={() => router.push('/(asha)/patients')}
+        >
+          <View style={[styles.actionIconBadge, { backgroundColor: '#DBEAFE' }]}>
+            <FontAwesome5 name="users" size={20} color="#2563EB" />
+          </View>
+          <Text style={styles.actionCardTitle}>My Patients</Text>
+        </TouchableOpacity>
 
-        {/* Reminders List Card */}
-        <View style={styles.card}>
-          {filteredReminders.length === 0 ? (
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyIcon}>🔔</Text>
-              <Text style={styles.emptyText}>
-                {reminderFilter === 'completed' ? 'No completed reminders yet' : 'No reminders in this list'}
-              </Text>
-            </View>
-          ) : (
-            filteredReminders.map(task => {
-              const isUrgent = task.urgency === 'URGENT' || task.urgency === 'EMERGENCY';
-              return (
-                <View
-                  key={task.id}
-                  style={[
-                    styles.taskItem,
-                    task.visited ? styles.taskItemCompleted : isUrgent ? styles.taskItemUrgent : null
-                  ]}
-                >
-                  <View style={styles.taskLeft}>
-                    <TouchableOpacity onPress={() => toggleTask(task.id)}>
-                      <Ionicons 
-                        name={task.visited ? "checkbox" : "square-outline"} 
-                        size={24} 
-                        color={task.visited ? "#94A3B8" : "#0F766E"} 
-                      />
-                    </TouchableOpacity>
-                    <View style={styles.taskTextContainer}>
-                      <Text style={[
-                        styles.taskTitle,
-                        task.visited ? styles.taskTitleCompleted : isUrgent ? styles.taskTitleUrgent : null
-                      ]} numberOfLines={1}>
-                        {task.title}
-                      </Text>
-                      {task.category && (
-                        <View style={[styles.taskCategory, isUrgent && styles.taskCategoryUrgent]}>
-                          <Text style={[styles.taskCategoryText, isUrgent && styles.taskCategoryTextUrgent]}>
-                            {task.category}
-                          </Text>
-                        </View>
-                      )}
-                    </View>
-                  </View>
+        {/* Card 3: Follow-ups */}
+        <TouchableOpacity
+          style={[styles.actionCard, styles.actionCardOrange]}
+          activeOpacity={0.85}
+          onPress={() => router.push('/(asha)/followup')}
+        >
+          <View style={[styles.actionIconBadge, { backgroundColor: '#FFEDD5' }]}>
+            <FontAwesome5 name="calendar-check" size={20} color="#EA580C" />
+          </View>
+          <Text style={styles.actionCardTitle}>Follow-ups</Text>
+        </TouchableOpacity>
 
-                  <View style={styles.taskRight}>
-                    <TouchableOpacity 
-                      style={[styles.urgentToggle, isUrgent && styles.urgentToggleActive]}
-                      onPress={() => toggleTaskUrgent(task.id)}
-                    >
-                      <Text style={[styles.urgentToggleText, isUrgent && styles.urgentToggleTextActive]}>
-                        {isUrgent ? '🔴 Urgent' : '⚪ Normal'}
-                      </Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity onPress={() => deleteTaskItem(task.id)}>
-                      <FontAwesome5 name="trash" size={14} color="#DC2626" />
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              );
-            })
-          )}
+        {/* Card 4: Referrals */}
+        <TouchableOpacity
+          style={[styles.actionCard, styles.actionCardPurple]}
+          activeOpacity={0.85}
+          onPress={() => router.push('/(asha)/referral')}
+        >
+          <View style={[styles.actionIconBadge, { backgroundColor: '#F3E8FF' }]}>
+            <FontAwesome5 name="file-medical-alt" size={20} color="#9333EA" />
+          </View>
+          <Text style={styles.actionCardTitle}>Referrals</Text>
+        </TouchableOpacity>
+      </View>
 
-          {/* Add Reminder Form */}
-          {isAddingTask ? (
-            <View style={styles.addTaskForm}>
-              <TextInput
-                style={styles.taskInput}
-                placeholder={t('typeReminderPlaceholder') || 'Type new reminder...'}
-                value={newTaskTitle}
-                onChangeText={setNewTaskTitle}
-                autoFocus
-              />
-              <View style={styles.addTaskActions}>
-                <TouchableOpacity
-                  style={[styles.urgentToggle, isNewTaskUrgent && styles.urgentToggleActive]}
-                  onPress={() => setIsNewTaskUrgent(u => !u)}
-                >
-                  <Text style={[styles.urgentToggleText, isNewTaskUrgent && styles.urgentToggleTextActive]}>
-                    {isNewTaskUrgent ? '🔴 Urgent / Important' : '⚪ Mark Urgent'}
-                  </Text>
-                </TouchableOpacity>
-                <View style={styles.row}>
-                  <TouchableOpacity style={styles.btnOutline} onPress={() => { setIsAddingTask(false); setIsNewTaskUrgent(false); }}>
-                    <Text style={styles.btnOutlineText}>{t('cancel') || 'Cancel'}</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={styles.btnPrimary} onPress={handleCreateTask}>
-                    <Text style={styles.btnPrimaryText}>{t('save') || 'Save'}</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </View>
-          ) : (
-            <TouchableOpacity style={styles.addReminderBtn} onPress={() => setIsAddingTask(true)}>
-              <FontAwesome5 name="plus" size={14} color="#0F766E" />
-              <Text style={styles.addReminderText}>{t('addReminder') || 'Add Reminder'}</Text>
+      {/* ── Today's Tasks Section ── */}
+      <View style={styles.sectionContainer}>
+        <View style={styles.sectionHeaderRow}>
+          <Text style={styles.sectionTitle}>Today's Tasks</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <Text style={styles.taskCounter}>{tasks.filter(t => !t.visited).length} remaining</Text>
+            <TouchableOpacity
+              style={styles.addTaskBtn}
+              onPress={() => {
+                setTaskTitle('');
+                setTaskUrgency('ROUTINE');
+                setTaskTime('Today • 2:00 PM');
+                setShowAddModal(true);
+              }}
+            >
+              <FontAwesome5 name="plus" size={11} color="#059669" />
+              <Text style={styles.addTaskBtnText}>Add</Text>
             </TouchableOpacity>
+          </View>
+        </View>
+
+        <View style={styles.taskList}>
+          {tasks.length === 0 ? (
+            <View style={styles.emptyTasksCard}>
+              <View style={styles.emptyTasksIconCircle}>
+                <FontAwesome5 name="clipboard-check" size={18} color="#059669" />
+              </View>
+              <Text style={styles.emptyTasksTitle}>No Reminders</Text>
+              <Text style={styles.emptyTasksSubtitle}>You have no pending tasks. Tap + Add to schedule one.</Text>
+            </View>
+          ) : (
+            tasks.map((task) => (
+              <View
+                key={task.id}
+                style={[styles.taskCard, task.visited && styles.taskCardCompleted]}
+              >
+                {/* Tapping task body opens Edit Modal */}
+                <TouchableOpacity
+                  style={styles.taskLeftGroup}
+                  activeOpacity={0.7}
+                  onPress={() => openEditModal(task)}
+                >
+                  <View
+                    style={[
+                      styles.taskIconBadge,
+                      task.urgency === 'URGENT' ? styles.badgeRed : styles.badgeBlue,
+                      task.visited && styles.badgeGrey,
+                    ]}
+                  >
+                    <FontAwesome5
+                      name={
+                        task.urgency === 'URGENT'
+                          ? 'exclamation-circle'
+                          : 'calendar-alt'
+                      }
+                      size={14}
+                      color={
+                        task.visited
+                          ? '#94A3B8'
+                          : task.urgency === 'URGENT'
+                          ? '#DC2626'
+                          : '#2563EB'
+                      }
+                    />
+                  </View>
+                  <View style={{ flex: 1, marginRight: 8 }}>
+                    <Text
+                      style={[styles.taskTitle, task.visited && styles.taskTitleCompleted]}
+                      numberOfLines={1}
+                    >
+                      {task.title}
+                    </Text>
+                    {task.time && (
+                      <Text style={styles.taskTime}>{task.time}</Text>
+                    )}
+                  </View>
+                </TouchableOpacity>
+
+                {/* Tapping Circle toggles Complete / Incomplete */}
+                <TouchableOpacity
+                  accessibilityLabel="Toggle Complete"
+                  style={[styles.checkCircle, task.visited && styles.checkCircleActive]}
+                  activeOpacity={0.8}
+                  onPress={() => toggleTask(task.id, task.visited)}
+                >
+                  {task.visited && <FontAwesome5 name="check" size={10} color="#FFFFFF" />}
+                </TouchableOpacity>
+              </View>
+            ))
           )}
         </View>
       </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+
+      {/* ───────────────────────────────────────────────────────────────────────
+          ADD REMINDER MODAL
+      ──────────────────────────────────────────────────────────────────────── */}
+      <Modal visible={showAddModal} transparent animationType="fade">
+        <View style={styles.modalBg}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>New Reminder</Text>
+              <TouchableOpacity onPress={() => setShowAddModal(false)}>
+                <FontAwesome5 name="times" size={16} color="#64748B" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Title */}
+            <Text style={styles.modalLabel}>Reminder Title *</Text>
+            <TextInput
+              style={styles.modalInput}
+              placeholder="e.g. Visit Meena Bai for BP check"
+              placeholderTextColor="#94A3B8"
+              value={taskTitle}
+              onChangeText={setTaskTitle}
+            />
+
+            {/* Priority */}
+            <Text style={styles.modalLabel}>Priority</Text>
+            <View style={styles.prioritySelector}>
+              <TouchableOpacity
+                accessibilityLabel="Priority Normal"
+                style={[styles.priorityOpt, taskUrgency === 'ROUTINE' && styles.priorityOptActiveNormal]}
+                onPress={() => setTaskUrgency('ROUTINE')}
+              >
+                <Text style={[styles.priorityOptText, taskUrgency === 'ROUTINE' && styles.priorityOptTextActive]}>
+                  Normal
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                accessibilityLabel="Priority Urgent"
+                style={[styles.priorityOpt, taskUrgency === 'URGENT' && styles.priorityOptActiveUrgent]}
+                onPress={() => setTaskUrgency('URGENT')}
+              >
+                <Text style={[styles.priorityOptText, taskUrgency === 'URGENT' && styles.priorityOptTextActive]}>
+                  Urgent
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Due Date/Time */}
+            <Text style={styles.modalLabel}>Due Date / Time</Text>
+            <TextInput
+              style={styles.modalInput}
+              placeholder="e.g. Today • 2:00 PM"
+              placeholderTextColor="#94A3B8"
+              value={taskTime}
+              onChangeText={setTaskTime}
+            />
+
+            {/* Submit Button */}
+            <TouchableOpacity
+              accessibilityLabel="Create Reminder Button"
+              style={styles.modalPrimaryBtn}
+              activeOpacity={0.85}
+              onPress={handleCreateTask}
+              disabled={actionLoading}
+            >
+              {actionLoading ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <Text style={styles.modalPrimaryBtnText}>Create Reminder</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ───────────────────────────────────────────────────────────────────────
+          EDIT / DELETE REMINDER MODAL
+      ──────────────────────────────────────────────────────────────────────── */}
+      <Modal visible={showEditModal} transparent animationType="fade">
+        <View style={styles.modalBg}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Edit Reminder</Text>
+              <TouchableOpacity onPress={() => setShowEditModal(false)}>
+                <FontAwesome5 name="times" size={16} color="#64748B" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Title */}
+            <Text style={styles.modalLabel}>Reminder Title</Text>
+            <TextInput
+              style={styles.modalInput}
+              value={taskTitle}
+              onChangeText={setTaskTitle}
+            />
+
+            {/* Priority */}
+            <Text style={styles.modalLabel}>Priority</Text>
+            <View style={styles.prioritySelector}>
+              <TouchableOpacity
+                accessibilityLabel="Edit Priority Normal"
+                style={[styles.priorityOpt, taskUrgency === 'ROUTINE' && styles.priorityOptActiveNormal]}
+                onPress={() => setTaskUrgency('ROUTINE')}
+              >
+                <Text style={[styles.priorityOptText, taskUrgency === 'ROUTINE' && styles.priorityOptTextActive]}>
+                  Normal
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                accessibilityLabel="Edit Priority Urgent"
+                style={[styles.priorityOpt, taskUrgency === 'URGENT' && styles.priorityOptActiveUrgent]}
+                onPress={() => setTaskUrgency('URGENT')}
+              >
+                <Text style={[styles.priorityOptText, taskUrgency === 'URGENT' && styles.priorityOptTextActive]}>
+                  Urgent
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Due Date/Time */}
+            <Text style={styles.modalLabel}>Due Date / Time</Text>
+            <TextInput
+              style={styles.modalInput}
+              value={taskTime}
+              onChangeText={setTaskTime}
+            />
+
+            {/* Status Toggle in Modal */}
+            {selectedTask && (
+              <TouchableOpacity
+                style={styles.statusToggleBtn}
+                onPress={() => {
+                  toggleTask(selectedTask.id, selectedTask.visited);
+                  setSelectedTask(prev => prev ? { ...prev, visited: !prev.visited } : null);
+                }}
+              >
+                <FontAwesome5
+                  name={selectedTask.visited ? 'undo' : 'check'}
+                  size={13}
+                  color={selectedTask.visited ? '#D97706' : '#059669'}
+                  style={{ marginRight: 6 }}
+                />
+                <Text style={[styles.statusToggleText, { color: selectedTask.visited ? '#D97706' : '#059669' }]}>
+                  {selectedTask.visited ? 'Mark Incomplete' : 'Mark Completed'}
+                </Text>
+              </TouchableOpacity>
+            )}
+
+            {/* Save Button */}
+            <TouchableOpacity
+              accessibilityLabel="Save Changes Button"
+              style={styles.modalPrimaryBtn}
+              activeOpacity={0.85}
+              onPress={handleUpdateTask}
+              disabled={actionLoading}
+            >
+              {actionLoading ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <Text style={styles.modalPrimaryBtnText}>Save Changes</Text>
+              )}
+            </TouchableOpacity>
+
+            {/* Delete Button */}
+            <TouchableOpacity
+              accessibilityLabel="Delete Reminder Button"
+              style={styles.deleteBtn}
+              activeOpacity={0.85}
+              onPress={handleDeleteTask}
+              disabled={actionLoading}
+            >
+              <FontAwesome5 name="trash-alt" size={13} color="#DC2626" style={{ marginRight: 6 }} />
+              <Text style={styles.deleteBtnText}>Delete Reminder</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
-    padding: 16,
+    backgroundColor: '#FFFFFF',
   },
-  banner: {
-    backgroundColor: '#0F766E',
-    borderRadius: 18,
-    padding: 20,
+  content: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 28,
+  },
+  headerBar: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 20,
-    shadowColor: '#0F766E',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  greetingPrefix: {
-    color: '#CCFBF1',
-    fontSize: 12,
-    fontFamily: 'Inter_700Bold',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  greetingName: {
-    color: '#FFFFFF',
-    fontSize: 20,
-    fontFamily: 'Inter_800ExtraBold',
-    marginTop: 2,
-  },
-  avatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    borderWidth: 1.5,
-    borderColor: 'rgba(255,255,255,0.35)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarText: {
-    fontSize: 22,
-    fontFamily: 'OpenSans_400Regular',
-  },
-  section: {
-    marginBottom: 24,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontFamily: 'Inter_800ExtraBold',
-    color: '#0F172A',
-    marginBottom: 12,
-  },
-  headerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 16,
+    paddingVertical: 4,
   },
   headerLeft: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-  badge: {
-    backgroundColor: '#F0FDFA',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#CCFBF1',
-    marginLeft: 8,
-  },
-  badgeText: {
-    fontSize: 12,
-    fontFamily: 'Inter_800ExtraBold',
-    color: '#0F766E',
-  },
-  syncBtn: {
-    backgroundColor: '#EFF6FF',
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#BAE6FD',
-  },
-  syncBtnText: {
-    fontSize: 11,
-    fontFamily: 'Inter_800ExtraBold',
-    color: '#0369A1',
-  },
-  offlineBtn: {
-    backgroundColor: '#FEF3C7',
-    borderColor: '#FDE68A',
-  },
-  offlineBtnText: {
-    color: '#B45309',
-  },
-  dropdownButton: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  avatarMini: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#E6F4EA',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    marginBottom: 14,
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: '#A7F3D0',
   },
-  dropdownButtonText: {
-    fontSize: 15,
-    fontFamily: 'Inter_600SemiBold',
+  greetingSub: {
+    fontSize: 13,
+    fontFamily: 'Inter_500Medium',
+    color: '#64748B',
+  },
+  greetingName: {
+    fontSize: 18,
+    fontFamily: 'Inter_800ExtraBold',
     color: '#0F172A',
   },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
+  profileBtn: {
+    padding: 4,
+  },
+  urgentBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    marginBottom: 16,
+  },
+  urgentIconCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#FEE2E2',
+    alignItems: 'center',
     justifyContent: 'center',
+    marginRight: 12,
+  },
+  urgentTextGroup: {
+    flex: 1,
+  },
+  urgentTitle: {
+    fontSize: 15,
+    fontFamily: 'Inter_700Bold',
+    color: '#991B1B',
+  },
+  urgentSub: {
+    fontSize: 12,
+    fontFamily: 'Inter_500Medium',
+    color: '#DC2626',
+    marginTop: 2,
+  },
+  actionGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+    gap: 12,
+  },
+  actionCard: {
+    width: '48%',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 16,
+    padding: 16,
+    alignItems: 'flex-start',
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+  },
+  actionCardGreen: {
+    backgroundColor: '#F0FDF4',
+    borderColor: '#DCFCE7',
+  },
+  actionCardBlue: {
+    backgroundColor: '#EFF6FF',
+    borderColor: '#DBEAFE',
+  },
+  actionCardOrange: {
+    backgroundColor: '#FFF7ED',
+    borderColor: '#FFEDD5',
+  },
+  actionCardPurple: {
+    backgroundColor: '#FAF5FF',
+    borderColor: '#F3E8FF',
+  },
+  actionIconBadge: {
+    width: 42,
+    height: 42,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  actionCardTitle: {
+    fontSize: 14,
+    fontFamily: 'Inter_700Bold',
+    color: '#0F172A',
+  },
+  sectionContainer: {
+    marginTop: 4,
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  sectionTitle: {
+    fontSize: 17,
+    fontFamily: 'Inter_800ExtraBold',
+    color: '#0F172A',
+  },
+  taskCounter: {
+    fontSize: 12,
+    fontFamily: 'Inter_600SemiBold',
+    color: '#059669',
+    marginRight: 8,
+  },
+  addTaskBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#E6F4EA',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 12,
+  },
+  addTaskBtnText: {
+    fontSize: 12,
+    fontFamily: 'Inter_700Bold',
+    color: '#059669',
+    marginLeft: 4,
+  },
+  taskList: {
+    gap: 10,
+  },
+  taskCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 1,
+  },
+  taskCardCompleted: {
+    backgroundColor: '#F8FAFC',
+    borderColor: '#CBD5E1',
+    opacity: 0.75,
+  },
+  taskLeftGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  taskIconBadge: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  badgeRed: {
+    backgroundColor: '#FEE2E2',
+  },
+  badgeBlue: {
+    backgroundColor: '#EFF6FF',
+  },
+  badgeGrey: {
+    backgroundColor: '#F1F5F9',
+  },
+  taskTitle: {
+    fontSize: 14,
+    fontFamily: 'Inter_600SemiBold',
+    color: '#1E293B',
+  },
+  taskTitleCompleted: {
+    textDecorationLine: 'line-through',
+    color: '#94A3B8',
+  },
+  taskTime: {
+    fontSize: 11,
+    fontFamily: 'Inter_500Medium',
+    color: '#64748B',
+    marginTop: 2,
+  },
+  checkCircle: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    borderWidth: 1.5,
+    borderColor: '#CBD5E1',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 8,
+  },
+  checkCircleActive: {
+    backgroundColor: '#059669',
+    borderColor: '#059669',
+  },
+  emptyTasksCard: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 14,
+    padding: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderStyle: 'dashed',
+  },
+  emptyTasksIconCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#D1FAE5',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
+  emptyTasksTitle: {
+    fontSize: 14,
+    fontFamily: 'Inter_700Bold',
+    color: '#0F172A',
+    marginBottom: 4,
+  },
+  emptyTasksSubtitle: {
+    fontSize: 12,
+    fontFamily: 'Inter_500Medium',
+    color: '#64748B',
+    textAlign: 'center',
+  },
+
+  // Modal Styles
+  modalBg: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'center',
+    alignItems: 'center',
     padding: 20,
   },
-  modalContent: {
+  modalCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 8,
+    borderRadius: 20,
+    padding: 20,
+    width: '100%',
+    maxWidth: 360,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
     shadowRadius: 12,
-    elevation: 8,
+    elevation: 5,
   },
-  dropdownItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-  },
-  dropdownItemActive: {
-    backgroundColor: '#F0FDFA',
-  },
-  dropdownItemText: {
-    fontSize: 15,
-    fontFamily: 'Inter_500Medium',
-    color: '#475569',
-  },
-  dropdownItemTextActive: {
-    color: '#0F766E',
-    fontFamily: 'Inter_700Bold',
-  },
-  dropdownBadge: {
-    backgroundColor: '#F1F5F9',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 12,
-  },
-  dropdownBadgeText: {
-    fontSize: 12,
-    fontFamily: 'Inter_700Bold',
-    color: '#64748B',
-  },
-  card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  emptyState: {
-    alignItems: 'center',
-    paddingVertical: 24,
-  },
-  emptyIcon: {
-    fontSize: 32,
-    fontFamily: 'OpenSans_400Regular',
-    marginBottom: 8,
-  },
-  emptyText: {
-    fontSize: 14,
-    fontFamily: 'Inter_600SemiBold',
-    color: '#94A3B8',
-  },
-  taskItem: {
+  modalHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: 12,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#CBD5E1',
-    marginBottom: 10,
+    marginBottom: 16,
   },
-  taskItemCompleted: {
-    backgroundColor: '#F8FAFC',
-    borderColor: '#E2E8F0',
-  },
-  taskItemUrgent: {
-    backgroundColor: '#FEF2F2',
-    borderColor: '#FCA5A5',
-    borderLeftWidth: 4,
-    borderLeftColor: '#DC2626',
-  },
-  taskLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  taskTextContainer: {
-    marginLeft: 12,
-    flex: 1,
-  },
-  taskTitle: {
-    fontSize: 14,
+  modalTitle: {
+    fontSize: 17,
     fontFamily: 'Inter_700Bold',
     color: '#0F172A',
   },
-  taskTitleCompleted: {
-    color: '#94A3B8',
-    textDecorationLine: 'line-through',
+  modalLabel: {
+    fontSize: 12,
+    fontFamily: 'Inter_600SemiBold',
+    color: '#475569',
+    marginBottom: 6,
   },
-  taskTitleUrgent: {
-    color: '#991B1B',
-  },
-  taskCategory: {
-    backgroundColor: '#F0FDFA',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
-    alignSelf: 'flex-start',
-    marginTop: 4,
-  },
-  taskCategoryUrgent: {
-    backgroundColor: '#FFE4E6',
-  },
-  taskCategoryText: {
-    fontSize: 11,
-    fontFamily: 'Inter_700Bold',
-    color: '#0F766E',
-  },
-  taskCategoryTextUrgent: {
-    color: '#DC2626',
-  },
-  taskRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  urgentToggle: {
-    backgroundColor: '#FFFFFF',
+  modalInput: {
+    backgroundColor: '#F8FAFC',
     borderWidth: 1,
-    borderColor: '#CBD5E1',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    borderColor: '#E2E8F0',
     borderRadius: 12,
-    marginRight: 12,
-  },
-  urgentToggleActive: {
-    backgroundColor: '#FEF2F2',
-    borderColor: '#FCA5A5',
-  },
-  urgentToggleText: {
-    fontSize: 11,
-    fontFamily: 'Inter_800ExtraBold',
-    color: '#64748B',
-  },
-  urgentToggleTextActive: {
-    color: '#DC2626',
-  },
-  addTaskForm: {
-    backgroundColor: '#F0FDFA',
-    padding: 14,
-    borderRadius: 12,
-    borderWidth: 1.5,
-    borderColor: '#CCFBF1',
-    marginTop: 4,
-  },
-  taskInput: {
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#CBD5E1',
-    borderRadius: 8,
-    padding: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
     fontSize: 14,
-    fontFamily: 'OpenSans_400Regular',
+    fontFamily: 'Inter_500Medium',
+    color: '#0F172A',
     marginBottom: 12,
   },
-  addTaskActions: {
+  prioritySelector: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    gap: 8,
+    marginBottom: 12,
+  },
+  priorityOpt: {
+    flex: 1,
+    height: 38,
+    borderRadius: 10,
+    backgroundColor: '#F1F5F9',
     alignItems: 'center',
-  },
-  row: {
-    flexDirection: 'row',
-  },
-  btnOutline: {
+    justifyContent: 'center',
     borderWidth: 1,
-    borderColor: '#CBD5E1',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-    marginRight: 8,
+    borderColor: '#E2E8F0',
   },
-  btnOutlineText: {
+  priorityOptActiveNormal: {
+    backgroundColor: '#EFF6FF',
+    borderColor: '#3B82F6',
+  },
+  priorityOptActiveUrgent: {
+    backgroundColor: '#FEF2F2',
+    borderColor: '#EF4444',
+  },
+  priorityOptText: {
     fontSize: 13,
     fontFamily: 'Inter_600SemiBold',
-    color: '#475569',
+    color: '#64748B',
   },
-  btnPrimary: {
-    backgroundColor: '#0F766E',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
+  priorityOptTextActive: {
+    color: '#0F172A',
+    fontFamily: 'Inter_700Bold',
   },
-  btnPrimaryText: {
-    fontSize: 13,
-    fontFamily: 'Inter_600SemiBold',
-    color: '#FFFFFF',
-  },
-  addReminderBtn: {
+  statusToggleBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 12,
-    borderWidth: 1,
-    borderColor: '#0F766E',
+    paddingVertical: 8,
+    marginBottom: 12,
+    borderRadius: 8,
+    backgroundColor: '#F8FAFC',
+  },
+  statusToggleText: {
+    fontSize: 13,
+    fontFamily: 'Inter_600SemiBold',
+  },
+  modalPrimaryBtn: {
+    backgroundColor: '#059669',
     borderRadius: 12,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
     marginTop: 4,
   },
-  addReminderText: {
-    marginLeft: 8,
-    fontSize: 14,
-    fontFamily: 'Inter_700Bold',
-    color: '#0F766E',
-  },
-  actionCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    padding: 16,
-    borderRadius: 14,
-    marginBottom: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  actionIconBg: {
-    width: 40,
-    height: 40,
-    borderRadius: 10,
-    backgroundColor: '#F0FDFA',
-    borderWidth: 1,
-    borderColor: '#CCFBF1',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 14,
-  },
-  emphasizedCard: {
-    borderColor: '#0F766E',
-    borderWidth: 1.5,
-  },
-  emphasizedIconBg: {
-    width: 40,
-    height: 40,
-    borderRadius: 10,
-    backgroundColor: '#0F766E',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 14,
-  },
-  actionTextContainer: {
-    flex: 1,
-  },
-  actionLabel: {
+  modalPrimaryBtnText: {
     fontSize: 15,
     fontFamily: 'Inter_700Bold',
-    color: '#0F172A',
+    color: '#FFFFFF',
   },
-  actionSubLabel: {
+  deleteBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 40,
+    marginTop: 8,
+  },
+  deleteBtnText: {
     fontSize: 13,
-    fontFamily: 'OpenSans_400Regular',
-    color: '#64748B',
-    marginTop: 2,
+    fontFamily: 'Inter_600SemiBold',
+    color: '#DC2626',
   },
 });

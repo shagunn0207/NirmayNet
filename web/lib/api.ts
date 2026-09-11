@@ -1,9 +1,16 @@
 // Centralized API Service for NirmayNet Web -> FastAPI Backend
 // Configured for Next.js browser-safe REST integration
 
-const BASE_URL =
-  (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_API_URL) ||
-  'http://127.0.0.1:8000/api/v1';
+export const getApiBaseUrl = (): string => {
+  if (typeof window !== 'undefined' && window.location?.hostname) {
+    const envUrl = process.env.NEXT_PUBLIC_API_URL;
+    if (envUrl && !envUrl.includes('127.0.0.1') && !envUrl.includes('localhost')) {
+      return envUrl;
+    }
+    return `http://${window.location.hostname}:8000/api/v1`;
+  }
+  return process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000/api/v1';
+};
 
 /**
  * Standardizes API responses across the web application
@@ -63,7 +70,8 @@ export const fetchApi = async <T>(
 
     // Ensure clean endpoint URL joining
     const cleanEndpoint = endpoint.startsWith('/') ? endpoint.substring(1) : endpoint;
-    const cleanBaseUrl = BASE_URL.endsWith('/') ? BASE_URL : `${BASE_URL}/`;
+    const baseUrl = getApiBaseUrl();
+    const cleanBaseUrl = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
     const url = `${cleanBaseUrl}${cleanEndpoint}`;
 
     const response = await fetch(url, {

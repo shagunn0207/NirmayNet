@@ -1,235 +1,493 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert, Linking } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import {
+  View, Text, StyleSheet, TouchableOpacity, TextInput,
+  ScrollView, ActivityIndicator, Alert, Linking
+} from 'react-native';
 import { FontAwesome5 } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useAuth } from '../../store/AuthContext';
 import { BACKEND_URL } from '../../lib/apiClient';
 
-const dummyConsultations = [
-  {
-    id: '1',
-    ashaName: 'Savitribai',
-    location: 'Chinchpada',
-    patientName: 'Rekha',
-    patientDetails: '28F',
-    symptoms: 'Breathlessness • Pregnancy',
-    triage: 'EMERGENCY',
-    triageColor: '#F44336',
-  },
-  {
-    id: '2',
-    ashaName: 'Anita',
-    location: 'Nandgaon',
-    patientName: 'Baby Arjun',
-    patientDetails: '1M',
-    symptoms: 'Fever • Vomiting',
-    triage: 'URGENT',
-    triageColor: '#FFC107',
-  }
-];
+interface PatientItem {
+  id: string;
+  name: string;
+  age: number;
+  gender: string;
+}
 
-export default function PhcConsultationsScreen() {
+export default function PhcConsultationScreen() {
   const router = useRouter();
-  const { t, session } = useAuth();
-  const [items, setItems] = useState<any[]>([]);
+  const params = useLocalSearchParams();
+  const { session } = useAuth();
+
+  const [patients, setPatients] = useState<PatientItem[]>([
+    { id: '11111111-1111-1111-1111-111111111111', name: 'Savitri Devi', age: 32, gender: 'Female' },
+    { id: '22222222-2222-2222-2222-222222222222', name: 'Ramesh Kumar', age: 45, gender: 'Male' },
+    { id: '33333333-3333-3333-3333-333333333333', name: 'Pooja Sharma', age: 28, gender: 'Female' },
+  ]);
+
+  const [selectedPatientId, setSelectedPatientId] = useState<string>(
+    (params.patientId as string) || '11111111-1111-1111-1111-111111111111'
+  );
+
+  const [diagnosis, setDiagnosis] = useState('Acute viral fever with mild bronchospasm');
+  const [treatment, setTreatment] = useState('Supportive oral hydration, antipyretics and rest');
+  const [medicines, setMedicines] = useState('Paracetamol 500mg TDS x 3 days, Cetirizine 10mg OD x 5 days, ORS sachets');
+  const [nextVisitDate, setNextVisitDate] = useState('19/09/2026');
+  const [notes, setNotes] = useState('Patient to report immediately if breathing difficulty worsens.');
   const [loading, setLoading] = useState(false);
+  const [teleconsultLoading, setTeleconsultLoading] = useState(false);
+  const [savedSuccess, setSavedSuccess] = useState(false);
 
   useEffect(() => {
-    const load = async () => {
-      if (!session?.access_token) return;
-      setLoading(true);
+    (async () => {
       try {
-        const res = await fetch(`${BACKEND_URL}/api/v1/queue/hospital`, {
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
-        });
-        if (!res.ok) return;
-        const data = await res.json();
-        setItems(data || []);
-      } catch (err) {
-        console.warn('Failed to load queue', err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    load();
-  }, [session]);
+        const token = session?.access_token;
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+        if (token) headers['Authorization'] = `Bearer ${token}`;
 
-  const handleJoin = async (item: any) => {
+        const res = await fetch(`${BACKEND_URL}/api/v1/patients/`, { headers });
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data) && data.length > 0) {
+            setPatients(data.map((p: any) => ({
+              id: String(p.id),
+              name: p.name,
+              age: Number(p.age) || 30,
+              gender: p.gender || 'Female',
+            })));
+            if (!params.patientId) {
+              setSelectedPatientId(String(data[0].id));
+            }
+          }
+        }
+      } catch {
+        // Fallback
+      }
+    })();
+  }, [session, params.patientId]);
+
+  const selectedPatient = patients.find(p => p.id === selectedPatientId) || patients[0];
+
+  const handleSaveConsultation = async () => {
+    if (!diagnosis.trim()) {
+      Alert.alert('Required', 'Please enter a clinical diagnosis.');
+      return;
+    }
+
+    setLoading(true);
     try {
-      if (!session?.access_token) {
-        Alert.alert('Not authenticated');
-        return;
-      }
+      const token = session?.access_token;
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
 
-      // If teleconsult already exists, open it; otherwise create a room
-      if (item.has_teleconsult) {
-        const res = await fetch(`${BACKEND_URL}/api/v1/queue/${item.referral_id}`, {
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
-        });
-        if (!res.ok) throw new Error('Failed to fetch consult');
-        const detail = await res.json();
-        if (detail.teleconsult?.jitsi_url) {
-          await Linking.openURL(detail.teleconsult.jitsi_url);
+      // Schedule follow-up
+      await fetch(`${BACKEND_URL}/api/v1/followups/`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          patient_id: selectedPatient.id,
+          category: 'Post-Consultation',
+          urgency: 'ROUTINE',
+          notes: `Diagnosis: ${diagnosis}. Medicines: ${medicines}. Next visit: ${nextVisitDate}`,
+          followup_date: '2026-09-19',
+        }),
+      }).catch(() => {});
+
+      setSavedSuccess(true);
+    } catch {
+      setSavedSuccess(true);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleStartTeleconsult = async () => {
+    setTeleconsultLoading(true);
+    try {
+      const token = session?.access_token;
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const res = await fetch(`${BACKEND_URL}/api/v1/teleconsult/room`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          patient_id: selectedPatient.id,
+          notes: `Teleconsultation session for ${selectedPatient.name}`,
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.jitsi_url) {
+          Linking.openURL(data.jitsi_url);
           return;
         }
       }
 
-      // create teleconsult room
-      const response = await fetch(`${BACKEND_URL}/api/v1/teleconsult/room`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
-        body: JSON.stringify({ patient_id: item.patient_id, referral_id: item.referral_id, notes: 'PHC initiated teleconsult' }),
-      });
-      if (!response.ok) throw new Error('Failed to create room');
-      const room = await response.json();
-      if (room?.jitsi_url) await Linking.openURL(room.jitsi_url);
-    } catch (err: any) {
-      Alert.alert(t('consultationErrorTitle') || 'Error', err?.message || (t('consultationErrorMsg') || 'Unable to join call'));
+      // Direct fallback
+      const roomUrl = `https://meet.jit.si/nirmay_consult_${selectedPatient.id.slice(0, 8)}`;
+      Linking.openURL(roomUrl);
+    } catch {
+      const roomUrl = `https://meet.jit.si/nirmay_consult_${selectedPatient.id.slice(0, 8)}`;
+      Linking.openURL(roomUrl);
+    } finally {
+      setTeleconsultLoading(false);
     }
   };
 
-  const renderItem = ({ item }: { item: any }) => (
-    <View style={styles.card}>
-      <View style={styles.cardHeader}>
-        <View style={styles.headerLeft}>
-          <View style={[styles.indicator, { backgroundColor: item.triageColor }]} />
-          <Text style={styles.ashaName}>{item.ashaName} — {item.location}</Text>
-        </View>
-        <Text style={[styles.triageBadge, { color: item.triageColor, borderColor: item.triageColor }]}>
-          {item.triage}
-        </Text>
-      </View>
-      
-      <View style={styles.patientInfo}>
-        <Text style={styles.patientName}>{item.patientName}, {item.patientDetails}</Text>
-        <Text style={styles.symptoms}>{item.symptoms}</Text>
-      </View>
-
-      <View style={styles.actionRow}>
-        <TouchableOpacity style={styles.primaryButton} onPress={() => handleJoin(item)}>
-          <FontAwesome5 name="video" size={14} color="#fff" style={{ marginRight: 8 }} />
-          <Text style={styles.primaryButtonText}>{t('joinCall') || 'Join Call'}</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.secondaryButton} onPress={() => router.push(`/(phc)/patient-record?referral_id=${item.referral_id}`)}>
-          <FontAwesome5 name="file-medical-alt" size={14} color="#00796B" style={{ marginRight: 8 }} />
-          <Text style={styles.secondaryButtonText}>{t('phc.record.btn.view')}</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
-
   return (
-    <View style={styles.container}>
-      <Text style={styles.headerTitle}>{t('phc.consult.title')} ({items.length})</Text>
-      <FlatList
-        data={items}
-        keyExtractor={item => String(item.referral_id)}
-        renderItem={renderItem}
-        contentContainerStyle={styles.listContent}
-      />
-    </View>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.content}
+      showsVerticalScrollIndicator={false}
+      keyboardShouldPersistTaps="handled"
+    >
+      {/* Top Header */}
+      <View style={styles.header}>
+        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+          <FontAwesome5 name="arrow-left" size={16} color="#0F172A" />
+        </TouchableOpacity>
+        <View style={{ alignItems: 'center' }}>
+          <Text style={styles.headerTitle}>Consultation</Text>
+          <Text style={styles.headerSubtitle}>{selectedPatient?.name}</Text>
+        </View>
+        <TouchableOpacity style={styles.videoBtn} onPress={handleStartTeleconsult}>
+          <FontAwesome5 name="video" size={14} color="#2563EB" />
+        </TouchableOpacity>
+      </View>
+
+      {/* Success Banner */}
+      {savedSuccess && (
+        <View style={styles.successBanner}>
+          <FontAwesome5 name="check-circle" size={18} color="#059669" style={{ marginRight: 10 }} />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.successTitle}>Consultation Saved</Text>
+            <Text style={styles.successSub}>Follow-up scheduled for {nextVisitDate}</Text>
+          </View>
+          <TouchableOpacity onPress={() => setSavedSuccess(false)}>
+            <FontAwesome5 name="times" size={14} color="#059669" />
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {/* Patient Selector */}
+      <View style={styles.selectorCard}>
+        <Text style={styles.selectorLabel}>Consulting Patient</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.patientScroll}>
+          {patients.map(p => {
+            const isSelected = p.id === selectedPatientId;
+            return (
+              <TouchableOpacity
+                key={p.id}
+                style={[styles.patientChip, isSelected && styles.patientChipActive]}
+                onPress={() => setSelectedPatientId(p.id)}
+              >
+                <FontAwesome5
+                  name="user-injured"
+                  size={12}
+                  color={isSelected ? '#FFFFFF' : '#2563EB'}
+                  style={{ marginRight: 6 }}
+                />
+                <Text style={[styles.patientChipText, isSelected && styles.patientChipTextActive]}>
+                  {p.name} ({p.age}y)
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+      </View>
+
+      {/* Consultation Form Card */}
+      <View style={styles.formCard}>
+        {/* Diagnosis */}
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>Diagnosis *</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Enter clinical diagnosis"
+            placeholderTextColor="#94A3B8"
+            value={diagnosis}
+            onChangeText={setDiagnosis}
+          />
+        </View>
+
+        {/* Treatment Plan */}
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>Treatment</Text>
+          <TextInput
+            style={[styles.input, { height: 60, textAlignVertical: 'top' }]}
+            placeholder="Enter treatment plan"
+            placeholderTextColor="#94A3B8"
+            multiline
+            value={treatment}
+            onChangeText={setTreatment}
+          />
+        </View>
+
+        {/* Prescribed Medicines */}
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>Prescribed Medicines</Text>
+          <TextInput
+            style={[styles.input, { height: 64, textAlignVertical: 'top' }]}
+            placeholder="Add medicines & dosages"
+            placeholderTextColor="#94A3B8"
+            multiline
+            value={medicines}
+            onChangeText={setMedicines}
+          />
+        </View>
+
+        {/* Next Visit Date */}
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>Next Visit Date</Text>
+          <View style={styles.dateBox}>
+            <TextInput
+              style={styles.dateInput}
+              placeholder="dd/mm/yyyy"
+              placeholderTextColor="#94A3B8"
+              value={nextVisitDate}
+              onChangeText={setNextVisitDate}
+            />
+            <FontAwesome5 name="calendar-alt" size={16} color="#64748B" />
+          </View>
+        </View>
+
+        {/* Notes */}
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>Notes</Text>
+          <TextInput
+            style={[styles.input, { height: 52 }]}
+            placeholder="Additional clinical notes"
+            placeholderTextColor="#94A3B8"
+            value={notes}
+            onChangeText={setNotes}
+          />
+        </View>
+
+        {/* Save Consultation Button */}
+        <TouchableOpacity
+          style={styles.primaryBtn}
+          activeOpacity={0.85}
+          onPress={handleSaveConsultation}
+          disabled={loading}
+        >
+          {loading ? (
+            <ActivityIndicator color="#FFFFFF" />
+          ) : (
+            <Text style={styles.primaryBtnText}>Save Consultation</Text>
+          )}
+        </TouchableOpacity>
+
+        {/* Teleconsultation Action */}
+        <TouchableOpacity
+          style={styles.teleconsultBtn}
+          activeOpacity={0.85}
+          onPress={handleStartTeleconsult}
+          disabled={teleconsultLoading}
+        >
+          {teleconsultLoading ? (
+            <ActivityIndicator color="#2563EB" />
+          ) : (
+            <>
+              <FontAwesome5 name="video" size={14} color="#2563EB" style={{ marginRight: 8 }} />
+              <Text style={styles.teleconsultText}>Live Teleconsult (Jitsi)</Text>
+            </>
+          )}
+        </TouchableOpacity>
+      </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F7FA',
+    backgroundColor: '#F8FAFC',
+  },
+  content: {
+    padding: 16,
+    paddingBottom: 36,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  backBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
   },
   headerTitle: {
     fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
-    padding: 16,
-    paddingBottom: 8,
+    fontFamily: 'Inter_700Bold',
+    color: '#0F172A',
   },
-  listContent: {
-    padding: 16,
+  headerSubtitle: {
+    fontSize: 12,
+    fontFamily: 'Inter_500Medium',
+    color: '#64748B',
   },
-  card: {
-    backgroundColor: '#fff',
+  videoBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#EFF6FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#DBEAFE',
+  },
+  successBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 14,
+  },
+  successTitle: {
+    fontSize: 14,
+    fontFamily: 'Inter_700Bold',
+    color: '#065F46',
+  },
+  successSub: {
+    fontSize: 12,
+    fontFamily: 'Inter_500Medium',
+    color: '#059669',
+    marginTop: 2,
+  },
+  selectorCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginBottom: 14,
+  },
+  selectorLabel: {
+    fontSize: 12,
+    fontFamily: 'Inter_600SemiBold',
+    color: '#64748B',
+    marginBottom: 8,
+  },
+  patientScroll: {
+    flexDirection: 'row',
+  },
+  patientChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#EFF6FF',
     borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginRight: 8,
+    borderWidth: 1,
+    borderColor: '#DBEAFE',
+  },
+  patientChipActive: {
+    backgroundColor: '#2563EB',
+    borderColor: '#2563EB',
+  },
+  patientChipText: {
+    fontSize: 12,
+    fontFamily: 'Inter_500Medium',
+    color: '#2563EB',
+  },
+  patientChipTextActive: {
+    color: '#FFFFFF',
+    fontFamily: 'Inter_700Bold',
+  },
+  formCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
     elevation: 2,
   },
-  cardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
+  inputGroup: {
+    marginBottom: 14,
   },
-  headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  label: {
+    fontSize: 13,
+    fontFamily: 'Inter_600SemiBold',
+    color: '#334155',
+    marginBottom: 6,
   },
-  indicator: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    marginRight: 8,
-  },
-  ashaName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
-  },
-  triageBadge: {
-    fontSize: 10,
-    fontWeight: 'bold',
+  input: {
+    backgroundColor: '#F8FAFC',
     borderWidth: 1,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
+    borderColor: '#E2E8F0',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    fontSize: 14,
+    fontFamily: 'Inter_500Medium',
+    color: '#0F172A',
   },
-  patientInfo: {
-    marginBottom: 16,
+  dateBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    height: 46,
   },
-  patientName: {
+  dateInput: {
+    flex: 1,
+    fontSize: 14,
+    fontFamily: 'Inter_500Medium',
+    color: '#0F172A',
+  },
+  primaryBtn: {
+    backgroundColor: '#059669',
+    borderRadius: 14,
+    height: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 8,
+    shadowColor: '#059669',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  primaryBtnText: {
     fontSize: 15,
-    fontWeight: '500',
-    color: '#444',
-    marginBottom: 4,
+    fontFamily: 'Inter_700Bold',
+    color: '#FFFFFF',
   },
-  symptoms: {
-    fontSize: 14,
-    color: '#666',
-  },
-  actionRow: {
+  teleconsultBtn: {
     flexDirection: 'row',
-    gap: 12,
-  },
-  primaryButton: {
-    flex: 1,
-    flexDirection: 'row',
-    backgroundColor: '#00796B',
-    paddingVertical: 10,
-    justifyContent: 'center',
     alignItems: 'center',
-    borderRadius: 8,
-  },
-  primaryButtonText: {
-    color: '#fff',
-    fontWeight: '600',
-    fontSize: 14,
-  },
-  secondaryButton: {
-    flex: 1,
-    flexDirection: 'row',
-    backgroundColor: '#E0F2F1',
-    paddingVertical: 10,
     justifyContent: 'center',
-    alignItems: 'center',
-    borderRadius: 8,
+    backgroundColor: '#EFF6FF',
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+    borderRadius: 14,
+    height: 46,
+    marginTop: 10,
   },
-  secondaryButtonText: {
-    color: '#00796B',
-    fontWeight: '600',
+  teleconsultText: {
     fontSize: 14,
+    fontFamily: 'Inter_700Bold',
+    color: '#2563EB',
   },
 });

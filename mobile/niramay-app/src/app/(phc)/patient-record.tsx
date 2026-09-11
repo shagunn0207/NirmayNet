@@ -1,113 +1,278 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import {
+  View, Text, StyleSheet, ScrollView, TouchableOpacity,
+  ActivityIndicator, RefreshControl
+} from 'react-native';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useAuth } from '../../store/AuthContext';
 import { BACKEND_URL } from '../../lib/apiClient';
 
-export default function PatientRecordScreen() {
+interface PatientRecordData {
+  id: string;
+  name: string;
+  age: number | string;
+  gender: string;
+  village: string;
+  phone?: string;
+  allergies?: string;
+  abha_id?: string;
+  created_at?: string;
+}
+
+interface ReferralRecordData {
+  id: string;
+  referral_code?: string;
+  reason?: string;
+  destination_hospital?: string;
+  status: string;
+  created_at: string;
+}
+
+export default function PhcPatientRecordScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
-  const { session, t } = useAuth();
-  const referral_id = (params.referral_id as string) || null;
+  const { session } = useAuth();
 
-  const [detail, setDetail] = useState<any>(null);
+  const patientId = (params.patientId as string) || '';
+  const initialName = (params.name as string) || 'Patient';
+  const initialAge = (params.age as string) || '30';
+  const initialGender = (params.gender as string) || 'Female';
+  const initialVillage = (params.village as string) || 'Nandurbar';
+  const initialPhone = (params.phone as string) || '';
+  const initialHistory = (params.history as string) || '';
 
-  useEffect(() => {
-    const load = async () => {
-      if (!referral_id || !session?.access_token) return;
-      try {
-        const res = await fetch(`${BACKEND_URL}/api/v1/queue/${referral_id}`, {
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
-        });
-        if (!res.ok) return;
-        const data = await res.json();
-        setDetail(data);
-      } catch (err) {
-        console.warn('Failed to load detail', err);
-      }
-    };
-    load();
-  }, [referral_id, session]);
+  const [activeTab, setActiveTab] = useState<'Overview' | 'Consultations' | 'Referrals'>('Overview');
+  const [patient, setPatient] = useState<PatientRecordData | null>(null);
+  const [referrals, setReferrals] = useState<ReferralRecordData[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const postAction = async (path: string) => {
-    if (!referral_id || !session?.access_token) return;
+  const fetchPatientData = async () => {
+    if (!patientId) return;
+    setLoading(true);
     try {
-      const res = await fetch(`${BACKEND_URL}/api/v1/queue/${referral_id}/${path}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
-      });
-      if (!res.ok) throw new Error('Action failed');
-      const data = await res.json();
-      setDetail((d:any)=> ({...d, referral: data}));
-      Alert.alert('Success');
-    } catch (err: any) {
-      Alert.alert('Error', err?.message || 'Action failed');
+      const token = session?.access_token;
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      // Parallel fetch patient details and patient referrals
+      const [patRes, refRes] = await Promise.all([
+        fetch(`${BACKEND_URL}/api/v1/patients/${patientId}`, { headers }),
+        fetch(`${BACKEND_URL}/api/v1/referrals/?patient_id=${patientId}`, { headers }),
+      ]);
+
+      if (patRes.ok) {
+        const pData = await patRes.json();
+        setPatient(pData);
+      }
+
+      if (refRes.ok) {
+        const rData = await refRes.json();
+        if (Array.isArray(rData)) {
+          setReferrals(rData);
+        }
+      }
+    } catch {
+      // Keep state
+    } finally {
+      setLoading(false);
     }
   };
 
+  useEffect(() => {
+    fetchPatientData();
+  }, [patientId, session]);
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await fetchPatientData();
+    setRefreshing(false);
+  };
+
+  const displayName = patient?.name || initialName;
+  const displayAge = patient?.age ? String(patient.age) : initialAge;
+  const displayGender = patient?.gender || initialGender;
+  const displayVillage = patient?.village || initialVillage;
+  const displayPhone = patient?.phone || initialPhone || 'Not provided';
+  const displayAllergies = patient?.allergies || (initialHistory.includes('Allergies') ? initialHistory : null);
+  const displayAbha = patient?.abha_id || 'Not linked';
+
+  const initial = displayName.charAt(0).toUpperCase();
+
+  const regDate = patient?.created_at
+    ? new Date(patient.created_at).toLocaleDateString('en-IN', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+      })
+    : '12 Sep 2026';
+
   return (
-    <ScrollView style={styles.container}>
-      {/* Top Header Card */}
-      <View style={styles.card}>
-        <View style={styles.headerRow}>
-          <Text style={styles.patientName}>{detail?.patient?.name || 'Patient'}</Text>
-          <View style={styles.abhaBadge}>
-            <FontAwesome5 name="check-circle" size={12} color="#00796B" style={{ marginRight: 4 }} />
-            <Text style={styles.abhaText}>{detail?.patient?.abha_id ? 'ABHA linked' : 'No ABHA'}</Text>
-          </View>
-        </View>
-        <Text style={styles.demographics}>{detail?.patient?.age || ''} · {detail?.patient?.village || ''}</Text>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.content}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#2563EB']} />}
+      showsVerticalScrollIndicator={false}
+    >
+      {/* Top Header */}
+      <View style={styles.header}>
+        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+          <FontAwesome5 name="arrow-left" size={16} color="#0F172A" />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Patient Records</Text>
+        <View style={{ width: 36 }} />
       </View>
 
-      {/* Triage and Symptoms */}
-      <View style={styles.card}>
-        <View style={styles.triageRow}>
-          <Text style={styles.sectionTitle}>Current triage: </Text>
-          <View style={styles.triageBadge}>
-            <View style={[styles.indicator, { backgroundColor: detail?.triage?.triage_category === 'EMERGENCY' ? '#F44336' : '#FFC107' }]} />
-            <Text style={[styles.triageText, { color: detail?.triage?.triage_category === 'EMERGENCY' ? '#F44336' : '#FFC107' }]}>{detail?.triage?.triage_category || 'N/A'}</Text>
-          </View>
+      {/* Hero Profile Card */}
+      <View style={styles.heroCard}>
+        <View style={styles.avatarCircle}>
+          <Text style={styles.avatarText}>{initial}</Text>
         </View>
-        
-        <Text style={[styles.sectionTitle, { marginTop: 16 }]}>Symptoms reported:</Text>
-        <Text style={styles.symptomsText}>{detail?.triage?.symptoms || '—'}</Text>
+        <Text style={styles.heroName}>{displayName}</Text>
+        <Text style={styles.heroSub}>{displayAge} years • {displayGender}</Text>
       </View>
 
-      {/* Visit History */}
-      <View style={styles.card}>
-        <Text style={styles.sectionTitle}>Visit history:</Text>
-        {detail?.patient_history?.map((h:any, i:number) => (
-          <View style={styles.historyRow} key={i}>
-            <Text style={styles.historyDate}>{h.date || ''}</Text>
-            <Text style={styles.historySeparator}>—</Text>
-            <Text style={styles.historyDetail}>{h.note || ''}</Text>
-          </View>
+      {/* Tabs: Overview | Consultations | Referrals */}
+      <View style={styles.tabBar}>
+        {(['Overview', 'Consultations', 'Referrals'] as const).map(tab => (
+          <TouchableOpacity
+            key={tab}
+            style={[styles.tabBtn, activeTab === tab && styles.tabBtnActive]}
+            onPress={() => setActiveTab(tab)}
+          >
+            <Text style={[styles.tabText, activeTab === tab && styles.tabTextActive]}>
+              {tab}
+            </Text>
+          </TouchableOpacity>
         ))}
       </View>
 
-      {/* Action Buttons */}
-      <View style={styles.actionsContainer}>
-        <TouchableOpacity style={[styles.actionBtn, styles.btnOutlineRed]} onPress={() => postAction('arrive')}>
-          <FontAwesome5 name="arrow-up" size={16} color="#F44336" style={{ marginRight: 8 }} />
-          <Text style={styles.textRed}>{t('confirmArrival') || 'Confirm Arrival'}</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity style={[styles.actionBtn, styles.btnOutlineBlue]} onPress={() => postAction('consult')}>
-          <FontAwesome5 name="stethoscope" size={16} color="#3F51B5" style={{ marginRight: 8 }} />
-          <Text style={styles.textBlue}>{t('startConsultBtn') || 'Start Consultation'}</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity style={[styles.actionBtn, styles.btnOutlineTeal]} onPress={() => postAction('complete')}>
-          <FontAwesome5 name="check" size={16} color="#00796B" style={{ marginRight: 8 }} />
-          <Text style={styles.textTeal}>{t('markCompleted') || 'Mark Completed'}</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity style={[styles.actionBtn, styles.btnSolidTeal]} onPress={() => router.push(`/(phc)/consultations`)}>
-          <FontAwesome5 name="edit" size={16} color="#FFF" style={{ marginRight: 8 }} />
-          <Text style={styles.textWhite}>Back</Text>
-        </TouchableOpacity>
-      </View>
+      {/* Tab 1: Overview */}
+      {activeTab === 'Overview' && (
+        <View style={styles.detailsCard}>
+          {displayAllergies ? (
+            <>
+              <View style={[styles.detailRow, { backgroundColor: '#FEF2F2', paddingHorizontal: 10, paddingVertical: 8, borderRadius: 8 }]}>
+                <Text style={[styles.detailLabel, { color: '#DC2626', fontWeight: 'bold' }]}>⚠️ Known Allergies</Text>
+                <Text style={[styles.detailValue, { color: '#DC2626', fontWeight: 'bold', flex: 1, textAlign: 'right' }]}>{displayAllergies}</Text>
+              </View>
+              <View style={styles.divider} />
+            </>
+          ) : (
+            <>
+              <View style={styles.detailRow}>
+                <Text style={styles.detailLabel}>Allergies</Text>
+                <Text style={styles.detailValue}>None reported</Text>
+              </View>
+              <View style={styles.divider} />
+            </>
+          )}
+
+          <View style={styles.detailRow}>
+            <Text style={styles.detailLabel}>ABHA ID</Text>
+            <Text style={styles.detailValue}>{displayAbha}</Text>
+          </View>
+          <View style={styles.divider} />
+
+          <View style={styles.detailRow}>
+            <Text style={styles.detailLabel}>Total Referrals</Text>
+            <Text style={[styles.detailValue, { color: '#2563EB', fontWeight: 'bold' }]}>
+              {referrals.length} referral{referrals.length === 1 ? '' : 's'}
+            </Text>
+          </View>
+          <View style={styles.divider} />
+
+          <View style={styles.detailRow}>
+            <Text style={styles.detailLabel}>Registration Date</Text>
+            <Text style={styles.detailValue}>{regDate}</Text>
+          </View>
+          <View style={styles.divider} />
+
+          <View style={styles.detailRow}>
+            <Text style={styles.detailLabel}>Village & Phone</Text>
+            <Text style={styles.detailValue}>{displayVillage} • {displayPhone}</Text>
+          </View>
+        </View>
+      )}
+
+      {/* Tab 2: Consultations & Triage */}
+      {activeTab === 'Consultations' && (
+        <View style={styles.detailsCard}>
+          {referrals.length === 0 ? (
+            <Text style={styles.emptyText}>No clinical consultation or triage records found.</Text>
+          ) : (
+            referrals.map((r, idx) => {
+              const dateStr = new Date(r.created_at).toLocaleDateString('en-IN', {
+                day: '2-digit',
+                month: 'short',
+                year: 'numeric',
+              });
+              return (
+                <React.Fragment key={r.id || idx}>
+                  {idx > 0 && <View style={styles.divider} />}
+                  <View style={styles.historyBlock}>
+                    <Text style={styles.historyDate}>{dateStr} • {r.destination_hospital || 'District Hospital Nandurbar'}</Text>
+                    <Text style={styles.historyDiag}>Triage / Symptoms: {r.reason || 'Routine OPD Evaluation'}</Text>
+                    <Text style={styles.historyMeds}>Status: {r.status}</Text>
+                  </View>
+                </React.Fragment>
+              );
+            })
+          )}
+        </View>
+      )}
+
+      {/* Tab 3: Referrals */}
+      {activeTab === 'Referrals' && (
+        <View style={styles.detailsCard}>
+          {referrals.length === 0 ? (
+            <Text style={styles.emptyText}>No referral history recorded for this patient.</Text>
+          ) : (
+            referrals.map((r, idx) => {
+              const dateStr = new Date(r.created_at).toLocaleDateString('en-IN', {
+                day: '2-digit',
+                month: 'short',
+                year: 'numeric',
+              });
+              return (
+                <React.Fragment key={r.id || idx}>
+                  {idx > 0 && <View style={styles.divider} />}
+                  <View style={styles.historyBlock}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Text style={styles.historyDate}>{dateStr} • {r.destination_hospital || 'Hospital'}</Text>
+                      <View style={[styles.statusBadgeMini, { backgroundColor: r.status === 'CONFIRMED_ARRIVAL' ? '#D1FAE5' : '#FEF3C7' }]}>
+                        <Text style={{ fontSize: 11, fontWeight: '700', color: r.status === 'CONFIRMED_ARRIVAL' ? '#059669' : '#D97706' }}>
+                          {r.status}
+                        </Text>
+                      </View>
+                    </View>
+                    <Text style={styles.historyDiag}>Tracking ID: {r.referral_code || r.id.substring(0, 8)}</Text>
+                    <Text style={styles.historyMeds}>Reason: {r.reason || 'Specialist care requested'}</Text>
+                  </View>
+                </React.Fragment>
+              );
+            })
+          )}
+        </View>
+      )}
+
+      {/* Bottom Action Button */}
+      <TouchableOpacity
+        style={styles.primaryBtn}
+        activeOpacity={0.85}
+        onPress={() => {
+          router.push({
+            pathname: '/(phc)/consultations',
+            params: {
+              patientId,
+              patientName: displayName,
+            },
+          });
+        }}
+      >
+        <Text style={styles.primaryBtnText}>Start Consultation</Text>
+      </TouchableOpacity>
     </ScrollView>
   );
 }
@@ -115,148 +280,169 @@ export default function PatientRecordScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F7FA',
-    padding: 16,
+    backgroundColor: '#F8FAFC',
   },
-  card: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
+  content: {
     padding: 16,
-    marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 2,
+    paddingBottom: 36,
   },
-  headerRow: {
+  header: {
     flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 4,
+    marginBottom: 16,
   },
-  patientName: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#333',
-  },
-  abhaBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#E0F2F1',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  abhaText: {
-    fontSize: 12,
-    color: '#00796B',
-    fontWeight: '600',
-  },
-  demographics: {
-    fontSize: 14,
-    color: '#666',
-  },
-  triageRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#444',
-  },
-  triageBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginLeft: 8,
-    backgroundColor: '#FFEBEE',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: '#FFCDD2',
-  },
-  indicator: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    marginRight: 6,
-  },
-  triageText: {
-    fontSize: 14,
-    fontWeight: 'bold',
-  },
-  symptomsText: {
-    fontSize: 15,
-    color: '#555',
-    marginTop: 6,
-  },
-  historyRow: {
-    flexDirection: 'row',
-    marginTop: 12,
-  },
-  historyDate: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#555',
-    width: 60,
-  },
-  historySeparator: {
-    marginHorizontal: 12,
-    color: '#999',
-  },
-  historyDetail: {
-    fontSize: 14,
-    color: '#444',
-    flex: 1,
-  },
-  actionsContainer: {
-    gap: 12,
-    marginBottom: 40,
-  },
-  actionBtn: {
-    flexDirection: 'row',
+  backBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 14,
-    borderRadius: 8,
     borderWidth: 1,
+    borderColor: '#E2E8F0',
   },
-  btnOutlineRed: {
-    borderColor: '#F44336',
-    backgroundColor: '#FFEBEE',
+  headerTitle: {
+    fontSize: 18,
+    fontFamily: 'Inter_700Bold',
+    color: '#0F172A',
   },
-  textRed: {
-    color: '#F44336',
-    fontWeight: '600',
-    fontSize: 16,
+  heroCard: {
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    paddingVertical: 20,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
   },
-  btnOutlineBlue: {
-    borderColor: '#3F51B5',
-    backgroundColor: '#E8EAF6',
+  avatarCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: '#D1FAE5',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 10,
   },
-  textBlue: {
-    color: '#3F51B5',
-    fontWeight: '600',
-    fontSize: 16,
+  avatarText: {
+    fontSize: 26,
+    fontFamily: 'Inter_800ExtraBold',
+    color: '#059669',
   },
-  btnOutlineTeal: {
-    borderColor: '#00796B',
-    backgroundColor: '#E0F2F1',
+  heroName: {
+    fontSize: 18,
+    fontFamily: 'Inter_800ExtraBold',
+    color: '#0F172A',
   },
-  textTeal: {
-    color: '#00796B',
-    fontWeight: '600',
-    fontSize: 16,
+  heroSub: {
+    fontSize: 13,
+    fontFamily: 'Inter_500Medium',
+    color: '#64748B',
+    marginTop: 2,
   },
-  btnSolidTeal: {
-    borderColor: '#00796B',
-    backgroundColor: '#00796B',
+  tabBar: {
+    flexDirection: 'row',
+    backgroundColor: '#E2E8F0',
+    borderRadius: 14,
+    marginBottom: 16,
+    padding: 3,
   },
-  textWhite: {
-    color: '#FFF',
-    fontWeight: '600',
-    fontSize: 16,
+  tabBtn: {
+    flex: 1,
+    paddingVertical: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 11,
+  },
+  tabBtnActive: {
+    backgroundColor: '#059669',
+  },
+  tabText: {
+    fontSize: 12,
+    fontFamily: 'Inter_600SemiBold',
+    color: '#475569',
+  },
+  tabTextActive: {
+    color: '#FFFFFF',
+  },
+  detailsCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginBottom: 20,
+  },
+  detailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 8,
+  },
+  detailLabel: {
+    fontSize: 13,
+    fontFamily: 'Inter_500Medium',
+    color: '#64748B',
+  },
+  detailValue: {
+    fontSize: 14,
+    fontFamily: 'Inter_600SemiBold',
+    color: '#0F172A',
+  },
+  divider: {
+    height: 1,
+    backgroundColor: '#F1F5F9',
+    marginVertical: 4,
+  },
+  historyBlock: {
+    paddingVertical: 8,
+  },
+  historyDate: {
+    fontSize: 12,
+    fontFamily: 'Inter_700Bold',
+    color: '#059669',
+    marginBottom: 4,
+  },
+  historyDiag: {
+    fontSize: 13,
+    fontFamily: 'Inter_600SemiBold',
+    color: '#0F172A',
+    marginBottom: 2,
+  },
+  historyMeds: {
+    fontSize: 12,
+    fontFamily: 'Inter_500Medium',
+    color: '#475569',
+    lineHeight: 17,
+  },
+  primaryBtn: {
+    backgroundColor: '#059669',
+    borderRadius: 14,
+    height: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#059669',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  primaryBtnText: {
+    fontSize: 15,
+    fontFamily: 'Inter_700Bold',
+    color: '#FFFFFF',
+  },
+  emptyText: {
+    fontSize: 14,
+    fontFamily: 'Inter_500Medium',
+    color: '#94A3B8',
+    textAlign: 'center',
+    paddingVertical: 16,
+  },
+  statusBadgeMini: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
   },
 });

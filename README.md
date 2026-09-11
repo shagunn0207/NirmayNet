@@ -7,3 +7,25 @@ NiramayNet : first rural care continuity platform. SIH 2026 | PS SIH26133 | Gove
 <img width="1024" height="577" alt="1788785212061-f3a91e03-a3f3-46a7-9a7f-b9d9aba9991a_5" src="https://github.com/user-attachments/assets/562d0367-9e79-4873-8f48-d9f361ad9d10" />
 <img width="1024" height="577" alt="1788785212061-f3a91e03-a3f3-46a7-9a7f-b9d9aba9991a_6" src="https://github.com/user-attachments/assets/bd0f43f5-a08c-410c-9f7f-0fcfe25fce0f" />
 
+## How to Run on Any Laptop (Any Wi-Fi)
+
+The website frontend dynamically auto-detects the backend hostname (`localhost` or local IP). Follow these steps to run the complete platform:
+
+### 1. Backend (Terminal 1)
+```bash
+cd backend
+python -m venv venv
+# On Windows: .\venv\Scripts\activate
+# On macOS/Linux: source venv/bin/activate
+pip install -r requirements.txt
+uvicorn app.main:app --reload --port 8000
+```
+> The API will be running at `http://127.0.0.1:8000` (docs at `http://127.0.0.1:8000/docs`).
+
+### 2. Frontend Web (Terminal 2)
+```bash
+cd web
+npm install
+npm run dev
+```
+> Open [http://localhost:3000](http://localhost:3000) in your browser. It will automatically connect to the local backend on port 8000.
