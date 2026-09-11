@@ -61,3 +61,39 @@ export async function loginWithBackend(
   const data: BackendLoginResponse = await response.json();
   return data;
 }
+
+export interface BackendRegisterRequest {
+  username: string;
+  password: string;
+  fullName?: string;
+  phone?: string;
+  role?: 'ASHA' | 'HOSPITAL';
+  village?: string;
+  facility_name?: string;
+}
+
+export async function registerWithBackend(
+  payload: BackendRegisterRequest
+): Promise<BackendUser> {
+  const response = await fetch(`${BACKEND_URL}/api/v1/auth/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    let errorDetail = 'Registration failed';
+    try {
+      const errJson = await response.json();
+      if (errJson && errJson.detail) {
+        errorDetail = typeof errJson.detail === 'string' ? errJson.detail : JSON.stringify(errJson.detail);
+      }
+    } catch {
+      // ignore json parse error
+    }
+    throw new Error(errorDetail);
+  }
+
+  const data: BackendUser = await response.json();
+  return data;
+}

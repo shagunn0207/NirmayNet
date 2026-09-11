@@ -1,399 +1,690 @@
-import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, Modal, FlatList, Platform } from 'react-native';
-import { loginWithBackend } from '../../lib/apiClient';
+import React, { useState, useEffect } from 'react';
+import {
+  View, Text, TextInput, TouchableOpacity, StyleSheet,
+  ActivityIndicator, Alert, ScrollView, Platform
+} from 'react-native';
+import { loginWithBackend, registerWithBackend } from '../../lib/apiClient';
 import { useAuth } from '../../store/AuthContext';
 import { useRouter } from 'expo-router';
 import { FontAwesome5 } from '@expo/vector-icons';
-import { SafeAreaView } from 'react-native-safe-area-context';
-
-const LANGUAGES = [
-  { code: 'english', label: 'English' },
-  { code: 'marathi', label: 'मराठी' },
-  { code: 'hindi', label: 'हिंदी' },
-  { code: 'kannada', label: 'ಕನ್ನಡ' }
-];
+import { NirmayLogo } from '../../components/NirmayLogo';
 
 type Role = 'asha' | 'phc_doctor';
+type ScreenMode = 'splash' | 'role' | 'login' | 'signup' | 'loading';
 
 export default function LoginScreen() {
-  const [phone, setPhone] = useState('');
-  const [otp, setOtp] = useState('');
-  const [step, setStep] = useState<'role' | 'login'>('role');
-  const [selectedRole, setSelectedRole] = useState<Role | null>(null);
-  const [isOtpSent, setIsOtpSent] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [showLangPicker, setShowLangPicker] = useState(false);
-  
- const { language, setLanguage, setRoleOverride, setBackendAuth, t } = useAuth();
+  const [mode, setMode] = useState<ScreenMode>('splash');
+  const [selectedRole, setSelectedRole] = useState<Role>('asha');
+  const [loadingText, setLoadingText] = useState('Logging you in...');
+
+  // Login fields
+  const [username, setUsername] = useState('ASHA_NAND_023');
+  const [password, setPassword] = useState('asha2024');
+  const [showPassword, setShowPassword] = useState(false);
+
+  // Sign-up fields
+  const [suFullName, setSuFullName] = useState('');
+  const [suAge, setSuAge] = useState('');
+  const [suSex, setSuSex] = useState<'Male' | 'Female' | 'Other'>('Female');
+  const [suUsername, setSuUsername] = useState('');
+  const [suVillage, setSuVillage] = useState('');
+  const [suPhone, setSuPhone] = useState('');
+  const [suPassword, setSuPassword] = useState('');
+  const [suShowPassword, setSuShowPassword] = useState(false);
+
+  const { setRoleOverride, setBackendAuth } = useAuth();
   const router = useRouter();
 
-  const handleSendOtp = async () => {
-  if (!selectedRole) {
-    Alert.alert('Error', 'Please select a role first.');
-    return;
-  }
+  // Splash timeout: auto advance to role selector after 1.5s
+  useEffect(() => {
+    if (mode === 'splash') {
+      const timer = setTimeout(() => {
+        setMode('role');
+      }, 1400);
+      return () => clearTimeout(timer);
+    }
+  }, [mode]);
 
-  // Validate phone by digits only
-  const normalized = phone.replace(/\D/g, '');
-  const normalized10 = normalized.length > 10 ? normalized.slice(-10) : normalized;
+  const selectRoleAndProceed = (role: Role) => {
+    setSelectedRole(role);
+    if (role === 'asha') {
+      setUsername('ASHA_NAND_023');
+      setPassword('asha2024');
+    } else {
+      setUsername('HOSPITAL_NAND_001');
+      setPassword('hospital2024');
+    }
+    setMode('login');
+  };
 
-  if (normalized10.length !== 10) {
-    Alert.alert('Error', 'Please enter a valid 10-digit phone number.');
-    return;
-  }
-
-  setIsOtpSent(true);
-};
-
-const handleVerifyOtp = async () => {
-    if (!otp) {
-      Alert.alert('Error', 'Please enter password / OTP.');
+  // ── Handle Login ───────────────────────────────────────────────────────────
+  const handleLogin = async () => {
+    if (!username.trim() || !password) {
+      Alert.alert('Error', 'Please enter your Worker ID and password.');
       return;
     }
 
-    setLoading(true);
-    try {
-      // Normalize phone to 10 digits before sending to backend (strip +91 / spaces)
-      const normalized = phone.replace(/\D/g, '');
-      const phoneToSend = normalized.length > 10 ? normalized.slice(-10) : normalized;
-      if (phoneToSend.length !== 10) {
-        throw new Error('Phone number invalid for verification');
-      }
+    setMode('loading');
+    setLoadingText('Logging you in...');
 
-      const data = await loginWithBackend(phoneToSend, otp);
+    try {
+      const data = await loginWithBackend(username.trim(), password);
       if (data && data.access_token) {
         await setBackendAuth(data.access_token, data.user);
-        // Prefer the role selected on the login screen for navigation
-        if (selectedRole) {
-          try {
-            setRoleOverride(selectedRole);
-          } catch (e) {
-            // noop
-          }
-          if (selectedRole === 'asha') router.replace('/(asha)/home');
-          else if (selectedRole === 'phc_doctor') router.replace('/(phc)/home');
+        const mappedRole = data.user.role?.toUpperCase();
+
+        try { setRoleOverride(selectedRole); } catch (_) { /* noop */ }
+
+        if (selectedRole === 'asha' || mappedRole === 'ASHA') {
+          router.replace('/(asha)/home');
+        } else {
+          router.replace('/(phc)/home');
         }
       }
     } catch (err: any) {
-      Alert.alert('Verification Failed', err.message || 'Invalid OTP or credentials');
-    } finally {
-      setLoading(false);
+      setMode('login');
+      Alert.alert('Login Failed', err.message || 'Invalid credentials. Please check your Worker ID and password.');
     }
   };
 
-  const currentLangLabel = LANGUAGES.find(l => l.code === language)?.label || 'English';
+  // ── Handle Sign Up ─────────────────────────────────────────────────────────
+  const handleSignUp = async () => {
+    if (!suUsername.trim() || !suPassword) {
+      Alert.alert('Error', 'Worker ID and password are required.');
+      return;
+    }
+
+    setMode('loading');
+    setLoadingText('Creating your account...');
+
+    try {
+      const backendRole = selectedRole === 'phc_doctor' ? 'HOSPITAL' : 'ASHA';
+      await registerWithBackend({
+        username: suUsername.trim(),
+        password: suPassword,
+        fullName: suFullName.trim() || undefined,
+        phone: suPhone.trim() || undefined,
+        village: suVillage.trim() || undefined,
+        role: backendRole,
+      });
+
+      setLoadingText('Logging you in...');
+      // Auto-login
+      const data = await loginWithBackend(suUsername.trim(), suPassword);
+      if (data && data.access_token) {
+        await setBackendAuth(data.access_token, data.user);
+        try { setRoleOverride(selectedRole); } catch (_) { /* noop */ }
+
+        if (selectedRole === 'asha') {
+          router.replace('/(asha)/home');
+        } else {
+          router.replace('/(phc)/home');
+        }
+      }
+    } catch (err: any) {
+      setMode('signup');
+      Alert.alert('Registration Failed', err.message || 'Could not complete registration.');
+    }
+  };
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // 1. SPLASH SCREEN
+  // ───────────────────────────────────────────────────────────────────────────
+  if (mode === 'splash') {
+    return (
+      <TouchableOpacity
+        style={styles.splashContainer}
+        activeOpacity={0.9}
+        onPress={() => setMode('role')}
+      >
+        <View style={styles.splashContent}>
+          <NirmayLogo size="large" showSubtitle={true} />
+        </View>
+        <View style={styles.splashFooter}>
+          <Text style={styles.splashFooterText}>Tap anywhere to continue</Text>
+        </View>
+      </TouchableOpacity>
+    );
+  }
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // 5. LOADING SCREEN
+  // ───────────────────────────────────────────────────────────────────────────
+  if (mode === 'loading') {
+    return (
+      <View style={styles.loadingContainer}>
+        <NirmayLogo size="medium" showSubtitle={false} />
+        <Text style={styles.loadingText}>{loadingText}</Text>
+        <ActivityIndicator size="large" color="#0D9488" style={{ marginTop: 24 }} />
+      </View>
+    );
+  }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.logo}>NiramayNet</Text>
-          <Text style={styles.tagline}>From Village to Hospital — Unbroken</Text>
-        </View>
-        <TouchableOpacity style={styles.langButton} onPress={() => setShowLangPicker(true)}>
-          <Text style={styles.langText}>{currentLangLabel}</Text>
-          <FontAwesome5 name="chevron-down" size={12} color="#00796B" style={{ marginLeft: 5 }} />
-        </TouchableOpacity>
-      </View>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.scrollContent}
+      keyboardShouldPersistTaps="handled"
+    >
+      {/* ───────────────────────────────────────────────────────────────────────
+          2. ROLE SELECTION
+      ──────────────────────────────────────────────────────────────────────── */}
+      {mode === 'role' && (
+        <View style={styles.authCard}>
+          <View style={{ alignItems: 'center', marginBottom: 28 }}>
+            <NirmayLogo size="small" showSubtitle={false} />
+            <Text style={styles.heading}>Welcome to NirmayNet</Text>
+            <Text style={styles.subheading}>Select your role to continue</Text>
+          </View>
 
-      {showLangPicker && (
-        <View style={[StyleSheet.absoluteFill, styles.modalBg]}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Select Language</Text>
-            {LANGUAGES.map(lang => (
-              <TouchableOpacity
-                key={lang.code}
-                style={styles.langOption}
-                onPress={() => {
-                  setLanguage(lang.code);
-                  setShowLangPicker(false);
-                }}
-              >
-                <Text style={styles.langOptionText}>{lang.label}</Text>
+          {/* Option 1: ASHA Worker */}
+          <TouchableOpacity
+            style={[styles.roleOption, styles.roleOptionAsha]}
+            onPress={() => selectRoleAndProceed('asha')}
+            activeOpacity={0.85}
+          >
+            <View style={[styles.roleIconBadge, { backgroundColor: '#E6F4EA' }]}>
+              <FontAwesome5 name="user-nurse" size={24} color="#059669" />
+            </View>
+            <View style={styles.roleTextGroup}>
+              <Text style={styles.roleTitle}>ASHA Worker</Text>
+              <Text style={styles.roleDesc}>Community Health</Text>
+            </View>
+            <FontAwesome5 name="chevron-right" size={16} color="#059669" />
+          </TouchableOpacity>
+
+          {/* Option 2: PHC Doctor */}
+          <TouchableOpacity
+            style={[styles.roleOption, styles.roleOptionDoctor]}
+            onPress={() => selectRoleAndProceed('phc_doctor')}
+            activeOpacity={0.85}
+          >
+            <View style={[styles.roleIconBadge, { backgroundColor: '#EFF6FF' }]}>
+              <FontAwesome5 name="user-md" size={24} color="#2563EB" />
+            </View>
+            <View style={styles.roleTextGroup}>
+              <Text style={styles.roleTitle}>PHC Doctor</Text>
+              <Text style={styles.roleDesc}>Primary Health Centre</Text>
+            </View>
+            <FontAwesome5 name="chevron-right" size={16} color="#2563EB" />
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {/* ───────────────────────────────────────────────────────────────────────
+          3. LOGIN SCREEN
+      ──────────────────────────────────────────────────────────────────────── */}
+      {mode === 'login' && (
+        <View style={styles.authCard}>
+          <View style={styles.navBackRow}>
+            <TouchableOpacity onPress={() => setMode('role')} style={styles.backButton}>
+              <FontAwesome5 name="arrow-left" size={16} color="#475569" />
+            </TouchableOpacity>
+            <View style={[styles.rolePill, selectedRole === 'asha' ? styles.rolePillGreen : styles.rolePillBlue]}>
+              <FontAwesome5
+                name={selectedRole === 'asha' ? 'user-nurse' : 'user-md'}
+                size={12}
+                color={selectedRole === 'asha' ? '#059669' : '#2563EB'}
+              />
+              <Text style={[styles.rolePillText, { color: selectedRole === 'asha' ? '#059669' : '#2563EB' }]}>
+                {selectedRole === 'asha' ? 'ASHA Worker' : 'PHC Doctor'}
+              </Text>
+            </View>
+          </View>
+
+          <View style={{ alignItems: 'center', marginBottom: 24 }}>
+            <Text style={styles.heading}>Login</Text>
+            <Text style={styles.subheading}>Enter your credentials to continue</Text>
+          </View>
+
+          {/* Worker ID / Username */}
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>Worker ID / Username</Text>
+            <View style={styles.inputBox}>
+              <FontAwesome5 name="id-badge" size={16} color="#94A3B8" style={{ marginRight: 10 }} />
+              <TextInput
+                style={styles.textInput}
+                placeholder="Enter your ID"
+                placeholderTextColor="#94A3B8"
+                value={username}
+                onChangeText={setUsername}
+                autoCapitalize="none"
+              />
+            </View>
+          </View>
+
+          {/* Password */}
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>Password</Text>
+            <View style={styles.inputBox}>
+              <FontAwesome5 name="lock" size={16} color="#94A3B8" style={{ marginRight: 10 }} />
+              <TextInput
+                style={styles.textInput}
+                placeholder="Enter your password"
+                placeholderTextColor="#94A3B8"
+                secureTextEntry={!showPassword}
+                value={password}
+                onChangeText={setPassword}
+              />
+              <TouchableOpacity onPress={() => setShowPassword(p => !p)} style={{ padding: 4 }}>
+                <FontAwesome5 name={showPassword ? 'eye-slash' : 'eye'} size={15} color="#64748B" />
               </TouchableOpacity>
-            ))}
-            <TouchableOpacity style={styles.closeModal} onPress={() => setShowLangPicker(false)}>
-              <Text style={styles.closeModalText}>Cancel</Text>
+            </View>
+          </View>
+
+          {/* Submit Button */}
+          <TouchableOpacity
+            style={[styles.primaryButton, selectedRole === 'phc_doctor' && styles.primaryButtonBlue]}
+            onPress={handleLogin}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.primaryButtonText}>Login</Text>
+          </TouchableOpacity>
+
+          {/* Switch to Sign Up */}
+          <View style={styles.switchRow}>
+            <Text style={styles.switchPrompt}>Don't have an account? </Text>
+            <TouchableOpacity onPress={() => setMode('signup')}>
+              <Text style={[styles.switchLink, { color: selectedRole === 'asha' ? '#059669' : '#2563EB' }]}>
+                Sign Up
+              </Text>
             </TouchableOpacity>
           </View>
         </View>
       )}
 
-      <View style={styles.content}>
-        {step === 'role' ? (
-          <>
-            <Text style={styles.sectionTitle}>Select Your Role</Text>
-            
-            <TouchableOpacity
-              style={[styles.roleCard, selectedRole === 'asha' && styles.roleCardSelected]}
-              onPress={() => setSelectedRole('asha')}
-            >
-              <FontAwesome5 name="user-nurse" size={24} color={selectedRole === 'asha' ? '#00796B' : '#666'} />
-              <View style={styles.roleTextContainer}>
-                <Text style={[styles.roleTitle, selectedRole === 'asha' && styles.roleTitleSelected]}>ASHA Worker</Text>
-                <Text style={styles.roleDesc}>Field visits and patient care.</Text>
+      {/* ───────────────────────────────────────────────────────────────────────
+          4. SIGN UP SCREEN (CREATE ACCOUNT)
+      ──────────────────────────────────────────────────────────────────────── */}
+      {mode === 'signup' && (
+        <View style={styles.authCard}>
+          <View style={styles.navBackRow}>
+            <TouchableOpacity onPress={() => setMode('login')} style={styles.backButton}>
+              <FontAwesome5 name="arrow-left" size={16} color="#475569" />
+            </TouchableOpacity>
+            <Text style={styles.navTitle}>Create Account</Text>
+            <View style={{ width: 32 }} />
+          </View>
+
+          <Text style={styles.subheadingCenter}>Join NirmayNet to make a difference</Text>
+
+          {/* Full Name */}
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>Full Name</Text>
+            <View style={styles.inputBox}>
+              <TextInput
+                style={styles.textInput}
+                placeholder="Enter your full name"
+                placeholderTextColor="#94A3B8"
+                value={suFullName}
+                onChangeText={setSuFullName}
+              />
+            </View>
+          </View>
+
+          {/* Age & Sex in Row */}
+          <View style={styles.rowInputs}>
+            <View style={[styles.inputGroup, { flex: 1, marginRight: 8 }]}>
+              <Text style={styles.inputLabel}>Age</Text>
+              <View style={styles.inputBox}>
+                <TextInput
+                  style={styles.textInput}
+                  placeholder="e.g. 28"
+                  placeholderTextColor="#94A3B8"
+                  keyboardType="numeric"
+                  value={suAge}
+                  onChangeText={setSuAge}
+                />
               </View>
-            </TouchableOpacity>
+            </View>
 
-            <TouchableOpacity
-              style={[styles.roleCard, selectedRole === 'phc_doctor' && styles.roleCardSelected]}
-              onPress={() => setSelectedRole('phc_doctor')}
-            >
-              <FontAwesome5 name="stethoscope" size={24} color={selectedRole === 'phc_doctor' ? '#00796B' : '#666'} />
-              <View style={styles.roleTextContainer}>
-                <Text style={[styles.roleTitle, selectedRole === 'phc_doctor' && styles.roleTitleSelected]}>PHC Doctor / CHO</Text>
-                <Text style={styles.roleDesc}>Consultations and referral decisions.</Text>
+            <View style={[styles.inputGroup, { flex: 1, marginLeft: 8 }]}>
+              <Text style={styles.inputLabel}>Sex</Text>
+              <View style={styles.sexSelector}>
+                {(['Female', 'Male', 'Other'] as const).map(s => (
+                  <TouchableOpacity
+                    key={s}
+                    style={[styles.sexOption, suSex === s && styles.sexOptionActive]}
+                    onPress={() => setSuSex(s)}
+                  >
+                    <Text style={[styles.sexOptionText, suSex === s && styles.sexOptionTextActive]}>
+                      {s}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
               </View>
+            </View>
+          </View>
+
+          {/* Worker ID / Username */}
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>Worker ID / Username</Text>
+            <View style={styles.inputBox}>
+              <TextInput
+                style={styles.textInput}
+                placeholder="e.g. ASHA_KAS_004"
+                placeholderTextColor="#94A3B8"
+                value={suUsername}
+                onChangeText={setSuUsername}
+                autoCapitalize="none"
+              />
+            </View>
+          </View>
+
+          {/* Village / Facility */}
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>Village / Facility</Text>
+            <View style={styles.inputBox}>
+              <TextInput
+                style={styles.textInput}
+                placeholder="Enter your village or facility"
+                placeholderTextColor="#94A3B8"
+                value={suVillage}
+                onChangeText={setSuVillage}
+              />
+            </View>
+          </View>
+
+          {/* Phone Number (Optional) */}
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>Phone Number (Optional)</Text>
+            <View style={styles.inputBox}>
+              <TextInput
+                style={styles.textInput}
+                placeholder="Enter your phone number"
+                placeholderTextColor="#94A3B8"
+                keyboardType="phone-pad"
+                value={suPhone}
+                onChangeText={setSuPhone}
+              />
+            </View>
+          </View>
+
+          {/* Password */}
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>Password</Text>
+            <View style={styles.inputBox}>
+              <TextInput
+                style={styles.textInput}
+                placeholder="Create a password"
+                placeholderTextColor="#94A3B8"
+                secureTextEntry={!suShowPassword}
+                value={suPassword}
+                onChangeText={setSuPassword}
+              />
+              <TouchableOpacity onPress={() => setSuShowPassword(p => !p)} style={{ padding: 4 }}>
+                <FontAwesome5 name={suShowPassword ? 'eye-slash' : 'eye'} size={15} color="#64748B" />
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* Create Account Button */}
+          <TouchableOpacity
+            style={[styles.primaryButton, selectedRole === 'phc_doctor' && styles.primaryButtonBlue]}
+            onPress={handleSignUp}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.primaryButtonText}>Create Account</Text>
+          </TouchableOpacity>
+
+          {/* Switch to Login */}
+          <View style={styles.switchRow}>
+            <Text style={styles.switchPrompt}>Already have an account? </Text>
+            <TouchableOpacity onPress={() => setMode('login')}>
+              <Text style={[styles.switchLink, { color: selectedRole === 'asha' ? '#059669' : '#2563EB' }]}>
+                Login
+              </Text>
             </TouchableOpacity>
-
-            {/* District/DHO role intentionally not shown on mobile login */}
-
-            <TouchableOpacity 
-              style={[styles.primaryButton, (!selectedRole) && styles.buttonDisabled, { marginTop: 24 }]}
-              onPress={() => setStep('login')}
-              disabled={!selectedRole}
-            >
-              <Text style={styles.primaryButtonText}>Continue</Text>
-            </TouchableOpacity>
-          </>
-        ) : (
-          <>
-            <TouchableOpacity style={styles.backButton} onPress={() => { setStep('role'); setIsOtpSent(false); setOtp(''); setPhone(''); }}>
-              <FontAwesome5 name="arrow-left" size={16} color="#00796B" />
-              <Text style={styles.backButtonText}>Back</Text>
-            </TouchableOpacity>
-
-            <Text style={styles.sectionTitle}>
-              {selectedRole === 'asha' ? 'ASHA Worker' : 'PHC Doctor'} Login / Sign Up
-            </Text>
-
-        <View style={styles.inputContainer}>
-          <Text style={styles.inputLabel}>Phone Number</Text>
-          <View style={styles.phoneInputRow}>
-            <Text style={styles.prefix}>+91</Text>
-            <TextInput
-              style={styles.input}
-              value={phone}
-              onChangeText={setPhone}
-              keyboardType="number-pad"
-              maxLength={10}
-              placeholder="10-digit number"
-              editable={!isOtpSent}
-            />
           </View>
         </View>
-
-        {isOtpSent && (
-          <View style={styles.inputContainer}>
-            <Text style={styles.inputLabel}>Enter OTP</Text>
-            <TextInput
-              style={styles.otpInput}
-              value={otp}
-              onChangeText={setOtp}
-              keyboardType="number-pad"
-              maxLength={6}
-              placeholder="000000"
-            />
-          </View>
-        )}
-
-        <TouchableOpacity 
-          style={[styles.primaryButton, loading && styles.buttonDisabled]}
-          onPress={isOtpSent ? handleVerifyOtp : handleSendOtp}
-          disabled={loading}
-        >
-          {loading ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text style={styles.primaryButtonText}>
-              {isOtpSent ? 'Verify OTP' : 'Send OTP'}
-            </Text>
-          )}
-        </TouchableOpacity>
-        </>
-        )}
-      </View>
-    </SafeAreaView>
+      )}
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
+  splashContainer: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  splashContent: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  splashFooter: {
+    paddingBottom: 24,
+  },
+  splashFooterText: {
+    fontSize: 13,
+    color: '#94A3B8',
+    fontFamily: 'Inter_500Medium',
+  },
+  loadingContainer: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  loadingText: {
+    fontSize: 16,
+    fontFamily: 'Inter_600SemiBold',
+    color: '#334155',
+    marginTop: 20,
+  },
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: '#F8FAFC',
   },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  scrollContent: {
+    flexGrow: 1,
     padding: 20,
-    borderBottomWidth: 1,
-    borderColor: '#eee',
-    alignItems: 'center',
+    justifyContent: 'center',
   },
-  logo: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#00796B',
+  authCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    padding: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 16,
+    elevation: 4,
   },
-  tagline: {
-    fontSize: 12,
-    color: '#666',
+  heading: {
+    fontSize: 22,
+    fontFamily: 'Inter_800ExtraBold',
+    color: '#0F172A',
+    textAlign: 'center',
+    marginTop: 12,
+  },
+  subheading: {
+    fontSize: 14,
+    fontFamily: 'Inter_500Medium',
+    color: '#64748B',
+    textAlign: 'center',
     marginTop: 4,
   },
-  langButton: {
+  subheadingCenter: {
+    fontSize: 13,
+    fontFamily: 'Inter_500Medium',
+    color: '#64748B',
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  navBackRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#E0F2F1',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  backButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#F1F5F9',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  navTitle: {
+    fontSize: 18,
+    fontFamily: 'Inter_700Bold',
+    color: '#0F172A',
+  },
+  rolePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 16,
+    gap: 6,
   },
-  langText: {
-    color: '#00796B',
-    fontWeight: '600',
+  rolePillGreen: {
+    backgroundColor: '#ECFDF5',
   },
-  content: {
-    padding: 20,
+  rolePillBlue: {
+    backgroundColor: '#EFF6FF',
   },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginBottom: 16,
-    color: '#333',
+  rolePillText: {
+    fontSize: 12,
+    fontFamily: 'Inter_700Bold',
   },
-  backButton: {
+  roleOption: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
-  },
-  backButtonText: {
-    marginLeft: 8,
-    color: '#00796B',
-    fontWeight: '600',
-    fontSize: 16,
-  },
-  roleCard: {
-    flexDirection: 'row',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderRadius: 18,
     padding: 16,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: '#eee',
-    marginBottom: 12,
+    marginBottom: 16,
+  },
+  roleOptionAsha: {
+    borderColor: '#A7F3D0',
+  },
+  roleOptionDoctor: {
+    borderColor: '#BFDBFE',
+  },
+  roleIconBadge: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     alignItems: 'center',
-    backgroundColor: '#fafafa',
+    justifyContent: 'center',
+    marginRight: 16,
   },
-  roleCardSelected: {
-    borderColor: '#00796B',
-    backgroundColor: '#E0F2F1',
-  },
-  roleTextContainer: {
-    marginLeft: 16,
+  roleTextGroup: {
     flex: 1,
   },
   roleTitle: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
-  },
-  roleTitleSelected: {
-    color: '#00796B',
+    fontFamily: 'Inter_700Bold',
+    color: '#0F172A',
   },
   roleDesc: {
-    fontSize: 12,
-    color: '#666',
-    marginTop: 4,
+    fontSize: 13,
+    fontFamily: 'Inter_500Medium',
+    color: '#64748B',
+    marginTop: 2,
   },
-  inputContainer: {
-    marginTop: 24,
+  inputGroup: {
     marginBottom: 16,
   },
   inputLabel: {
-    fontSize: 14,
-    color: '#333',
-    marginBottom: 8,
-    fontWeight: '500',
+    fontSize: 13,
+    fontFamily: 'Inter_600SemiBold',
+    color: '#334155',
+    marginBottom: 6,
   },
-  phoneInputRow: {
+  inputBox: {
     flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: '#F8FAFC',
     borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    paddingHorizontal: 12,
+    borderColor: '#E2E8F0',
+    borderRadius: 12,
+    paddingHorizontal: 14,
     height: 48,
   },
-  prefix: {
-    fontSize: 16,
-    color: '#333',
-    fontWeight: '600',
-    marginRight: 8,
-  },
-  input: {
+  textInput: {
     flex: 1,
-    fontSize: 16,
-    height: '100%',
+    fontSize: 14,
+    fontFamily: 'Inter_500Medium',
+    color: '#0F172A',
   },
-  otpInput: {
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    paddingHorizontal: 12,
+  rowInputs: {
+    flexDirection: 'row',
+  },
+  sexSelector: {
+    flexDirection: 'row',
+    backgroundColor: '#F1F5F9',
+    borderRadius: 12,
+    padding: 3,
     height: 48,
-    fontSize: 18,
-    letterSpacing: 4,
-    textAlign: 'center',
+    alignItems: 'center',
+  },
+  sexOption: {
+    flex: 1,
+    height: 42,
+    borderRadius: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sexOptionActive: {
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  sexOptionText: {
+    fontSize: 12,
+    fontFamily: 'Inter_500Medium',
+    color: '#64748B',
+  },
+  sexOptionTextActive: {
+    fontFamily: 'Inter_700Bold',
+    color: '#0F172A',
   },
   primaryButton: {
-    backgroundColor: '#00796B',
-    height: 48,
-    borderRadius: 8,
-    justifyContent: 'center',
+    backgroundColor: '#059669',
+    borderRadius: 14,
+    height: 50,
     alignItems: 'center',
+    justifyContent: 'center',
     marginTop: 8,
+    shadowColor: '#059669',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 3,
   },
-  buttonDisabled: {
-    opacity: 0.7,
+  primaryButtonBlue: {
+    backgroundColor: '#2563EB',
+    shadowColor: '#2563EB',
   },
   primaryButtonText: {
-    color: '#fff',
     fontSize: 16,
-    fontWeight: '600',
+    fontFamily: 'Inter_700Bold',
+    color: '#FFFFFF',
   },
-  modalBg: {
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center',
+  switchRow: {
+    flexDirection: 'row',
     alignItems: 'center',
-    zIndex: 999,
+    justifyContent: 'center',
+    marginTop: 20,
   },
-  modalContent: {
-    backgroundColor: '#fff',
-    width: '80%',
-    borderRadius: 12,
-    padding: 20,
+  switchPrompt: {
+    fontSize: 14,
+    fontFamily: 'Inter_500Medium',
+    color: '#64748B',
   },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 16,
-    textAlign: 'center',
+  switchLink: {
+    fontSize: 14,
+    fontFamily: 'Inter_700Bold',
   },
-  langOption: {
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
-  },
-  langOptionText: {
-    fontSize: 16,
-    textAlign: 'center',
-  },
-  closeModal: {
-    marginTop: 16,
-    paddingVertical: 12,
-  },
-  closeModalText: {
-    color: '#d32f2f',
-    textAlign: 'center',
-    fontSize: 16,
-    fontWeight: '600',
-  }
 });

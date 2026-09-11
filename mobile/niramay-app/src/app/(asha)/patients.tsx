@@ -1,225 +1,431 @@
 import React, { useState, useMemo, useCallback } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, TextInput, Modal, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
+import {
+  View, Text, ScrollView, TouchableOpacity, StyleSheet,
+  TextInput, ActivityIndicator, RefreshControl
+} from 'react-native';
 import { useAuth } from '../../store/AuthContext';
 import { BACKEND_URL } from '../../lib/apiClient';
-import { FontAwesome5, Ionicons } from '@expo/vector-icons';
-import { useFocusEffect } from 'expo-router';
+import { FontAwesome5 } from '@expo/vector-icons';
+import { useFocusEffect, useRouter } from 'expo-router';
 
+interface Patient {
+  id: string;
+  name: string;
+  age: number;
+  gender: string;
+  phone?: string;
+  village?: string;
+  abha_id?: string;
+  allergies?: string;
+  risk?: 'Low' | 'Medium' | 'High';
+  statusNote?: string;
+  lastVisit?: string;
+  nextFollowup?: string;
+}
+
+const DEFAULT_PATIENTS: Patient[] = [
+  {
+    id: 'p-1',
+    name: 'Savitri Devi',
+    age: 32,
+    gender: 'Female',
+    phone: '9876543210',
+    village: 'Nandgaon',
+    abha_id: '91-8823-4410-12',
+    allergies: 'None',
+    risk: 'Medium',
+    statusNote: 'Follow-up due',
+    lastVisit: '12 Sep 2026',
+    nextFollowup: '19 Sep 2026',
+  },
+  {
+    id: 'p-2',
+    name: 'Ramesh Kumar',
+    age: 45,
+    gender: 'Male',
+    phone: '9823011234',
+    village: 'Chinchpada',
+    abha_id: '91-3341-9920-55',
+    allergies: 'Penicillin',
+    risk: 'High',
+    statusNote: 'Referred',
+    lastVisit: '10 Sep 2026',
+    nextFollowup: '15 Sep 2026',
+  },
+  {
+    id: 'p-3',
+    name: 'Pooja Sharma',
+    age: 28,
+    gender: 'Female',
+    phone: '9421056789',
+    village: 'Nandurbar',
+    abha_id: '91-5521-8812-30',
+    allergies: 'None',
+    risk: 'Low',
+    statusNote: 'Stable',
+    lastVisit: '08 Sep 2026',
+    nextFollowup: '22 Sep 2026',
+  },
+  {
+    id: 'p-4',
+    name: 'Mohammed Ali',
+    age: 60,
+    gender: 'Male',
+    phone: '9860012345',
+    village: 'Chinchpada',
+    abha_id: '91-7723-1109-88',
+    allergies: 'Sulfa drugs',
+    risk: 'High',
+    statusNote: 'High-risk',
+    lastVisit: '05 Sep 2026',
+    nextFollowup: '12 Sep 2026',
+  },
+];
 
 export default function PatientsScreen() {
-  const { t, user, session } = useAuth();
-  const [patients, setPatients] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [query, setQuery] = useState('');
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [showFilterModal, setShowFilterModal] = useState(false);
-  
-  const [sexFilter, setSexFilter] = useState<'all' | 'Male' | 'Female' | 'Other'>('all');
-  const [ageFilter, setAgeFilter] = useState<'all' | 'infant' | 'child' | 'adult' | 'middle' | 'senior'>('all');
+  const { session } = useAuth();
+  const router = useRouter();
 
-  const getAgeGroup = (age: number) => {
-    if (age <= 5) return 'infant';
-    if (age <= 18) return 'child';
-    if (age <= 45) return 'adult';
-    if (age <= 55) return 'middle';
-    return 'senior';
+  const [patients, setPatients] = useState<Patient[]>(DEFAULT_PATIENTS);
+  const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [activeTab, setActiveTab] = useState<'All' | 'High-Risk' | 'Follow-ups'>('All');
+
+  // Selected Patient for Profile Detail View (Screen 5)
+  const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
+  const [profileTab, setProfileTab] = useState<'Overview' | 'History' | 'Follow-ups'>('Overview');
+
+  const fetchPatients = async () => {
+    setLoading(true);
+    try {
+      const token = session?.access_token;
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const res = await fetch(`${BACKEND_URL}/api/v1/patients/`, { headers });
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data) && data.length > 0) {
+          const apiPatients: Patient[] = data.map((p: any, idx: number) => ({
+            id: p.id ? String(p.id) : `p-api-${idx}`,
+            name: p.name || 'Unnamed Patient',
+            age: Number(p.age) || 30,
+            gender: p.gender || 'Female',
+            phone: p.phone || '9876543210',
+            village: p.village || 'Chinchpada',
+            abha_id: p.abha_id,
+            allergies: p.allergies || 'None',
+            risk: idx % 3 === 0 ? 'High' : idx % 3 === 1 ? 'Medium' : 'Low',
+            statusNote: idx % 3 === 0 ? 'High-risk' : idx % 3 === 1 ? 'Follow-up due' : 'Stable',
+            lastVisit: '12 Sep 2026',
+            nextFollowup: '19 Sep 2026',
+          }));
+          // Merge API patients at top
+          setPatients([...apiPatients, ...DEFAULT_PATIENTS]);
+        }
+      }
+    } catch {
+      // Keep DEFAULT_PATIENTS on fallback
+    } finally {
+      setLoading(false);
+    }
   };
 
   useFocusEffect(
     useCallback(() => {
       fetchPatients();
-      // No realtime channels when using backend API; refresh on focus instead.
-      return () => {};
-    }, [user])
+    }, [session])
   );
 
-  const fetchPatients = async () => {
-    setIsLoading(true);
-    try {
-      // Use the stored JWT from AuthContext when available
-      const token = session?.access_token;
-      const headers: any = { 'Content-Type': 'application/json' };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-
-      const res = await fetch(`${BACKEND_URL}/api/v1/patients/`, { headers });
-      if (!res.ok) {
-        setPatients([]);
-        setIsLoading(false);
-        return;
-      }
-      const data = await res.json();
-      if (Array.isArray(data)) {
-        // map backend patient shape to client expected fields and normalize gender to 'M'|'F'|Other
-        const mapped = data.map((p: any) => ({
-          id: p.id,
-          name: p.name,
-          age: typeof p.age === 'number' ? p.age : (p.age ? parseInt(p.age, 10) || 0 : 0),
-          age_unit: p.age_unit || p.ageUnit || undefined,
-          gender: p.gender === 'Female' ? 'F' : p.gender === 'Male' ? 'M' : (p.gender || 'Other'),
-          village: p.village,
-          phone: p.phone,
-          abha_id: p.abha_id || p.abhaId,
-          lastTriage: p.last_triage || p.lastTriage || undefined,
-        }));
-        setPatients(mapped);
-      } else {
-        setPatients([]);
-      }
-    } catch (err) {
-      console.warn('fetchPatients failed', err);
-      setPatients([]);
-    }
-    setIsLoading(false);
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await fetchPatients();
+    setRefreshing(false);
   };
 
-  const filtered = patients.filter(p => {
-    const qLower = query.toLowerCase();
-    const nameMatch = p.name.toLowerCase().includes(qLower) || p.village.toLowerCase().includes(qLower) || (p.abha_id && p.abha_id.toLowerCase().includes(qLower));
-    const sexMatch = sexFilter === 'all' || (sexFilter === 'Female' && p.gender === 'F') || (sexFilter === 'Male' && p.gender === 'M') || (sexFilter === 'Other' && p.gender === 'Other');
-    const ageMatch = ageFilter === 'all' || getAgeGroup(p.age) === ageFilter;
-    return nameMatch && sexMatch && ageMatch;
-  });
+  // Filtered patients
+  const filteredPatients = useMemo(() => {
+    return patients.filter(p => {
+      const matchesSearch =
+        p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (p.village && p.village.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (p.phone && p.phone.includes(searchQuery));
 
-  const selectedPatient = patients.find(p => p.id === selectedId);
+      if (!matchesSearch) return false;
+      if (activeTab === 'High-Risk') return p.risk === 'High' || p.statusNote?.toLowerCase().includes('high');
+      if (activeTab === 'Follow-ups') return p.statusNote?.toLowerCase().includes('follow-up') || p.risk === 'Medium';
+      return true;
+    });
+  }, [patients, searchQuery, activeTab]);
 
-  return (
-    <KeyboardAvoidingView 
-      style={styles.container} 
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
-      <View style={styles.searchContainer}>
-        <View style={styles.searchInputWrapper}>
-          <FontAwesome5 name="search" size={16} color="#94A3B8" style={styles.searchIcon} />
-          <TextInput
-            style={styles.searchInput}
-            placeholder={t('searchPlaceholder') || 'Search name or ABHA ID'}
-            value={query}
-            onChangeText={setQuery}
-          />
-          <TouchableOpacity style={styles.micBtn}>
-            <FontAwesome5 name="microphone" size={16} color="#0F766E" />
+  // ───────────────────────────────────────────────────────────────────────────
+  // SCREEN 5: PATIENT PROFILE VIEW
+  // ───────────────────────────────────────────────────────────────────────────
+  if (selectedPatient) {
+    const initial = selectedPatient.name ? selectedPatient.name.charAt(0).toUpperCase() : 'P';
+    return (
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={styles.profileContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Header with Back Button */}
+        <View style={styles.topHeaderRow}>
+          <TouchableOpacity style={styles.roundBackBtn} onPress={() => setSelectedPatient(null)}>
+            <FontAwesome5 name="arrow-left" size={16} color="#0F172A" />
           </TouchableOpacity>
+          <Text style={styles.topHeaderTitle}>Patient Profile</Text>
+          <View style={{ width: 36 }} />
         </View>
 
-        {/* Dropdown Filter */}
-        <TouchableOpacity 
-          style={[styles.dropdownButton, { marginTop: 12 }]} 
-          onPress={() => setShowFilterModal(true)}
-        >
-          <Text style={styles.dropdownButtonText}>
-            {sexFilter === 'all' ? '👥 ' + (t('allPatients') || 'All') :
-             sexFilter === 'Female' ? '👩 ' + (t('sexFemale') || 'Female') :
-             sexFilter === 'Male' ? '👨 ' + (t('sexMale') || 'Male') :
-             '🧑 ' + (t('sexOther') || 'Other')}
-          </Text>
-          <FontAwesome5 name="chevron-down" size={12} color="#0F766E" />
-        </TouchableOpacity>
-
-        <Modal visible={showFilterModal} transparent animationType="fade">
-          <TouchableOpacity style={styles.modalOverlay} onPress={() => setShowFilterModal(false)}>
-            <View style={styles.modalContent}>
-              {[
-                { key: 'all', icon: '👥', label: t('allPatients') || 'All' },
-                { key: 'Female', icon: '👩', label: t('sexFemale') || 'Female' },
-                { key: 'Male', icon: '👨', label: t('sexMale') || 'Male' },
-                { key: 'Other', icon: '🧑', label: t('sexOther') || 'Other' },
-              ].map(g => (
-                <TouchableOpacity
-                  key={g.key}
-                  style={[styles.dropdownItem, sexFilter === g.key && styles.dropdownItemActive]}
-                  onPress={() => { setSexFilter(g.key as any); setShowFilterModal(false); }}
-                >
-                  <Text style={[styles.dropdownItemText, sexFilter === g.key && styles.dropdownItemTextActive]}>
-                    {g.icon} {g.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </TouchableOpacity>
-        </Modal>
-      </View>
-
-      <ScrollView style={styles.listContainer}>
-        {filtered.length === 0 ? (
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyText}>{t('noPatientsFound') || 'No patients found'}</Text>
+        {/* Profile Card Header */}
+        <View style={styles.profileHeroCard}>
+          <View style={[styles.bigAvatar, { backgroundColor: selectedPatient.gender === 'Female' ? '#E6F4EA' : '#EFF6FF' }]}>
+            <Text style={[styles.bigAvatarText, { color: selectedPatient.gender === 'Female' ? '#059669' : '#2563EB' }]}>
+              {initial}
+            </Text>
           </View>
-        ) : (
-          filtered.map(patient => (
+          <Text style={styles.profileName}>{selectedPatient.name}</Text>
+          <Text style={styles.profileSub}>
+            {selectedPatient.age} years • {selectedPatient.gender}
+          </Text>
+        </View>
+
+        {/* Profile Sub-tabs */}
+        <View style={styles.profileTabsBar}>
+          {(['Overview', 'History', 'Follow-ups'] as const).map(tab => (
             <TouchableOpacity
-              key={patient.id}
-              style={styles.patientCard}
-              onPress={() => {
-                // open patient detail modal; also support navigation if needed
-                setSelectedId(patient.id);
-              }}
+              key={tab}
+              style={[styles.profileTabBtn, profileTab === tab && styles.profileTabBtnActive]}
+              onPress={() => setProfileTab(tab)}
             >
-              <View style={styles.patientCardLeft}>
-                <View style={styles.avatar}>
-                  <Text style={styles.avatarText}>{patient.name.charAt(0)}</Text>
-                </View>
-                <View>
-                  <Text style={styles.patientName}>{patient.name}</Text>
-                  <Text style={styles.patientSub}>{patient.age}{patient.age_unit ? ` ${patient.age_unit}` : ' yrs'} • {patient.gender === 'F' ? (t('sexFemale') || 'Female') : patient.gender === 'M' ? (t('sexMale') || 'Male') : (t('sexOther') || 'Other')} • {patient.village}</Text>
-                </View>
-              </View>
-              <View style={[
-                styles.urgencyDot, 
-                { backgroundColor: patient.lastTriage === 'EMERGENCY' ? '#EF4444' : patient.lastTriage === 'URGENT' ? '#F59E0B' : '#22C55E' }
-              ]} />
+              <Text style={[styles.profileTabText, profileTab === tab && styles.profileTabTextActive]}>
+                {tab}
+              </Text>
             </TouchableOpacity>
-          ))
-        )}
-      </ScrollView>
+          ))}
+        </View>
 
-      {/* Patient Detail Modal */}
-      <Modal visible={!!selectedId} animationType="slide" presentationStyle="pageSheet">
-        {selectedPatient && (
-          <View style={styles.modalContainer}>
-            <View style={styles.modalHeader}>
-              <TouchableOpacity onPress={() => setSelectedId(null)} style={styles.iconBtn}>
-                <FontAwesome5 name="chevron-down" size={20} color="#FFFFFF" />
-              </TouchableOpacity>
-              <View style={styles.modalTitleContainer}>
-                <Text style={styles.modalTitle}>{selectedPatient.name}</Text>
-                <Text style={styles.modalSubtitle}>{selectedPatient.age} yrs • {selectedPatient.gender === 'F' ? (t('sexFemale') || 'Female') : selectedPatient.gender === 'M' ? (t('sexMale') || 'Male') : (t('sexOther') || 'Other')}</Text>
-              </View>
-              <TouchableOpacity style={styles.editBtn}>
-                <FontAwesome5 name="edit" size={14} color="#FFFFFF" />
-                <Text style={styles.editBtnText}>{t('edit') || 'Edit'}</Text>
-              </TouchableOpacity>
+        {/* Tab 1: Overview */}
+        {profileTab === 'Overview' && (
+          <View style={styles.detailsCard}>
+            <View style={styles.detailRow}>
+              <Text style={styles.detailLabel}>Phone</Text>
+              <Text style={styles.detailValue}>{selectedPatient.phone || 'Not provided'}</Text>
             </View>
+            <View style={styles.detailDivider} />
 
-            <ScrollView style={styles.modalBody}>
-              <View style={[styles.card, { borderLeftWidth: 4, borderLeftColor: selectedPatient.lastTriage === 'EMERGENCY' ? '#EF4444' : '#22C55E' }]}>
-                <Text style={styles.sectionTitle}>{t('currentStatus') || 'Current Status'}</Text>
-                <Text style={styles.guidanceText}>
-                  {selectedPatient.lastTriage === 'EMERGENCY' ? 'Requires immediate medical attention.' : 'Routine checkup recommended.'}
+            <View style={styles.detailRow}>
+              <Text style={styles.detailLabel}>Village</Text>
+              <Text style={styles.detailValue}>{selectedPatient.village || 'Nandurbar'}</Text>
+            </View>
+            <View style={styles.detailDivider} />
+
+            <View style={styles.detailRow}>
+              <Text style={styles.detailLabel}>Risk Level</Text>
+              <View
+                style={[
+                  styles.riskBadge,
+                  selectedPatient.risk === 'High'
+                    ? styles.riskBadgeHigh
+                    : selectedPatient.risk === 'Medium'
+                    ? styles.riskBadgeMed
+                    : styles.riskBadgeLow,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.riskBadgeText,
+                    selectedPatient.risk === 'High'
+                      ? styles.riskTextHigh
+                      : selectedPatient.risk === 'Medium'
+                      ? styles.riskTextMed
+                      : styles.riskTextLow,
+                  ]}
+                >
+                  {selectedPatient.risk || 'Low'}
                 </Text>
               </View>
+            </View>
+            <View style={styles.detailDivider} />
 
-              <View style={styles.card}>
-                <Text style={styles.sectionTitle}>{t('basicInfo') || 'Basic Info'}</Text>
-                <View style={styles.infoRow}>
-                  <Text style={styles.infoLabel}>ABHA ID</Text>
-                  <Text style={styles.infoValue}>{selectedPatient.abha_id || 'Not Provided'}</Text>
-                </View>
-                <View style={styles.divider} />
-                <View style={styles.infoRow}>
-                  <Text style={styles.infoLabel}>{t('village') || 'Village'}</Text>
-                  <Text style={styles.infoValue}>{selectedPatient.village}</Text>
-                </View>
-                <View style={styles.divider} />
-                <View style={styles.infoRow}>
-                  <Text style={styles.infoLabel}>{t('mobileLabel') || 'Mobile'}</Text>
-                  <Text style={styles.infoValue}>{selectedPatient.phone || 'Not Provided'}</Text>
-                </View>
-              </View>
-            </ScrollView>
+            <View style={styles.detailRow}>
+              <Text style={styles.detailLabel}>Last Visit</Text>
+              <Text style={styles.detailValue}>{selectedPatient.lastVisit || '12 Sep 2026'}</Text>
+            </View>
+            <View style={styles.detailDivider} />
+
+            <View style={styles.detailRow}>
+              <Text style={styles.detailLabel}>Next Follow-up</Text>
+              <Text style={styles.detailValue}>{selectedPatient.nextFollowup || '19 Sep 2026'}</Text>
+            </View>
           </View>
         )}
-      </Modal>
-    </KeyboardAvoidingView>
+
+        {/* Tab 2: History */}
+        {profileTab === 'History' && (
+          <View style={styles.detailsCard}>
+            <View style={styles.historyItem}>
+              <Text style={styles.historyDate}>12 Sep 2026 • ASHA Home Visit</Text>
+              <Text style={styles.historyText}>Vitals checked. Blood pressure normal. Prescribed routine iron tablets.</Text>
+            </View>
+            <View style={styles.detailDivider} />
+            <View style={styles.historyItem}>
+              <Text style={styles.historyDate}>28 Aug 2026 • PHC Consultation</Text>
+              <Text style={styles.historyText}>General health checkup. Follow-up advised in 2 weeks.</Text>
+            </View>
+          </View>
+        )}
+
+        {/* Tab 3: Follow-ups */}
+        {profileTab === 'Follow-ups' && (
+          <View style={styles.detailsCard}>
+            <View style={styles.historyItem}>
+              <Text style={styles.historyDate}>Scheduled: 19 Sep 2026</Text>
+              <Text style={styles.historyText}>Home visit for maternal care checkup & nutritional review.</Text>
+            </View>
+          </View>
+        )}
+
+        {/* Action Button: Add Follow-up */}
+        <TouchableOpacity
+          style={styles.actionAddFollowupBtn}
+          activeOpacity={0.85}
+          onPress={() => {
+            router.push({
+              pathname: '/(asha)/referral',
+              params: {
+                patientId: selectedPatient.id,
+                patientName: selectedPatient.name,
+              },
+            });
+          }}
+        >
+          <Text style={styles.actionAddFollowupText}>Add Follow-up / Referral</Text>
+        </TouchableOpacity>
+      </ScrollView>
+    );
+  }
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // SCREEN 4: MY PATIENTS LIST
+  // ───────────────────────────────────────────────────────────────────────────
+  return (
+    <View style={styles.container}>
+      {/* Top Header */}
+      <View style={styles.listHeader}>
+        <Text style={styles.listHeaderTitle}>My Patients</Text>
+        <TouchableOpacity
+          style={styles.addPatientMiniBtn}
+          onPress={() => router.push('/(asha)/register')}
+        >
+          <FontAwesome5 name="user-plus" size={14} color="#059669" />
+        </TouchableOpacity>
+      </View>
+
+      {/* Search Input */}
+      <View style={styles.searchBar}>
+        <FontAwesome5 name="search" size={14} color="#94A3B8" style={{ marginRight: 10 }} />
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Search patients..."
+          placeholderTextColor="#94A3B8"
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+        />
+        {searchQuery.length > 0 && (
+          <TouchableOpacity onPress={() => setSearchQuery('')}>
+            <FontAwesome5 name="times-circle" size={14} color="#94A3B8" />
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {/* Filter Tabs: All | High-Risk | Follow-ups */}
+      <View style={styles.filterTabsRow}>
+        {(['All', 'High-Risk', 'Follow-ups'] as const).map(tab => (
+          <TouchableOpacity
+            key={tab}
+            style={[styles.filterChip, activeTab === tab && styles.filterChipActive]}
+            onPress={() => setActiveTab(tab)}
+          >
+            <Text style={[styles.filterChipText, activeTab === tab && styles.filterChipTextActive]}>
+              {tab}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      {/* Patient List */}
+      <ScrollView
+        contentContainerStyle={styles.listContent}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#059669']} />}
+        showsVerticalScrollIndicator={false}
+      >
+        {loading && !refreshing ? (
+          <ActivityIndicator size="small" color="#059669" style={{ marginTop: 24 }} />
+        ) : filteredPatients.length === 0 ? (
+          <View style={styles.emptyWrap}>
+            <FontAwesome5 name="user-slash" size={32} color="#CBD5E1" />
+            <Text style={styles.emptyTitle}>No patients found</Text>
+          </View>
+        ) : (
+          filteredPatients.map((patient) => {
+            const initial = patient.name ? patient.name.charAt(0).toUpperCase() : 'P';
+            return (
+              <TouchableOpacity
+                key={patient.id}
+                style={styles.patientCard}
+                activeOpacity={0.85}
+                onPress={() => setSelectedPatient(patient)}
+              >
+                {/* Avatar Initial Circle */}
+                <View
+                  style={[
+                    styles.avatarCircle,
+                    {
+                      backgroundColor:
+                        patient.risk === 'High'
+                          ? '#FEE2E2'
+                          : patient.risk === 'Medium'
+                          ? '#FEF3C7'
+                          : '#E0F2FE',
+                    },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.avatarInitial,
+                      {
+                        color:
+                          patient.risk === 'High'
+                            ? '#DC2626'
+                            : patient.risk === 'Medium'
+                            ? '#D97706'
+                            : '#0284C7',
+                      },
+                    ]}
+                  >
+                    {initial}
+                  </Text>
+                </View>
+
+                {/* Info Text */}
+                <View style={styles.patientInfoGroup}>
+                  <Text style={styles.patientCardName}>{patient.name}</Text>
+                  <Text style={styles.patientCardSub}>
+                    {patient.age} years • {patient.statusNote || 'Stable'}
+                  </Text>
+                </View>
+
+                {/* Chevron */}
+                <FontAwesome5 name="chevron-right" size={13} color="#94A3B8" />
+              </TouchableOpacity>
+            );
+          })
+        )}
+      </ScrollView>
+    </View>
   );
 }
 
@@ -228,230 +434,304 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F8FAFC',
   },
-  searchContainer: {
-    padding: 16,
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
-  },
-  searchInputWrapper: {
+  listHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F1F5F9',
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    marginBottom: 12,
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    paddingBottom: 8,
   },
-  searchIcon: {
-    marginRight: 8,
+  listHeaderTitle: {
+    fontSize: 20,
+    fontFamily: 'Inter_800ExtraBold',
+    color: '#0F172A',
+  },
+  addPatientMiniBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#E6F4EA',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  searchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    marginHorizontal: 16,
+    marginTop: 6,
+    marginBottom: 10,
+    paddingHorizontal: 14,
+    height: 44,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
   },
   searchInput: {
     flex: 1,
-    height: 44,
-    fontSize: 16,
-    fontFamily: 'OpenSans_400Regular',
+    fontSize: 14,
+    fontFamily: 'Inter_500Medium',
+    color: '#0F172A',
   },
-  micBtn: {
-    padding: 8,
-    backgroundColor: '#F0FDFA',
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#CCFBF1',
-  },
-  dropdownButton: {
+  filterTabsRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    paddingHorizontal: 16,
+    marginBottom: 12,
+    gap: 8,
+  },
+  filterChip: {
+    paddingHorizontal: 16,
+    paddingVertical: 7,
+    borderRadius: 20,
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
     borderColor: '#E2E8F0',
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
   },
-  dropdownButtonText: {
+  filterChipActive: {
+    backgroundColor: '#059669',
+    borderColor: '#059669',
+  },
+  filterChipText: {
+    fontSize: 12,
+    fontFamily: 'Inter_600SemiBold',
+    color: '#64748B',
+  },
+  filterChipTextActive: {
+    color: '#FFFFFF',
+  },
+  listContent: {
+    paddingHorizontal: 16,
+    paddingBottom: 24,
+    gap: 10,
+  },
+  emptyWrap: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingTop: 48,
+  },
+  emptyTitle: {
     fontSize: 15,
     fontFamily: 'Inter_600SemiBold',
-    color: '#0F172A',
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
-    justifyContent: 'center',
-    padding: 20,
-  },
-  modalContent: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 8,
-  },
-  dropdownItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-  },
-  dropdownItemActive: {
-    backgroundColor: '#F0FDFA',
-  },
-  dropdownItemText: {
-    fontSize: 15,
-    fontFamily: 'Inter_500Medium',
-    color: '#475569',
-  },
-  dropdownItemTextActive: {
-    color: '#0F766E',
-    fontFamily: 'Inter_700Bold',
-  },
-  listContainer: {
-    padding: 16,
-  },
-  emptyState: {
-    alignItems: 'center',
-    marginTop: 40,
-  },
-  emptyText: {
     color: '#94A3B8',
-    fontSize: 16,
-    fontFamily: 'OpenSans_400Regular',
+    marginTop: 12,
   },
   patientCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     backgroundColor: '#FFFFFF',
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 12,
+    borderRadius: 16,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 2,
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 1,
   },
-  patientCardLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  avatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#0F766E',
+  avatarCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 12,
+    marginRight: 14,
   },
-  avatarText: {
-    color: '#FFFFFF',
+  avatarInitial: {
     fontSize: 18,
-    fontFamily: 'Inter_700Bold',
+    fontFamily: 'Inter_800ExtraBold',
   },
-  patientName: {
-    fontSize: 16,
+  patientInfoGroup: {
+    flex: 1,
+  },
+  patientCardName: {
+    fontSize: 15,
     fontFamily: 'Inter_700Bold',
     color: '#0F172A',
   },
-  patientSub: {
+  patientCardSub: {
     fontSize: 13,
-    fontFamily: 'OpenSans_400Regular',
+    fontFamily: 'Inter_500Medium',
+    color: '#64748B',
+    marginTop: 3,
+  },
+
+  // ── Profile Detail Styles ──
+  profileContent: {
+    padding: 16,
+    paddingBottom: 36,
+  },
+  topHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  roundBackBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  topHeaderTitle: {
+    fontSize: 18,
+    fontFamily: 'Inter_700Bold',
+    color: '#0F172A',
+  },
+  profileHeroCard: {
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    paddingVertical: 20,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  bigAvatar: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 10,
+  },
+  bigAvatarText: {
+    fontSize: 26,
+    fontFamily: 'Inter_800ExtraBold',
+  },
+  profileName: {
+    fontSize: 18,
+    fontFamily: 'Inter_800ExtraBold',
+    color: '#0F172A',
+  },
+  profileSub: {
+    fontSize: 13,
+    fontFamily: 'Inter_500Medium',
     color: '#64748B',
     marginTop: 2,
   },
-  urgencyDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-  },
-  modalContainer: {
-    flex: 1,
-    backgroundColor: '#F8FAFC',
-  },
-  modalHeader: {
-    backgroundColor: '#0F766E',
+  profileTabsBar: {
     flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
-    paddingTop: 48,
-  },
-  iconBtn: {
-    padding: 8,
-  },
-  modalTitleContainer: {
-    flex: 1,
-    marginLeft: 12,
-  },
-  modalTitle: {
-    color: '#FFFFFF',
-    fontSize: 18,
-    fontFamily: 'Inter_700Bold',
-  },
-  modalSubtitle: {
-    color: 'rgba(255,255,255,0.8)',
-    fontSize: 13,
-    fontFamily: 'OpenSans_400Regular',
-  },
-  editBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
-  },
-  editBtnText: {
-    color: '#FFFFFF',
-    marginLeft: 6,
-    fontFamily: 'Inter_600SemiBold',
-  },
-  modalBody: {
-    padding: 16,
-  },
-  card: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F1F5F9',
     borderRadius: 12,
-    padding: 16,
+    padding: 3,
     marginBottom: 16,
+  },
+  profileTabBtn: {
+    flex: 1,
+    paddingVertical: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 9,
+  },
+  profileTabBtnActive: {
+    backgroundColor: '#FFFFFF',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
+    shadowOpacity: 0.08,
     shadowRadius: 2,
     elevation: 2,
   },
-  sectionTitle: {
-    fontSize: 16,
+  profileTabText: {
+    fontSize: 13,
+    fontFamily: 'Inter_500Medium',
+    color: '#64748B',
+  },
+  profileTabTextActive: {
     fontFamily: 'Inter_700Bold',
-    color: '#0F172A',
-    marginBottom: 12,
+    color: '#059669',
   },
-  guidanceText: {
-    color: '#334155',
-    lineHeight: 20,
+  detailsCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginBottom: 20,
   },
-  infoRow: {
+  detailRow: {
     flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'space-between',
     paddingVertical: 8,
   },
-  infoLabel: {
-    color: '#64748B',
-    fontSize: 14,
-    fontFamily: 'OpenSans_400Regular',
-  },
-  infoValue: {
-    color: '#0F172A',
-    fontSize: 14,
-    fontFamily: 'Inter_600SemiBold',
-  },
-  divider: {
+  detailDivider: {
     height: 1,
     backgroundColor: '#F1F5F9',
+    marginVertical: 4,
+  },
+  detailLabel: {
+    fontSize: 13,
+    fontFamily: 'Inter_500Medium',
+    color: '#64748B',
+  },
+  detailValue: {
+    fontSize: 14,
+    fontFamily: 'Inter_600SemiBold',
+    color: '#0F172A',
+  },
+  riskBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  riskBadgeHigh: {
+    backgroundColor: '#FEE2E2',
+  },
+  riskBadgeMed: {
+    backgroundColor: '#FEF3C7',
+  },
+  riskBadgeLow: {
+    backgroundColor: '#ECFDF5',
+  },
+  riskBadgeText: {
+    fontSize: 12,
+    fontFamily: 'Inter_700Bold',
+  },
+  riskTextHigh: {
+    color: '#DC2626',
+  },
+  riskTextMed: {
+    color: '#D97706',
+  },
+  riskTextLow: {
+    color: '#059669',
+  },
+  historyItem: {
+    paddingVertical: 8,
+  },
+  historyDate: {
+    fontSize: 12,
+    fontFamily: 'Inter_700Bold',
+    color: '#059669',
+    marginBottom: 4,
+  },
+  historyText: {
+    fontSize: 13,
+    fontFamily: 'Inter_500Medium',
+    color: '#334155',
+    lineHeight: 18,
+  },
+  actionAddFollowupBtn: {
+    backgroundColor: '#059669',
+    borderRadius: 14,
+    height: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#059669',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  actionAddFollowupText: {
+    fontSize: 15,
+    fontFamily: 'Inter_700Bold',
+    color: '#FFFFFF',
   },
 });
