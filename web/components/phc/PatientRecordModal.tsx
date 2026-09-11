@@ -1,12 +1,12 @@
 import React from "react";
 import { X, MapPin, Stethoscope, Send } from "lucide-react";
-import { Patient } from "@/context/HealthcareContext";
+import { PatientRecord } from "@/lib/healthcareData";
 import { UrgencyBadge } from "@/components/common/Badge";
 
 interface PatientRecordModalProps {
   isOpen: boolean;
   onClose: () => void;
-  patient: Patient | null;
+  patient: PatientRecord | null;
   onOpenConsultation: (patientId: string) => void;
   onOpenReferralModal: (patientId: string) => void;
 }
@@ -162,7 +162,7 @@ export const PatientRecordModal: React.FC<PatientRecordModalProps> = ({
               Medical History & Allergies
             </span>
             <ul className="space-y-2">
-              {patient.medicalHistory.map((h, idx) => (
+              {patient.medicalHistory.map((h: string, idx: number) => (
                 <li key={idx} className="flex items-start gap-2.5 text-slate-700 text-sm font-medium">
                   <span className="w-1.5 h-1.5 rounded-full bg-teal-600 mt-2 shrink-0" />
                   <span>{h}</span>
@@ -180,7 +180,7 @@ export const PatientRecordModal: React.FC<PatientRecordModalProps> = ({
               <p className="text-slate-400 italic text-sm">No previous consultations on record.</p>
             ) : (
               <div className="space-y-4">
-                {patient.consultationHistory.map((c, idx) => (
+                {patient.consultationHistory.map((c: { date: string; doctor: string; facility: string; assessment: string; prescription: string[]; notes: string }, idx: number) => (
                   <div key={idx} className="p-5 bg-white rounded-2xl shadow-xs">
                     <div className="flex items-center justify-between text-slate-500 text-[11px] mb-2 font-medium">
                       <span className="font-bold text-slate-800 text-xs">{c.date}</span>
@@ -189,7 +189,7 @@ export const PatientRecordModal: React.FC<PatientRecordModalProps> = ({
                     <p className="font-black text-slate-900 text-sm mb-1">{c.assessment}</p>
                     <p className="text-slate-600 mb-3 text-sm">{c.notes}</p>
                     <div className="flex flex-wrap gap-2">
-                      {c.prescription.map((rx, rIdx) => (
+                      {c.prescription.map((rx: string, rIdx: number) => (
                         <span
                           key={rIdx}
                           className="px-2.5 py-1 rounded bg-white border border-slate-200 text-slate-700 font-bold text-[11px] shadow-sm"

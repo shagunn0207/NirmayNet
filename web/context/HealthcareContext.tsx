@@ -29,6 +29,17 @@ export interface UserAccount {
   username: string;
   name?: string;
   role: string;
+  facility_name?: string;
+}
+
+export interface UserOut {
+  id: string;
+  name?: string;
+  email?: string;
+  phone?: string;
+  role: string;
+  village?: string;
+  facility_name?: string;
 }
 
 export interface FacilityStatus {
@@ -160,7 +171,7 @@ export const HealthcareProvider: React.FC<{ children: React.ReactNode }> = ({
 
   useEffect(() => {
     try {
-      const sess = localStorage.getItem('niramaynet_web_session');
+      const sess = localStorage.getItem('niramaynet_session');
       if (sess) {
         const parsed = JSON.parse(sess);
         setIsLoggedIn(true);
@@ -170,14 +181,14 @@ export const HealthcareProvider: React.FC<{ children: React.ReactNode }> = ({
         else if (parsed.user.role === 'DHO') setCurrentRole('dho');
         else setCurrentRole('phc-doctor');
       }
-    } catch {}
+    } catch { }
   }, []);
 
   const login = (userData: any, token: string) => {
     setIsLoggedIn(true);
     setCurrentUser(userData);
     setAuthToken(token);
-    localStorage.setItem('niramaynet_web_session', JSON.stringify({ user: userData, token }));
+    localStorage.setItem('niramaynet_session', JSON.stringify({ user: userData, token }));
     if (userData.role === 'HOSPITAL') setCurrentRole('district-hospital');
     else if (userData.role === 'DHO') setCurrentRole('dho');
     else setCurrentRole('phc-doctor');
@@ -187,7 +198,7 @@ export const HealthcareProvider: React.FC<{ children: React.ReactNode }> = ({
     setIsLoggedIn(false);
     setCurrentUser(null);
     setAuthToken(null);
-    localStorage.removeItem('niramaynet_web_session');
+    localStorage.removeItem('niramaynet_session');
     if (typeof window !== 'undefined') window.location.href = '/';
   };
 
@@ -301,7 +312,7 @@ export const HealthcareProvider: React.FC<{ children: React.ReactNode }> = ({
     try {
       let tokenToUse = authToken;
       if (!tokenToUse) {
-        const sess = localStorage.getItem('niramaynet_web_session');
+        const sess = localStorage.getItem('niramaynet_session');
         if (sess) tokenToUse = JSON.parse(sess).token;
       }
       if (!tokenToUse) return;
@@ -330,12 +341,12 @@ export const HealthcareProvider: React.FC<{ children: React.ReactNode }> = ({
           q.triage_category === "EMERGENCY"
             ? "EMERGENCY"
             : q.triage_category === "URGENT"
-            ? "URGENT"
-            : q.referral_reason?.includes("EMERGENCY")
-            ? "EMERGENCY"
-            : q.referral_reason?.includes("URGENT")
-            ? "URGENT"
-            : "ROUTINE";
+              ? "URGENT"
+              : q.referral_reason?.includes("EMERGENCY")
+                ? "EMERGENCY"
+                : q.referral_reason?.includes("URGENT")
+                  ? "URGENT"
+                  : "ROUTINE";
 
         return {
           id: q.referral_code || q.referral_id,
@@ -578,7 +589,7 @@ export const HealthcareProvider: React.FC<{ children: React.ReactNode }> = ({
 
       let tokenToUse = authToken;
       if (!tokenToUse) {
-        const sess = localStorage.getItem('niramaynet_web_session');
+        const sess = localStorage.getItem('niramaynet_session');
         if (sess) tokenToUse = JSON.parse(sess).token;
       }
       if (!tokenToUse) {
@@ -627,9 +638,9 @@ export const HealthcareProvider: React.FC<{ children: React.ReactNode }> = ({
       prev.map((ref) =>
         ref.id === id
           ? {
-              ...ref,
-              hospitalNotes: `[INFO REQUESTED by DH]: ${note}\n${ref.hospitalNotes || ""}`,
-            }
+            ...ref,
+            hospitalNotes: `[INFO REQUESTED by DH]: ${note}\n${ref.hospitalNotes || ""}`,
+          }
           : ref
       )
     );
@@ -709,9 +720,9 @@ export const HealthcareProvider: React.FC<{ children: React.ReactNode }> = ({
       prev.map((fu) =>
         fu.id === id
           ? {
-              ...fu,
-              status: fu.status === "Completed" ? "Upcoming" : "Completed",
-            }
+            ...fu,
+            status: fu.status === "Completed" ? "Upcoming" : "Completed",
+          }
           : fu
       )
     );
@@ -831,15 +842,14 @@ export const HealthcareProvider: React.FC<{ children: React.ReactNode }> = ({
         {toasts.map((toast) => (
           <div
             key={toast.id}
-            className={`pointer-events-auto shadow-xl rounded-xl border p-4 transition-all duration-300 transform translate-y-0 flex items-start justify-between gap-3 ${
-              toast.type === "success"
+            className={`pointer-events-auto shadow-xl rounded-xl border p-4 transition-all duration-300 transform translate-y-0 flex items-start justify-between gap-3 ${toast.type === "success"
                 ? "bg-emerald-900/95 text-white border-emerald-700"
                 : toast.type === "error"
-                ? "bg-rose-900/95 text-white border-rose-700"
-                : toast.type === "warning"
-                ? "bg-amber-900/95 text-white border-amber-700"
-                : "bg-slate-900/95 text-white border-slate-700"
-            }`}
+                  ? "bg-rose-900/95 text-white border-rose-700"
+                  : toast.type === "warning"
+                    ? "bg-amber-900/95 text-white border-amber-700"
+                    : "bg-slate-900/95 text-white border-slate-700"
+              }`}
           >
             <div>
               <p className="font-bold text-sm tracking-wide">{toast.title}</p>
