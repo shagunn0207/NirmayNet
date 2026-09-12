@@ -58,14 +58,9 @@ export default function CreateReferralScreen() {
   );
 
   // Form state
-  const [patients, setPatients] = useState<PatientOption[]>([
-    { id: '11111111-1111-1111-1111-111111111111', name: 'Rekha Patil', village: 'Chinchpada' },
-    { id: '22222222-2222-2222-2222-222222222222', name: 'Sunita Kamble', village: 'Nandgaon' },
-  ]);
+  const [patients, setPatients] = useState<PatientOption[]>([]);
 
-  const [selectedPatientId, setSelectedPatientId] = useState<string>(
-    (params.patientId as string) || '11111111-1111-1111-1111-111111111111'
-  );
+  const [selectedPatientId, setSelectedPatientId] = useState<string>((params.patientId as string) || '');
   const [selectedReason, setSelectedReason] = useState<string>(COMMON_REASONS[0]);
   const [customReason, setCustomReason] = useState('');
   const [priority, setPriority] = useState<'Normal' | 'Urgent' | 'Emergency'>(
@@ -370,7 +365,7 @@ export default function CreateReferralScreen() {
     }
   };
 
-  const selectedPatientObj = patients.find(p => p.id === selectedPatientId) || patients[0];
+  const selectedPatientObj = patients.find(p => p.id === selectedPatientId);
 
   const getStatusBadge = (st: string) => {
     switch (st?.toUpperCase()) {
@@ -844,9 +839,9 @@ export default function CreateReferralScreen() {
                         style={[
                           styles.priorityChip,
                           isSelected &&
-                            (pr === 'Emergency'
-                              ? styles.priorityEmergency
-                              : pr === 'Urgent'
+                          (pr === 'Emergency'
+                            ? styles.priorityEmergency
+                            : pr === 'Urgent'
                               ? styles.priorityUrgent
                               : styles.priorityNormal),
                         ]}

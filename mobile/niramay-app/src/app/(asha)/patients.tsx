@@ -20,7 +20,6 @@ interface Patient {
   allergies?: string;
   risk?: 'Low' | 'Medium' | 'High';
   statusNote?: string;
-  triageCategory?: 'EMERGENCY' | 'URGENT' | 'ROUTINE';
   lastVisit?: string;
   nextFollowup?: string;
 }
@@ -304,7 +303,7 @@ export default function PatientsScreen() {
             style={[styles.actionHalfBtn, styles.actionHalfBtnReferral]}
             activeOpacity={0.85}
             onPress={() => {
-              router.push({
+              router.navigate({
                 pathname: '/(asha)/referral',
                 params: {
                   patientId: selectedPatient.id,

@@ -13,14 +13,45 @@ type AgeUnit = 'Years' | 'Months' | 'Weeks';
 type Gender = 'Female' | 'Male' | 'Other';
 
 const SYMPTOM_OPTIONS = [
-  { id: 'fever', label: 'Fever' },
-  { id: 'breathing', label: 'Breathing difficulty' },
+  // Common / routine symptoms
+  { id: 'cold', label: 'Cold / Runny nose' },
+  { id: 'cough', label: 'Cough' },
+  { id: 'fever', label: 'Mild fever' },
   { id: 'headache', label: 'Headache' },
-  { id: 'weakness', label: 'Weakness' },
-  { id: 'vomiting', label: 'Vomiting' },
-  { id: 'pregnancy', label: 'Pregnancy' },
-  { id: 'child_under_5', label: 'Child < 5' },
-  { id: 'chronic', label: 'Chronic illness' },
+  { id: 'body_ache', label: 'Body ache' },
+  { id: 'sore_throat', label: 'Sore throat' },
+  { id: 'weakness', label: 'Mild weakness / fatigue' },
+  { id: 'mild_stomach_discomfort', label: 'Mild stomach discomfort' },
+  { id: 'skin_problem', label: 'Minor skin problem' },
+  { id: 'routine_checkup', label: 'Routine check-up' },
+
+  // Urgent symptoms
+  { id: 'high_fever', label: 'High / persistent fever' },
+  { id: 'repeated_vomiting', label: 'Repeated vomiting' },
+  { id: 'diarrhea', label: 'Diarrhea' },
+  { id: 'dehydration', label: 'Signs of dehydration' },
+  { id: 'abdominal_pain', label: 'Moderate abdominal pain' },
+  { id: 'persistent_cough', label: 'Persistent cough' },
+  { id: 'ear_pain', label: 'Ear pain' },
+  { id: 'urinary_symptoms', label: 'Urinary symptoms / burning urination' },
+  { id: 'dizziness', label: 'Dizziness / fainting' },
+  { id: 'severe_weakness', label: 'Severe weakness' },
+  { id: 'swollen_feet', label: 'Swelling of feet' },
+  { id: 'pregnancy', label: 'Pregnancy-related concern' },
+  { id: 'child_under_5', label: 'Child under 5 with concerning symptoms' },
+
+  // Emergency symptoms
+  { id: 'breathing', label: 'Severe breathing difficulty' },
+  { id: 'chest_pain', label: 'Severe chest pain' },
+  { id: 'unconscious', label: 'Unconscious / unresponsive' },
+  { id: 'convulsions', label: 'Seizure / convulsions' },
+  { id: 'severe_bleeding', label: 'Severe / uncontrolled bleeding' },
+  { id: 'severe_allergic_reaction', label: 'Severe allergic reaction' },
+  { id: 'snake_bite', label: 'Snake bite' },
+  { id: 'serious_injury', label: 'Serious injury / trauma' },
+  { id: 'stroke_signs', label: 'Sudden weakness / facial drooping / speech difficulty' },
+  { id: 'severe_burns', label: 'Severe burns' },
+  { id: 'severe_pregnancy_complication', label: 'Severe pregnancy complication' },
 ];
 
 export default function RegisterPatientScreen() {
@@ -50,7 +81,7 @@ export default function RegisterPatientScreen() {
   const [allergies, setAllergies] = useState('');
 
   // Step 2: Health Info / Assessment
-  const [chiefComplaint, setChiefComplaint] = useState('High fever with cough');
+  const [chiefComplaint, setChiefComplaint] = useState('Fever with cough');
   const [selectedSymptoms, setSelectedSymptoms] = useState<string[]>(['fever']);
   const [otherSymptoms, setOtherSymptoms] = useState('');
   const [medicalHistory, setMedicalHistory] = useState('None');
@@ -75,7 +106,7 @@ export default function RegisterPatientScreen() {
       setVillage(user?.village || 'Chinchpada');
       setAbhaId('');
       setAllergies('');
-      setChiefComplaint('High fever with cough');
+      setChiefComplaint('Fever with cough');
       setSelectedSymptoms(['fever']);
       setOtherSymptoms('');
       setMedicalHistory('None');
@@ -129,7 +160,7 @@ export default function RegisterPatientScreen() {
         allergies: allergies.trim() || undefined,
       };
 
-      let patientId: string = `temp-${Date.now()}`;
+      let patientId: string;
       let patientOnlineSuccess = false;
 
       try {
@@ -139,20 +170,29 @@ export default function RegisterPatientScreen() {
           body: JSON.stringify(patientPayload),
         });
 
-        if (pRes.ok) {
-          const pData = await pRes.json();
-          patientId = String(pData.id);
-          patientOnlineSuccess = true;
-          setCreatedPatientId(pData.id);
+        if (!pRes.ok) {
+          const errorText = await pRes.text();
+          throw new Error(`Patient registration failed (${pRes.status}): ${errorText}`);
         }
-      } catch {
-        // Network offline
-      }
 
-      if (!patientOnlineSuccess) {
-        // Queue patient registration locally for background sync
+        const pData = await pRes.json();
+
+        if (!pData.id) {
+          throw new Error('Patient registration succeeded but no patient ID was returned.');
+        }
+
+        patientId = String(pData.id);
+        patientOnlineSuccess = true;
         setCreatedPatientId(patientId);
-        await enqueuePatientRegistration(patientPayload, patientId);
+      } catch (error) {
+        // Queue only when the network request itself fails.
+        if (error instanceof TypeError) {
+          patientId = `temp-${Date.now()}`;
+          setCreatedPatientId(patientId);
+          await enqueuePatientRegistration(patientPayload, patientId);
+        } else {
+          throw error;
+        }
       }
 
       // 2. Assess Triage
@@ -189,18 +229,31 @@ export default function RegisterPatientScreen() {
       }
 
       if (!triageOnlineSuccess) {
-        // Local rule evaluation fallback
-        if (selectedSymptoms.includes('breathing') && selectedSymptoms.includes('pregnancy')) {
+        // Local rule evaluation fallback: severity-based, not symptom-count based.
+        const emergencySymptoms = new Set([
+          'breathing', 'chest_pain', 'unconscious', 'convulsions',
+          'severe_bleeding', 'severe_allergic_reaction', 'snake_bite',
+          'serious_injury', 'stroke_signs', 'severe_burns',
+          'severe_pregnancy_complication',
+        ]);
+        const urgentSymptoms = new Set([
+          'high_fever', 'repeated_vomiting', 'diarrhea', 'dehydration',
+          'abdominal_pain', 'persistent_cough', 'ear_pain',
+          'urinary_symptoms', 'dizziness', 'severe_weakness',
+          'swollen_feet', 'pregnancy', 'child_under_5',
+        ]);
+
+        if (selectedSymptoms.some(symptom => emergencySymptoms.has(symptom))) {
           setTriageCategory('EMERGENCY');
-          setTriageReason('Respiratory distress with pregnancy complication. Immediate emergency care required.');
+          setTriageReason('Emergency symptoms detected. Immediate medical attention is required.');
           calculatedPriority = 'Emergency';
-        } else if (selectedSymptoms.length >= 2 || selectedSymptoms.includes('breathing')) {
+        } else if (selectedSymptoms.some(symptom => urgentSymptoms.has(symptom))) {
           setTriageCategory('URGENT');
-          setTriageReason('Moderate symptoms requiring doctor consultation within 24 hours.');
+          setTriageReason('Symptoms require prompt medical review.');
           calculatedPriority = 'Urgent';
         } else {
           setTriageCategory('ROUTINE');
-          setTriageReason('Mild symptoms. Routine care and home monitoring advised.');
+          setTriageReason('Symptoms are suitable for routine care and monitoring.');
           calculatedPriority = 'Routine';
         }
         // Queue triage persistence locally for background sync
